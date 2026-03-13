@@ -320,7 +320,6 @@
         const draftRef = ref(db, 'draft2026');
         const connectedRef = ref(db, ".info/connected");
     
-        // Master Data
         const rawData = [
             {n:"Ruturaj Gaikwad", t:"CSK", r:"Batter", o:false}, {n:"Ayush Mhatre", t:"CSK", r:"Batter", o:false}, {n:"Dewald Brevis", t:"CSK", r:"Batter", o:true}, {n:"MS Dhoni", t:"CSK", r:"Wicketkeeper", o:false}, {n:"Urvil Patel", t:"CSK", r:"Wicketkeeper", o:false}, {n:"Shivam Dube", t:"CSK", r:"All-Rounder", o:false}, {n:"Jamie Overton", t:"CSK", r:"All-Rounder", o:true}, {n:"Ramakrishna Ghosh", t:"CSK", r:"Bowler", o:false}, {n:"Noor Ahmad", t:"CSK", r:"Bowler", o:true}, {n:"Khaleel Ahmed", t:"CSK", r:"Bowler", o:false}, {n:"Anshul Kamboj", t:"CSK", r:"All-Rounder", o:false}, {n:"Gurjapneet Singh", t:"CSK", r:"Bowler", o:false}, {n:"Nathan Ellis", t:"CSK", r:"Bowler", o:true}, {n:"Shreyas Gopal", t:"CSK", r:"Bowler", o:false}, {n:"Mukesh Choudhary", t:"CSK", r:"Bowler", o:false}, {n:"Sanju Samson", t:"CSK", r:"Wicketkeeper", o:false}, {n:"Akeal Hosein", t:"CSK", r:"Bowler", o:true}, {n:"Prashant Veer", t:"CSK", r:"All-Rounder", o:false}, {n:"Kartik Sharma", t:"CSK", r:"Batter", o:false}, {n:"Matthew Short", t:"CSK", r:"All-Rounder", o:true}, {n:"Aman Khan", t:"CSK", r:"All-Rounder", o:false}, {n:"Sarfaraz Khan", t:"CSK", r:"Batter", o:false}, {n:"Matt Henry", t:"CSK", r:"Bowler", o:true}, {n:"Rahul Chahar", t:"CSK", r:"Bowler", o:false}, {n:"Zak Foulkes", t:"CSK", r:"All-Rounder", o:true},
             {n:"Rohit Sharma", t:"MI", r:"Batter", o:false}, {n:"Suryakumar Yadav", t:"MI", r:"Batter", o:false}, {n:"Tilak Varma", t:"MI", r:"Batter", o:false}, {n:"Robin Minz", t:"MI", r:"Wicketkeeper", o:false}, {n:"Ryan Rickelton", t:"MI", r:"Wicketkeeper", o:true}, {n:"Hardik Pandya", t:"MI", r:"All-Rounder", o:false}, {n:"Naman Dhir", t:"MI", r:"All-Rounder", o:false}, {n:"Mitchell Santner", t:"MI", r:"All-Rounder", o:true}, {n:"Will Jacks", t:"MI", r:"All-Rounder", o:true}, {n:"Corbin Bosch", t:"MI", r:"All-Rounder", o:true}, {n:"Raj Bawa", t:"MI", r:"All-Rounder", o:false}, {n:"Trent Boult", t:"MI", r:"Bowler", o:true}, {n:"Jasprit Bumrah", t:"MI", r:"Bowler", o:false}, {n:"Deepak Chahar", t:"MI", r:"Bowler", o:false}, {n:"Ashwani Kumar", t:"MI", r:"Bowler", o:false}, {n:"Raghu Sharma", t:"MI", r:"Bowler", o:false}, {n:"AM Ghazanfar", t:"MI", r:"Bowler", o:true}, {n:"Shardul Thakur", t:"MI", r:"All-Rounder", o:false}, {n:"Sherfane Rutherford", t:"MI", r:"Batter", o:true}, {n:"Mayank Markande", t:"MI", r:"Bowler", o:false}, {n:"Quinton de Kock", t:"MI", r:"Wicketkeeper", o:true}, {n:"Danish Malewar", t:"MI", r:"Batter", o:false}, {n:"Mohammad Izhar", t:"MI", r:"Batter", o:false}, {n:"Atharva Ankolekar", t:"MI", r:"All-Rounder", o:false}, {n:"Mayank Rawat", t:"MI", r:"All-Rounder", o:false},
@@ -356,7 +355,7 @@
             }
         });
 
-        // Live Data Listener & Fix for Empty Roster UI
+        // Live Data Listener & Crash Prevention
         onValue(draftRef, (snapshot) => {
             const data = snapshot.val();
             
@@ -365,9 +364,16 @@
 
             if (data && data.fantasyTeams) {
                 // A DRAFT EXISTS
-                players = data.players || players;
-                fantasyTeams = data.fantasyTeams;
-                draftOrder = data.draftOrder || [];
+                // Force Firebase Objects back into strict JavaScript Arrays
+                players = Array.isArray(data.players) ? data.players : Object.values(data.players || {});
+                fantasyTeams = Array.isArray(data.fantasyTeams) ? data.fantasyTeams : Object.values(data.fantasyTeams || {});
+                draftOrder = Array.isArray(data.draftOrder) ? data.draftOrder : Object.values(data.draftOrder || {});
+                
+                // Fix internal team rosters
+                fantasyTeams.forEach(team => {
+                    team.roster = Array.isArray(team.roster) ? team.roster : Object.values(team.roster || {});
+                });
+
                 currentPickIndex = data.currentPickIndex || 0;
                 maxPlayersPerTeam = data.maxPlayersPerTeam || 15;
     
@@ -378,7 +384,7 @@
     
                 updateDraftUI();
                 updateTeamsUI();
-                updateRosterUI(); // Render the roster based on live draft data
+                updateRosterUI(); 
             } else {
                 // NO DRAFT EXISTS
                 if (initialLoad) {
@@ -386,10 +392,11 @@
                     initialLoad = false;
                 }
                 
-                // FORCE THE ROSTER TO RESET AND DRAW EVEN IF THE DB IS EMPTY
+                // Reset arrays completely
                 players = rawData.map((p, i) => ({
                     id: i, name: p.n, iplTeam: p.t, role: p.r, isOverseas: p.o, draftedBy: null
                 }));
+                
                 updateRosterUI(); 
                 updateTeamsUI();
             }
@@ -423,7 +430,7 @@
             const num = document.getElementById('numTeams').value;
             maxPlayersPerTeam = document.getElementById('playersPerTeam').value;
             
-            // RESET PLAYERS ARRAY TO CLEAR PREVIOUS DRAFTS
+            // RESET PLAYERS ARRAY
             players = rawData.map((p, i) => ({
                 id: i, name: p.n, iplTeam: p.t, role: p.r, isOverseas: p.o, draftedBy: null
             }));
@@ -463,8 +470,7 @@
             const overseas = document.getElementById('filterOverseas').value;
             const select = document.getElementById('playerSelect');
             
-            select.innerHTML = '';
-            
+            let htmlBuffer = '';
             let filtered = players.filter(p => !p.draftedBy);
     
             if (search) filtered = filtered.filter(p => p.name.toLowerCase().includes(search));
@@ -474,11 +480,10 @@
             if (overseas === 'Overseas') filtered = filtered.filter(p => p.isOverseas);
     
             filtered.forEach(p => {
-                let opt = document.createElement('option');
-                opt.value = p.id;
-                opt.textContent = `${p.name} — ${p.iplTeam} | ${p.role} ${p.isOverseas ? '[✈️ OS]' : ''}`;
-                select.appendChild(opt);
+                htmlBuffer += `<option value="${p.id}">${p.name} — ${p.iplTeam} | ${p.role} ${p.isOverseas ? '[✈️ OS]' : ''}</option>`;
             });
+            
+            select.innerHTML = htmlBuffer;
         };
     
         function updateDraftUI() {
@@ -493,13 +498,11 @@
             document.getElementById('currentPickDisplay').innerHTML = `<span style="color:var(--text-muted); font-size: 0.7em; display:block; margin-bottom:5px;">Round ${round}</span> ${currentTeam} is on the clock!`;
             
             const list = document.getElementById('upcomingOrderList');
-            list.innerHTML = '';
+            let listHtml = '';
             for(let i = currentPickIndex; i < Math.min(currentPickIndex + 5, draftOrder.length); i++) {
-                let li = document.createElement('li');
-                li.textContent = draftOrder[i].name;
-                if (i === currentPickIndex) li.classList.add('active-pick');
-                list.appendChild(li);
+                listHtml += `<li class="${i === currentPickIndex ? 'active-pick' : ''}">${draftOrder[i].name}</li>`;
             }
+            list.innerHTML = listHtml;
     
             window.populateDraftDropdown();
             document.getElementById('draftAlert').style.display = 'none';
@@ -536,10 +539,11 @@
     
         function updateTeamsUI() {
             const grid = document.getElementById('teamGrid');
-            grid.innerHTML = '';
+            let gridHtml = '';
+            
             fantasyTeams.forEach(team => {
                 let osCount = team.roster.filter(p => p.isOverseas).length;
-                let html = `<div class="team-card glass-panel">
+                gridHtml += `<div class="team-card glass-panel">
                     <h3 style="margin: 0 0 5px 0;">${team.name}</h3>
                     <div style="display:flex; justify-content: space-between; font-size: 0.85em; color: var(--text-muted);">
                         <span>Roster: ${team.roster.length}/${maxPlayersPerTeam}</span>
@@ -547,21 +551,23 @@
                     </div>
                     <ul>`;
                 team.roster.forEach(p => {
-                    html += `<li>
+                    gridHtml += `<li>
                         <span style="font-weight: 600;">${p.name} <span style="font-weight:400; color:var(--text-muted); font-size:0.9em;">(${p.role})</span></span> 
                         ${p.isOverseas ? '<span class="overseas-badge">✈️ OS</span>' : ''}
                     </li>`;
                 });
-                html += `</ul></div>`;
-                grid.innerHTML += html;
+                gridHtml += `</ul></div>`;
             });
+            
+            grid.innerHTML = gridHtml;
         }
     
         function updateRosterUI() {
             const tbody = document.querySelector('#globalRosterTable tbody');
-            tbody.innerHTML = '';
+            let htmlBuffer = '';
+            
             players.forEach(p => {
-                tbody.innerHTML += `<tr>
+                htmlBuffer += `<tr>
                     <td style="font-weight: 600;">${p.name}</td>
                     <td>${p.iplTeam}</td>
                     <td>${p.role}</td>
@@ -569,6 +575,8 @@
                     <td style="font-weight:700; color: ${p.draftedBy ? 'var(--cream)' : 'var(--text-muted)'}">${p.draftedBy || 'Undrafted'}</td>
                 </tr>`;
             });
+            
+            tbody.innerHTML = htmlBuffer;
         }
     
         window.exportCSV = function() {
