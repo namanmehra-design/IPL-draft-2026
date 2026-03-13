@@ -68,6 +68,7 @@
             margin-bottom: 25px; 
             padding: 10px;
             justify-content: center;
+            flex-wrap: wrap;
         }
         .nav-tabs button { 
             background: rgba(255, 255, 255, 0.05); 
@@ -196,6 +197,7 @@
     </h1>
 
     <div class="nav-tabs glass-panel" id="navTabs" style="display: none;">
+        <button id="btn-setup" onclick="switchTab('setup')">Setup & Reset</button>
         <button id="btn-draft" onclick="switchTab('draft')">Draft Room</button>
         <button id="btn-teams" onclick="switchTab('teams')">Team Rosters</button>
         <button id="btn-roster" onclick="switchTab('roster')">Global Player Roster</button>
@@ -208,9 +210,8 @@
 
     <div id="setup-tab" class="tab-content glass-panel">
         <div class="disclaimer">
-            <strong>⚠️ IMPORTANT DISCLAIMER:</strong> This is the <b>Initiation Page</b>. 
-            Only the League Commissioner should fill out this form. Initializing the engine here will 
-            generate the draft order and push the data to the live server. Once initialized, this setup module will lock.
+            <strong>⚠️ IMPORTANT DISCLAIMER:</strong> This is the <b>Initiation & Reset Page</b>. 
+            Clicking the Initialize button will <b>completely wipe</b> the current database, erase all drafted players, generate a new draft order, and restart the entire process from scratch. Only the League Commissioner should use this!
         </div>
         <h2>Draft Setup</h2>
         <div class="form-group">
@@ -222,7 +223,7 @@
             <input type="number" id="playersPerTeam" min="1" max="20" value="15">
         </div>
         <div id="teamNamesContainer" style="margin-top: 30px; border-top: 1px solid var(--glass-border); padding-top: 20px;"></div>
-        <button onclick="startDraft()" style="margin-top: 20px; width: 100%; max-width: 350px;">Initialize Draft Engine</button>
+        <button onclick="startDraft()" style="margin-top: 20px; width: 100%; max-width: 350px; background-color: var(--danger); color: white;">Initialize & Reset Draft Engine</button>
     </div>
 
     <div id="draft-tab" class="tab-content glass-panel">
@@ -341,6 +342,7 @@
         let maxPlayersPerTeam = 15;
         let draftOrder = [];
         let currentPickIndex = 0;
+        let initialLoad = true;
     
         // Track Live Connection (Green/Red Dot)
         onValue(connectedRef, (snap) => {
@@ -354,41 +356,35 @@
             }
         });
 
-        // Live Data Listener & State Lock
+        // Live Data Listener
         onValue(draftRef, (snapshot) => {
             const data = snapshot.val();
             
-            // Hide the initial loading screen
             document.getElementById('loading-tab').style.display = 'none';
+            document.getElementById('navTabs').style.display = 'flex';
 
-            if (data && data.fantasyTeams && data.fantasyTeams.length > 0) {
-                // A DRAFT EXISTS! 
-                // Force sync data and strictly hide the Setup tab to prevent resets.
+            if (data && data.fantasyTeams) {
+                // A DRAFT EXISTS
                 players = data.players || players;
                 fantasyTeams = data.fantasyTeams;
                 draftOrder = data.draftOrder || [];
                 currentPickIndex = data.currentPickIndex || 0;
                 maxPlayersPerTeam = data.maxPlayersPerTeam || 15;
     
-                document.getElementById('setup-tab').style.display = 'none';
-                document.getElementById('navTabs').style.display = 'flex';
-                
-                // If they are on a hidden tab or setup tab, push them to the draft room
-                const activeTab = document.querySelector('.tab-content.active');
-                if (!activeTab || activeTab.id === 'setup-tab') {
+                if (initialLoad) {
                     window.switchTab('draft');
+                    initialLoad = false;
                 }
     
                 updateDraftUI();
                 updateTeamsUI();
                 updateRosterUI();
             } else {
-                // NO DRAFT EXISTS!
-                // Show the setup tab
-                document.getElementById('setup-tab').style.display = 'block';
-                document.getElementById('setup-tab').classList.add('active');
-                document.getElementById('navTabs').style.display = 'none';
-                document.getElementById('draft-tab').classList.remove('active');
+                // NO DRAFT EXISTS
+                if (initialLoad) {
+                    window.switchTab('setup');
+                    initialLoad = false;
+                }
             }
         });
     
@@ -407,12 +403,8 @@
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.nav-tabs button').forEach(el => el.classList.remove('active'));
             
-            // Prevent going to setup tab once draft has started
-            if (tabId === 'setup' && fantasyTeams.length > 0) return;
-
             document.getElementById(tabId + '-tab').classList.add('active');
             
-            // Some tabs don't have buttons (like setup/loading), so handle safely
             const btn = document.getElementById('btn-' + tabId);
             if (btn) btn.classList.add('active');
         };
@@ -421,6 +413,11 @@
             const num = document.getElementById('numTeams').value;
             maxPlayersPerTeam = document.getElementById('playersPerTeam').value;
             
+            // RESET PLAYERS ARRAY TO CLEAR PREVIOUS DRAFTS
+            players = rawData.map((p, i) => ({
+                id: i, name: p.n, iplTeam: p.t, role: p.r, isOverseas: p.o, draftedBy: null
+            }));
+
             fantasyTeams = [];
             let tempTeams = [];
             for (let i = 1; i <= num; i++) {
@@ -445,6 +442,9 @@
                 currentPickIndex: 0,
                 maxPlayersPerTeam: maxPlayersPerTeam
             });
+
+            // Automatically push user to the fresh draft room after resetting
+            window.switchTab('draft');
         };
     
         window.populateDraftDropdown = function() {
