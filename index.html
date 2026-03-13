@@ -1,0 +1,265 @@
+<script type="module">
+    // 1. Import Firebase
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+    import { getFirestore, doc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+    // 2. Your Firebase Config (from your screenshot)
+    const firebaseConfig = {
+        apiKey: "AIzaSyBlHdz4Vu1kMlEjwXs-dcDwFeHGhjSSb3I",
+        authDomain: "ipl-2026-draft.firebaseapp.com",
+        projectId: "ipl-2026-draft",
+        storageBucket: "ipl-2026-draft.firebasestorage.app",
+        messagingSenderId: "5757407923",
+        appId: "1:5757407923:web:6afc487aed6cf15fb516c6",
+        measurementId: "G-Z1K8YE1Q5N"
+    };
+
+    // 3. Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const draftDocRef = doc(db, "drafts", "draft2026");
+
+    // 4. Data Setup (Kept exactly as your original)
+    const rawData = [
+        // CSK
+        {n:"Ruturaj Gaikwad", t:"CSK", r:"Batter", o:false}, {n:"Ayush Mhatre", t:"CSK", r:"Batter", o:false}, {n:"Dewald Brevis", t:"CSK", r:"Batter", o:true}, {n:"MS Dhoni", t:"CSK", r:"Wicketkeeper", o:false}, {n:"Urvil Patel", t:"CSK", r:"Wicketkeeper", o:false}, {n:"Shivam Dube", t:"CSK", r:"All-Rounder", o:false}, {n:"Jamie Overton", t:"CSK", r:"All-Rounder", o:true}, {n:"Ramakrishna Ghosh", t:"CSK", r:"Bowler", o:false}, {n:"Noor Ahmad", t:"CSK", r:"Bowler", o:true}, {n:"Khaleel Ahmed", t:"CSK", r:"Bowler", o:false}, {n:"Anshul Kamboj", t:"CSK", r:"All-Rounder", o:false}, {n:"Gurjapneet Singh", t:"CSK", r:"Bowler", o:false}, {n:"Nathan Ellis", t:"CSK", r:"Bowler", o:true}, {n:"Shreyas Gopal", t:"CSK", r:"Bowler", o:false}, {n:"Mukesh Choudhary", t:"CSK", r:"Bowler", o:false}, {n:"Sanju Samson", t:"CSK", r:"Wicketkeeper", o:false}, {n:"Akeal Hosein", t:"CSK", r:"Bowler", o:true}, {n:"Prashant Veer", t:"CSK", r:"All-Rounder", o:false}, {n:"Kartik Sharma", t:"CSK", r:"Batter", o:false}, {n:"Matthew Short", t:"CSK", r:"All-Rounder", o:true}, {n:"Aman Khan", t:"CSK", r:"All-Rounder", o:false}, {n:"Sarfaraz Khan", t:"CSK", r:"Batter", o:false}, {n:"Matt Henry", t:"CSK", r:"Bowler", o:true}, {n:"Rahul Chahar", t:"CSK", r:"Bowler", o:false}, {n:"Zak Foulkes", t:"CSK", r:"All-Rounder", o:true},
+        // MI
+        {n:"Rohit Sharma", t:"MI", r:"Batter", o:false}, {n:"Suryakumar Yadav", t:"MI", r:"Batter", o:false}, {n:"Tilak Varma", t:"MI", r:"Batter", o:false}, {n:"Robin Minz", t:"MI", r:"Wicketkeeper", o:false}, {n:"Ryan Rickelton", t:"MI", r:"Wicketkeeper", o:true}, {n:"Hardik Pandya", t:"MI", r:"All-Rounder", o:false}, {n:"Naman Dhir", t:"MI", r:"All-Rounder", o:false}, {n:"Mitchell Santner", t:"MI", r:"All-Rounder", o:true}, {n:"Will Jacks", t:"MI", r:"All-Rounder", o:true}, {n:"Corbin Bosch", t:"MI", r:"All-Rounder", o:true}, {n:"Raj Bawa", t:"MI", r:"All-Rounder", o:false}, {n:"Trent Boult", t:"MI", r:"Bowler", o:true}, {n:"Jasprit Bumrah", t:"MI", r:"Bowler", o:false}, {n:"Deepak Chahar", t:"MI", r:"Bowler", o:false}, {n:"Ashwani Kumar", t:"MI", r:"Bowler", o:false}, {n:"Raghu Sharma", t:"MI", r:"Bowler", o:false}, {n:"AM Ghazanfar", t:"MI", r:"Bowler", o:true}, {n:"Shardul Thakur", t:"MI", r:"All-Rounder", o:false}, {n:"Sherfane Rutherford", t:"MI", r:"Batter", o:true}, {n:"Mayank Markande", t:"MI", r:"Bowler", o:false}, {n:"Quinton de Kock", t:"MI", r:"Wicketkeeper", o:true}, {n:"Danish Malewar", t:"MI", r:"Batter", o:false}, {n:"Mohammad Izhar", t:"MI", r:"Batter", o:false}, {n:"Atharva Ankolekar", t:"MI", r:"All-Rounder", o:false}, {n:"Mayank Rawat", t:"MI", r:"All-Rounder", o:false},
+        // KKR
+        {n:"Ajinkya Rahane", t:"KKR", r:"Batter", o:false}, {n:"Angkrish Raghuvanshi", t:"KKR", r:"Batter", o:false}, {n:"Anukul Roy", t:"KKR", r:"All-Rounder", o:false}, {n:"Harshit Rana", t:"KKR", r:"Bowler", o:false}, {n:"Manish Pandey", t:"KKR", r:"Batter", o:false}, {n:"Ramandeep Singh", t:"KKR", r:"All-Rounder", o:false}, {n:"Rinku Singh", t:"KKR", r:"Batter", o:false}, {n:"Rovman Powell", t:"KKR", r:"Batter", o:true}, {n:"Sunil Narine", t:"KKR", r:"All-Rounder", o:true}, {n:"Umran Malik", t:"KKR", r:"Bowler", o:false}, {n:"Vaibhav Arora", t:"KKR", r:"Bowler", o:false}, {n:"Varun Chakravarthy", t:"KKR", r:"Bowler", o:false}, {n:"Cameron Green", t:"KKR", r:"All-Rounder", o:true}, {n:"Matheesha Pathirana", t:"KKR", r:"Bowler", o:true}, {n:"Mustafizur Rahman", t:"KKR", r:"Bowler", o:true}, {n:"Tejasvi Singh", t:"KKR", r:"Bowler", o:false}, {n:"Rachin Ravindra", t:"KKR", r:"All-Rounder", o:true}, {n:"Finn Allen", t:"KKR", r:"Batter", o:true}, {n:"Tim Seifert", t:"KKR", r:"Wicketkeeper", o:true}, {n:"Akash Deep", t:"KKR", r:"Bowler", o:false}, {n:"Rahul Tripathi", t:"KKR", r:"Batter", o:false}, {n:"Daksh Kamra", t:"KKR", r:"Bowler", o:false}, {n:"Sarthak Ranjan", t:"KKR", r:"Batter", o:false}, {n:"Prashant Solanki", t:"KKR", r:"Bowler", o:false}, {n:"Kartik Tyagi", t:"KKR", r:"Bowler", o:false},
+        // RCB
+        {n:"Rajat Patidar", t:"RCB", r:"Batter", o:false}, {n:"Virat Kohli", t:"RCB", r:"Batter", o:false}, {n:"Devdutt Padikkal", t:"RCB", r:"Batter", o:false}, {n:"Phil Salt", t:"RCB", r:"Wicketkeeper", o:true}, {n:"Jitesh Sharma", t:"RCB", r:"Wicketkeeper", o:false}, {n:"Krunal Pandya", t:"RCB", r:"All-Rounder", o:false}, {n:"Swapnil Singh", t:"RCB", r:"All-Rounder", o:false}, {n:"Tim David", t:"RCB", r:"Batter", o:true}, {n:"Romario Shepherd", t:"RCB", r:"All-Rounder", o:true}, {n:"Jacob Bethell", t:"RCB", r:"All-Rounder", o:true}, {n:"Josh Hazlewood", t:"RCB", r:"Bowler", o:true}, {n:"Yash Dayal", t:"RCB", r:"Bowler", o:false}, {n:"Bhuvneshwar Kumar", t:"RCB", r:"Bowler", o:false}, {n:"Nuwan Thushara", t:"RCB", r:"Bowler", o:true}, {n:"Rasikh Salam", t:"RCB", r:"Bowler", o:false}, {n:"Abhinandan Singh", t:"RCB", r:"Bowler", o:false}, {n:"Suyash Sharma", t:"RCB", r:"Bowler", o:false}, {n:"Venkatesh Iyer", t:"RCB", r:"All-Rounder", o:false}, {n:"Jacob Duffy", t:"RCB", r:"Bowler", o:true}, {n:"Satvik Deswal", t:"RCB", r:"All-Rounder", o:false}, {n:"Mangesh Yadav", t:"RCB", r:"All-Rounder", o:false}, {n:"Jordan Cox", t:"RCB", r:"Wicketkeeper", o:true}, {n:"Vicky Ostwal", t:"RCB", r:"Bowler", o:false}, {n:"Kanishk Chouhan", t:"RCB", r:"Batter", o:false}, {n:"Vihaan Malhotra", t:"RCB", r:"Batter", o:false},
+        // PBKS
+        {n:"Shreyas Iyer", t:"PBKS", r:"Batter", o:false}, {n:"Nehal Wadhera", t:"PBKS", r:"Batter", o:false}, {n:"Priyansh Arya", t:"PBKS", r:"Batter", o:false}, {n:"Prabhsimran Singh", t:"PBKS", r:"Wicketkeeper", o:false}, {n:"Shashank Singh", t:"PBKS", r:"Batter", o:false}, {n:"Pyla Avinash", t:"PBKS", r:"Batter", o:false}, {n:"Harnoor Pannu", t:"PBKS", r:"Batter", o:false}, {n:"Musheer Khan", t:"PBKS", r:"All-Rounder", o:false}, {n:"Vishnu Vinod", t:"PBKS", r:"Wicketkeeper", o:false}, {n:"Marcus Stoinis", t:"PBKS", r:"All-Rounder", o:true}, {n:"Azmatullah Omarzai", t:"PBKS", r:"All-Rounder", o:true}, {n:"Suryansh Shedge", t:"PBKS", r:"All-Rounder", o:false}, {n:"Mitchell Owen", t:"PBKS", r:"All-Rounder", o:true}, {n:"Arshdeep Singh", t:"PBKS", r:"Bowler", o:false}, {n:"Vyshak Vijaykumar", t:"PBKS", r:"Bowler", o:false}, {n:"Marco Jansen", t:"PBKS", r:"Bowler", o:true}, {n:"Yash Thakur", t:"PBKS", r:"Bowler", o:false}, {n:"Xavier Bartlett", t:"PBKS", r:"Bowler", o:true}, {n:"Lockie Ferguson", t:"PBKS", r:"Bowler", o:true}, {n:"Yuzvendra Chahal", t:"PBKS", r:"Bowler", o:false}, {n:"Harpreet Brar", t:"PBKS", r:"All-Rounder", o:false}, {n:"Ben Dwarshuis", t:"PBKS", r:"Bowler", o:true}, {n:"Cooper Connolly", t:"PBKS", r:"All-Rounder", o:true}, {n:"Pravin Dubey", t:"PBKS", r:"Bowler", o:false}, {n:"Vishal Nishad", t:"PBKS", r:"Batter", o:false},
+        // GT
+        {n:"Shubman Gill", t:"GT", r:"Batter", o:false}, {n:"Rashid Khan", t:"GT", r:"Bowler", o:true}, {n:"Sai Sudharsan", t:"GT", r:"Batter", o:false}, {n:"Rahul Tewatia", t:"GT", r:"All-Rounder", o:false}, {n:"Shahrukh Khan", t:"GT", r:"All-Rounder", o:false}, {n:"Kagiso Rabada", t:"GT", r:"Bowler", o:true}, {n:"Jos Buttler", t:"GT", r:"Wicketkeeper", o:true}, {n:"Mohammed Siraj", t:"GT", r:"Bowler", o:false}, {n:"Prasidh Krishna", t:"GT", r:"Bowler", o:false}, {n:"Nishant Sindhu", t:"GT", r:"All-Rounder", o:false}, {n:"Kumar Kushagra", t:"GT", r:"Wicketkeeper", o:false}, {n:"Anuj Rawat", t:"GT", r:"Wicketkeeper", o:false}, {n:"Manav Suthar", t:"GT", r:"Bowler", o:false}, {n:"Washington Sundar", t:"GT", r:"All-Rounder", o:false}, {n:"Arshad Khan", t:"GT", r:"Bowler", o:false}, {n:"Gurnoor Brar", t:"GT", r:"Bowler", o:false}, {n:"Sai Kishore", t:"GT", r:"Bowler", o:false}, {n:"Ishant Sharma", t:"GT", r:"Bowler", o:false}, {n:"Jayant Yadav", t:"GT", r:"All-Rounder", o:false}, {n:"Glenn Phillips", t:"GT", r:"Batter", o:true}, {n:"Jason Holder", t:"GT", r:"All-Rounder", o:true}, {n:"Ashok Sharma", t:"GT", r:"Bowler", o:false}, {n:"Tom Banton", t:"GT", r:"Wicketkeeper", o:true}, {n:"Prithviraj Yarra", t:"GT", r:"Bowler", o:false}, {n:"Luke Wood", t:"GT", r:"Bowler", o:true},
+        // RR
+        {n:"Yashasvi Jaiswal", t:"RR", r:"Batter", o:false}, {n:"Vaibhav Suryavanshi", t:"RR", r:"Batter", o:false}, {n:"Dhruv Jurel", t:"RR", r:"Wicketkeeper", o:false}, {n:"Riyan Parag", t:"RR", r:"All-Rounder", o:false}, {n:"Shimron Hetmyer", t:"RR", r:"Batter", o:true}, {n:"Shubham Dubey", t:"RR", r:"Batter", o:false}, {n:"Yudhvir Singh Charak", t:"RR", r:"Bowler", o:false}, {n:"Jofra Archer", t:"RR", r:"Bowler", o:true}, {n:"Tushar Deshpande", t:"RR", r:"Bowler", o:false}, {n:"Sandeep Sharma", t:"RR", r:"Bowler", o:false}, {n:"Kwena Maphaka", t:"RR", r:"Bowler", o:true}, {n:"Nandre Burger", t:"RR", r:"Bowler", o:true}, {n:"Lhuan-dre Pretorius", t:"RR", r:"Wicketkeeper", o:true}, {n:"Ravindra Jadeja", t:"RR", r:"All-Rounder", o:false}, {n:"Donovan Ferreira", t:"RR", r:"Wicketkeeper", o:true}, {n:"Sam Curran", t:"RR", r:"All-Rounder", o:true}, {n:"Ravi Bishnoi", t:"RR", r:"Bowler", o:false}, {n:"Ravi Singh", t:"RR", r:"Batter", o:false}, {n:"Sushant Mishra", t:"RR", r:"Bowler", o:false}, {n:"Brijesh Sharma", t:"RR", r:"All-Rounder", o:false}, {n:"Aman Rao Perala", t:"RR", r:"Batter", o:false}, {n:"Vignesh Puthur", t:"RR", r:"Bowler", o:false}, {n:"Yash Raj Punja", t:"RR", r:"Bowler", o:false}, {n:"Kuldeep Sen", t:"RR", r:"Bowler", o:false}, {n:"Adam Milne", t:"RR", r:"Bowler", o:true},
+        // SRH
+        {n:"Pat Cummins", t:"SRH", r:"Bowler", o:true}, {n:"Travis Head", t:"SRH", r:"Batter", o:true}, {n:"Abhishek Sharma", t:"SRH", r:"All-Rounder", o:false}, {n:"Aniket Verma", t:"SRH", r:"Batter", o:false}, {n:"Smaran Ravichandran", t:"SRH", r:"Batter", o:false}, {n:"Ishan Kishan", t:"SRH", r:"Wicketkeeper", o:false}, {n:"Heinrich Klaasen", t:"SRH", r:"Wicketkeeper", o:true}, {n:"Nitish Kumar Reddy", t:"SRH", r:"All-Rounder", o:false}, {n:"Harsh Dubey", t:"SRH", r:"All-Rounder", o:false}, {n:"Kamindu Mendis", t:"SRH", r:"All-Rounder", o:true}, {n:"Harshal Patel", t:"SRH", r:"Bowler", o:false}, {n:"Brydon Carse", t:"SRH", r:"Bowler", o:true}, {n:"Jaydev Unadkat", t:"SRH", r:"Bowler", o:false}, {n:"Eshan Malinga", t:"SRH", r:"Bowler", o:true}, {n:"Zeeshan Ansari", t:"SRH", r:"Bowler", o:false}, {n:"Liam Livingstone", t:"SRH", r:"All-Rounder", o:true}, {n:"Jack Edwards", t:"SRH", r:"All-Rounder", o:true}, {n:"Salil Arora", t:"SRH", r:"Wicketkeeper", o:false}, {n:"Shivam Mavi", t:"SRH", r:"Bowler", o:false}, {n:"Krains Fuletra", t:"SRH", r:"Bowler", o:false}, {n:"Praful Hinge", t:"SRH", r:"Bowler", o:false}, {n:"Amit Kumar", t:"SRH", r:"All-Rounder", o:false}, {n:"Onkar Tarmale", t:"SRH", r:"Batter", o:false}, {n:"Sakib Hussain", t:"SRH", r:"Bowler", o:false}, {n:"Shivang Kumar", t:"SRH", r:"Bowler", o:false},
+        // LSG
+        {n:"Rishabh Pant", t:"LSG", r:"Wicketkeeper", o:false}, {n:"Abdul Samad", t:"LSG", r:"Batter", o:false}, {n:"Ayush Badoni", t:"LSG", r:"Batter", o:false}, {n:"Aiden Markram", t:"LSG", r:"Batter", o:true}, {n:"Mitchell Marsh", t:"LSG", r:"All-Rounder", o:true}, {n:"Matthew Breetzke", t:"LSG", r:"Batter", o:true}, {n:"Nicholas Pooran", t:"LSG", r:"Wicketkeeper", o:true}, {n:"Himmat Singh", t:"LSG", r:"Batter", o:false}, {n:"Shahbaz Ahmed", t:"LSG", r:"All-Rounder", o:false}, {n:"Arshin Kulkarni", t:"LSG", r:"All-Rounder", o:false}, {n:"Mayank Yadav", t:"LSG", r:"Bowler", o:false}, {n:"Avesh Khan", t:"LSG", r:"Bowler", o:false}, {n:"Mohsin Khan", t:"LSG", r:"Bowler", o:false}, {n:"Digvesh Rathi", t:"LSG", r:"Batter", o:false}, {n:"M. Siddharth", t:"LSG", r:"Bowler", o:false}, {n:"Prince Yadav", t:"LSG", r:"All-Rounder", o:false}, {n:"Akash Singh", t:"LSG", r:"Bowler", o:false}, {n:"Arjun Tendulkar", t:"LSG", r:"All-Rounder", o:false}, {n:"Mohammed Shami", t:"LSG", r:"Bowler", o:false}, {n:"Naman Tiwari", t:"LSG", r:"Bowler", o:false}, {n:"Wanindu Hasaranga", t:"LSG", r:"All-Rounder", o:true}, {n:"Josh Inglis", t:"LSG", r:"Wicketkeeper", o:true}, {n:"Akshat Raghuwanshi", t:"LSG", r:"Batter", o:false}, {n:"Anrich Nortje", t:"LSG", r:"Bowler", o:true}, {n:"Mukul Choudhary", t:"LSG", r:"Bowler", o:false},
+        // DC
+        {n:"Axar Patel", t:"DC", r:"All-Rounder", o:false}, {n:"KL Rahul", t:"DC", r:"Wicketkeeper", o:false}, {n:"Tristan Stubbs", t:"DC", r:"Wicketkeeper", o:true}, {n:"Sameer Rizvi", t:"DC", r:"Batter", o:false}, {n:"Karun Nair", t:"DC", r:"Batter", o:false}, {n:"Abishek Porel", t:"DC", r:"Wicketkeeper", o:false}, {n:"Ashutosh Sharma", t:"DC", r:"Batter", o:false}, {n:"Vipraj Nigam", t:"DC", r:"Bowler", o:false}, {n:"Madhav Tiwari", t:"DC", r:"Bowler", o:false}, {n:"Tripurana Vijay", t:"DC", r:"All-Rounder", o:false}, {n:"Ajay Mandal", t:"DC", r:"All-Rounder", o:false}, {n:"Kuldeep Yadav", t:"DC", r:"Bowler", o:false}, {n:"Mitchell Starc", t:"DC", r:"Bowler", o:true}, {n:"T. Natarajan", t:"DC", r:"Bowler", o:false}, {n:"Mukesh Kumar", t:"DC", r:"Bowler", o:false}, {n:"Dushmantha Chameera", t:"DC", r:"Bowler", o:true}, {n:"Nitish Rana", t:"DC", r:"All-Rounder", o:false}, {n:"Auqib Dar", t:"DC", r:"Bowler", o:false}, {n:"Pathum Nissanka", t:"DC", r:"Batter", o:true}, {n:"Kyle Jamieson", t:"DC", r:"Bowler", o:true}, {n:"Lungisani Ngidi", t:"DC", r:"Bowler", o:true}, {n:"Ben Duckett", t:"DC", r:"Batter", o:true}, {n:"David Miller", t:"DC", r:"Batter", o:true}, {n:"Prithvi Shaw", t:"DC", r:"Batter", o:false}, {n:"Sahil Parakh", t:"DC", r:"Batter", o:false}
+    ];
+
+    let players = rawData.map((p, i) => ({
+        id: i, name: p.n, iplTeam: p.t, role: p.r, isOverseas: p.o, draftedBy: null
+    }));
+
+    let fantasyTeams = [];
+    let maxPlayersPerTeam = 15;
+    let draftOrder = [];
+    let currentPickIndex = 0;
+
+    // 5. Live Snapshot Listener
+    // This updates everyone's screen automatically when the database changes
+    onSnapshot(draftDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            players = data.players;
+            fantasyTeams = data.fantasyTeams;
+            draftOrder = data.draftOrder;
+            currentPickIndex = data.currentPickIndex;
+            maxPlayersPerTeam = data.maxPlayersPerTeam;
+
+            // Automatically hide setup screen if draft has started
+            const setupTab = document.getElementById('setup-tab');
+            if (setupTab.style.display !== 'none') {
+                setupTab.style.display = 'none';
+                document.getElementById('navTabs').style.display = 'flex';
+                window.switchTab('draft');
+            }
+
+            updateDraftUI();
+            updateTeamsUI();
+            updateRosterUI();
+        }
+    });
+
+    // 6. Making functions global so HTML buttons can click them
+    window.generateTeamInputs = function() {
+        const num = document.getElementById('numTeams').value;
+        const container = document.getElementById('teamNamesContainer');
+        container.innerHTML = '<h3 style="font-size:1.1em; color:var(--text-muted);">Enter Franchise Names:</h3>';
+        for (let i = 1; i <= num; i++) {
+            container.innerHTML += `<div class="form-group"><input type="text" id="teamName${i}" value="Franchise ${i}"></div>`;
+        }
+    };
+    window.generateTeamInputs(); // Call once on load
+
+    window.switchTab = function(tabId) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.nav-tabs button').forEach(el => el.classList.remove('active'));
+        document.getElementById(tabId + '-tab').classList.add('active');
+        document.getElementById('btn-' + tabId).classList.add('active');
+    };
+
+    window.startDraft = async function() {
+        const num = document.getElementById('numTeams').value;
+        maxPlayersPerTeam = document.getElementById('playersPerTeam').value;
+        
+        fantasyTeams = [];
+        let tempTeams = [];
+        for (let i = 1; i <= num; i++) {
+            const name = document.getElementById(`teamName${i}`).value || `Franchise ${i}`;
+            let teamObj = { name: name, roster: [] };
+            fantasyTeams.push(teamObj);
+            tempTeams.push(teamObj);
+        }
+
+        // Snake draft logic
+        tempTeams = tempTeams.sort(() => Math.random() - 0.5);
+        draftOrder = [];
+        for(let round = 1; round <= maxPlayersPerTeam; round++) {
+            let roundOrder = [...tempTeams];
+            if (round % 2 === 0) roundOrder.reverse(); 
+            draftOrder = draftOrder.concat(roundOrder);
+        }
+
+        // PUSH initial setup to Firebase
+        await setDoc(draftDocRef, {
+            players: players,
+            fantasyTeams: fantasyTeams,
+            draftOrder: draftOrder,
+            currentPickIndex: 0,
+            maxPlayersPerTeam: maxPlayersPerTeam
+        });
+        
+        // Note: We don't manually switch tabs or update UI here anymore. 
+        // The onSnapshot listener will detect the new setDoc and do it for us!
+    };
+
+    window.populateDraftDropdown = function() {
+        const search = document.getElementById('filterName').value.toLowerCase();
+        const role = document.getElementById('filterRole').value;
+        const iplTeam = document.getElementById('filterIPLTeam').value;
+        const overseas = document.getElementById('filterOverseas').value;
+        const select = document.getElementById('playerSelect');
+        
+        select.innerHTML = '';
+        
+        let filtered = players.filter(p => !p.draftedBy);
+
+        if (search) filtered = filtered.filter(p => p.name.toLowerCase().includes(search));
+        if (role !== 'All') filtered = filtered.filter(p => p.role === role);
+        if (iplTeam !== 'All') filtered = filtered.filter(p => p.iplTeam === iplTeam);
+        if (overseas === 'Indian') filtered = filtered.filter(p => !p.isOverseas);
+        if (overseas === 'Overseas') filtered = filtered.filter(p => p.isOverseas);
+
+        filtered.forEach(p => {
+            let opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = `${p.name} — ${p.iplTeam} | ${p.role} ${p.isOverseas ? '[✈️ OS]' : ''}`;
+            select.appendChild(opt);
+        });
+    };
+
+    function updateDraftUI() {
+        if (currentPickIndex >= draftOrder.length) {
+            document.getElementById('currentPickDisplay').innerHTML = "🏁 Draft Complete!";
+            document.getElementById('playerSelect').disabled = true;
+            return;
+        }
+
+        const currentTeam = draftOrder[currentPickIndex].name;
+        const round = Math.floor(currentPickIndex / fantasyTeams.length) + 1;
+        document.getElementById('currentPickDisplay').innerHTML = `<span style="color:var(--text-muted); font-size: 0.7em; display:block; margin-bottom:5px;">Round ${round}</span> ${currentTeam} is on the clock!`;
+        
+        const list = document.getElementById('upcomingOrderList');
+        list.innerHTML = '';
+        for(let i = currentPickIndex; i < Math.min(currentPickIndex + 5, draftOrder.length); i++) {
+            let li = document.createElement('li');
+            li.textContent = draftOrder[i].name;
+            if (i === currentPickIndex) li.classList.add('active-pick');
+            list.appendChild(li);
+        }
+
+        window.populateDraftDropdown();
+        document.getElementById('draftAlert').style.display = 'none';
+    }
+
+    window.draftPlayer = async function() {
+        const playerId = document.getElementById('playerSelect').value;
+        if (!playerId) return;
+
+        const player = players.find(p => p.id == playerId);
+        const currentTeamObj = draftOrder[currentPickIndex];
+        const actualTeam = fantasyTeams.find(t => t.name === currentTeamObj.name);
+
+        if (player.isOverseas) {
+            const overseasCount = actualTeam.roster.filter(p => p.isOverseas).length;
+            if (overseasCount >= 8) {
+                const alertEl = document.getElementById('draftAlert');
+                alertEl.style.display = 'inline-block';
+                alertEl.innerText = "⚠️ Invalid Pick! Maximum 8 overseas players limit reached.";
+                return;
+            }
+        }
+
+        // Update local variables
+        player.draftedBy = actualTeam.name;
+        actualTeam.roster.push(player);
+        let nextIndex = currentPickIndex + 1;
+        
+        // PUSH pick to Firebase
+        await updateDoc(draftDocRef, {
+            players: players,
+            fantasyTeams: fantasyTeams,
+            currentPickIndex: nextIndex
+        });
+    };
+
+    function updateTeamsUI() {
+        const grid = document.getElementById('teamGrid');
+        grid.innerHTML = '';
+        fantasyTeams.forEach(team => {
+            let osCount = team.roster.filter(p => p.isOverseas).length;
+            let html = `<div class="team-card glass-panel">
+                <h3 style="margin: 0 0 5px 0;">${team.name}</h3>
+                <div style="display:flex; justify-content: space-between; font-size: 0.85em; color: var(--text-muted);">
+                    <span>Roster: ${team.roster.length}/${maxPlayersPerTeam}</span>
+                    <span style="color: ${osCount >= 8 ? 'var(--danger)' : 'inherit'}">OS: ${osCount}/8</span>
+                </div>
+                <ul>`;
+            team.roster.forEach(p => {
+                html += `<li>
+                    <span style="font-weight: 600;">${p.name} <span style="font-weight:400; color:var(--text-muted); font-size:0.9em;">(${p.role})</span></span> 
+                    ${p.isOverseas ? '<span class="overseas-badge">✈️ OS</span>' : ''}
+                </li>`;
+            });
+            html += `</ul></div>`;
+            grid.innerHTML += html;
+        });
+    }
+
+    function updateRosterUI() {
+        const tbody = document.querySelector('#globalRosterTable tbody');
+        tbody.innerHTML = '';
+        players.forEach(p => {
+            tbody.innerHTML += `<tr>
+                <td style="font-weight: 600;">${p.name}</td>
+                <td>${p.iplTeam}</td>
+                <td>${p.role}</td>
+                <td>${p.isOverseas ? '✈️ Overseas' : '🇮🇳 Indian'}</td>
+                <td style="font-weight:700; color: ${p.draftedBy ? 'var(--cream)' : 'var(--text-muted)'}">${p.draftedBy || 'Undrafted'}</td>
+            </tr>`;
+        });
+    }
+
+    window.exportCSV = function() {
+        let csvContent = "data:text/csv;charset=utf-8,Player Name,IPL Team,Role,Origin,Drafted By\n";
+        players.forEach(p => {
+            let row = `"${p.name}","${p.iplTeam}","${p.role}","${p.isOverseas ? 'Overseas' : 'Indian'}","${p.draftedBy || 'Undrafted'}"`;
+            csvContent += row + "\n";
+        });
+        
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "fantasy_draft_results.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+</script>
