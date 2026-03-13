@@ -356,7 +356,7 @@
             }
         });
 
-        // Live Data Listener
+        // Live Data Listener & Fix for Empty Roster UI
         onValue(draftRef, (snapshot) => {
             const data = snapshot.val();
             
@@ -378,13 +378,20 @@
     
                 updateDraftUI();
                 updateTeamsUI();
-                updateRosterUI();
+                updateRosterUI(); // Render the roster based on live draft data
             } else {
                 // NO DRAFT EXISTS
                 if (initialLoad) {
                     window.switchTab('setup');
                     initialLoad = false;
                 }
+                
+                // FORCE THE ROSTER TO RESET AND DRAW EVEN IF THE DB IS EMPTY
+                players = rawData.map((p, i) => ({
+                    id: i, name: p.n, iplTeam: p.t, role: p.r, isOverseas: p.o, draftedBy: null
+                }));
+                updateRosterUI(); 
+                updateTeamsUI();
             }
         });
     
@@ -397,7 +404,10 @@
                 container.innerHTML += `<div class="form-group"><input type="text" id="teamName${i}" value="Franchise ${i}"></div>`;
             }
         };
+        
+        // Immediately draw initial layout elements
         window.generateTeamInputs();
+        updateRosterUI(); 
     
         window.switchTab = function(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -443,7 +453,6 @@
                 maxPlayersPerTeam: maxPlayersPerTeam
             });
 
-            // Automatically push user to the fresh draft room after resetting
             window.switchTab('draft');
         };
     
