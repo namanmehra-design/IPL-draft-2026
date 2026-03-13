@@ -16,6 +16,7 @@
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
             --danger: #ef4444;
+            --success: #22c55e;
         }
 
         body { 
@@ -29,7 +30,26 @@
         }
 
         h1, h2, h3 { color: var(--cream); font-weight: 600; letter-spacing: 0.5px; }
-        h1 { text-align: center; margin-bottom: 30px; text-shadow: 0 2px 10px rgba(245, 230, 204, 0.2); }
+        h1 { 
+            text-align: center; 
+            margin-bottom: 30px; 
+            text-shadow: 0 2px 10px rgba(245, 230, 204, 0.2); 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        /* Live Connection Dots */
+        .status-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+        .dot-red { background-color: var(--danger); box-shadow: 0 0 10px var(--danger); }
+        .dot-green { background-color: var(--success); box-shadow: 0 0 10px var(--success); }
 
         /* Glassmorphism Utility */
         .glass-panel {
@@ -153,7 +173,8 @@
         }
         .team-card li:last-child { border-bottom: none; }
 
-        .alert { color: var(--danger); font-weight: 600; padding: 10px; background: rgba(239, 68, 68, 0.1); border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.3); display: inline-block; }
+        .alert { color: var(--danger); font-weight: 600; padding: 10px; background: rgba(239, 68, 68, 0.1); border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.3); display: inline-block; margin-bottom: 20px; }
+        .disclaimer { border-left: 4px solid var(--danger); padding: 15px; background: rgba(239, 68, 68, 0.05); margin-bottom: 25px; font-size: 0.9em; line-height: 1.5; }
         .overseas-badge { background: rgba(245, 230, 204, 0.15); color: var(--cream); border: 1px solid var(--cream); padding: 3px 8px; border-radius: 12px; font-size: 0.75em; font-weight: 600; letter-spacing: 0.5px;}
         
         #upcomingOrderList { list-style: none; padding: 0; display: flex; gap: 10px; flex-wrap: wrap; }
@@ -169,15 +190,28 @@
 </head>
 <body>
 
-    <h1>IPL 2026 Fantasy Draft Room</h1>
+    <h1>
+        IPL 2026 Fantasy Draft Room
+        <span id="connectionDot" class="status-dot dot-red" title="Connecting..."></span>
+    </h1>
 
     <div class="nav-tabs glass-panel" id="navTabs" style="display: none;">
-        <button id="btn-draft" class="active" onclick="switchTab('draft')">Draft Room</button>
+        <button id="btn-draft" onclick="switchTab('draft')">Draft Room</button>
         <button id="btn-teams" onclick="switchTab('teams')">Team Rosters</button>
         <button id="btn-roster" onclick="switchTab('roster')">Global Player Roster</button>
     </div>
 
-    <div id="setup-tab" class="tab-content glass-panel active">
+    <div id="loading-tab" class="tab-content glass-panel active" style="text-align: center; padding: 60px;">
+        <h2>Connecting to Live Server...</h2>
+        <p style="color: var(--text-muted);">Please wait while we sync the draft room.</p>
+    </div>
+
+    <div id="setup-tab" class="tab-content glass-panel">
+        <div class="disclaimer">
+            <strong>⚠️ IMPORTANT DISCLAIMER:</strong> This is the <b>Initiation Page</b>. 
+            Only the League Commissioner should fill out this form. Initializing the engine here will 
+            generate the draft order and push the data to the live server. Once initialized, this setup module will lock.
+        </div>
         <h2>Draft Setup</h2>
         <div class="form-group">
             <label>Number of Teams (Max 10):</label>
@@ -194,7 +228,7 @@
     <div id="draft-tab" class="tab-content glass-panel">
         <h2>Draft Control Center</h2>
         <h3 id="currentPickDisplay" style="color: var(--text-main); font-size: 1.5em; border-left: 4px solid var(--cream); padding-left: 15px;">Current Pick: Loading...</h3>
-        <p id="draftAlert"></p>
+        <p id="draftAlert" class="alert" style="display:none;"></p>
         
         <div class="filters">
             <input type="text" id="filterName" placeholder="Search Player Name..." oninput="populateDraftDropdown()">
@@ -266,11 +300,9 @@
     </div>
 
     <script type="module">
-        // 1. Import Firebase REALTIME DATABASE SDKs
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
         import { getDatabase, ref, set, update, onValue } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
     
-        // 2. Your Firebase Config (With Realtime Database URL added!)
         const firebaseConfig = {
             apiKey: "AIzaSyBlHdz4Vu1kMlEjwXs-dcDwFeHGhjSSb3I",
             authDomain: "ipl-2026-draft.firebaseapp.com",
@@ -282,12 +314,12 @@
             measurementId: "G-Z1K8YE1Q5N"
         };
     
-        // 3. Initialize Firebase Realtime Database
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
         const draftRef = ref(db, 'draft2026');
+        const connectedRef = ref(db, ".info/connected");
     
-        // 4. Data Setup
+        // Master Data
         const rawData = [
             {n:"Ruturaj Gaikwad", t:"CSK", r:"Batter", o:false}, {n:"Ayush Mhatre", t:"CSK", r:"Batter", o:false}, {n:"Dewald Brevis", t:"CSK", r:"Batter", o:true}, {n:"MS Dhoni", t:"CSK", r:"Wicketkeeper", o:false}, {n:"Urvil Patel", t:"CSK", r:"Wicketkeeper", o:false}, {n:"Shivam Dube", t:"CSK", r:"All-Rounder", o:false}, {n:"Jamie Overton", t:"CSK", r:"All-Rounder", o:true}, {n:"Ramakrishna Ghosh", t:"CSK", r:"Bowler", o:false}, {n:"Noor Ahmad", t:"CSK", r:"Bowler", o:true}, {n:"Khaleel Ahmed", t:"CSK", r:"Bowler", o:false}, {n:"Anshul Kamboj", t:"CSK", r:"All-Rounder", o:false}, {n:"Gurjapneet Singh", t:"CSK", r:"Bowler", o:false}, {n:"Nathan Ellis", t:"CSK", r:"Bowler", o:true}, {n:"Shreyas Gopal", t:"CSK", r:"Bowler", o:false}, {n:"Mukesh Choudhary", t:"CSK", r:"Bowler", o:false}, {n:"Sanju Samson", t:"CSK", r:"Wicketkeeper", o:false}, {n:"Akeal Hosein", t:"CSK", r:"Bowler", o:true}, {n:"Prashant Veer", t:"CSK", r:"All-Rounder", o:false}, {n:"Kartik Sharma", t:"CSK", r:"Batter", o:false}, {n:"Matthew Short", t:"CSK", r:"All-Rounder", o:true}, {n:"Aman Khan", t:"CSK", r:"All-Rounder", o:false}, {n:"Sarfaraz Khan", t:"CSK", r:"Batter", o:false}, {n:"Matt Henry", t:"CSK", r:"Bowler", o:true}, {n:"Rahul Chahar", t:"CSK", r:"Bowler", o:false}, {n:"Zak Foulkes", t:"CSK", r:"All-Rounder", o:true},
             {n:"Rohit Sharma", t:"MI", r:"Batter", o:false}, {n:"Suryakumar Yadav", t:"MI", r:"Batter", o:false}, {n:"Tilak Varma", t:"MI", r:"Batter", o:false}, {n:"Robin Minz", t:"MI", r:"Wicketkeeper", o:false}, {n:"Ryan Rickelton", t:"MI", r:"Wicketkeeper", o:true}, {n:"Hardik Pandya", t:"MI", r:"All-Rounder", o:false}, {n:"Naman Dhir", t:"MI", r:"All-Rounder", o:false}, {n:"Mitchell Santner", t:"MI", r:"All-Rounder", o:true}, {n:"Will Jacks", t:"MI", r:"All-Rounder", o:true}, {n:"Corbin Bosch", t:"MI", r:"All-Rounder", o:true}, {n:"Raj Bawa", t:"MI", r:"All-Rounder", o:false}, {n:"Trent Boult", t:"MI", r:"Bowler", o:true}, {n:"Jasprit Bumrah", t:"MI", r:"Bowler", o:false}, {n:"Deepak Chahar", t:"MI", r:"Bowler", o:false}, {n:"Ashwani Kumar", t:"MI", r:"Bowler", o:false}, {n:"Raghu Sharma", t:"MI", r:"Bowler", o:false}, {n:"AM Ghazanfar", t:"MI", r:"Bowler", o:true}, {n:"Shardul Thakur", t:"MI", r:"All-Rounder", o:false}, {n:"Sherfane Rutherford", t:"MI", r:"Batter", o:true}, {n:"Mayank Markande", t:"MI", r:"Bowler", o:false}, {n:"Quinton de Kock", t:"MI", r:"Wicketkeeper", o:true}, {n:"Danish Malewar", t:"MI", r:"Batter", o:false}, {n:"Mohammad Izhar", t:"MI", r:"Batter", o:false}, {n:"Atharva Ankolekar", t:"MI", r:"All-Rounder", o:false}, {n:"Mayank Rawat", t:"MI", r:"All-Rounder", o:false},
@@ -310,30 +342,57 @@
         let draftOrder = [];
         let currentPickIndex = 0;
     
-        // 5. Live Snapshot Listener (Realtime DB Version)
+        // Track Live Connection (Green/Red Dot)
+        onValue(connectedRef, (snap) => {
+            const dot = document.getElementById("connectionDot");
+            if (snap.val() === true) {
+                dot.className = "status-dot dot-green";
+                dot.title = "Connected to Live Draft";
+            } else {
+                dot.className = "status-dot dot-red";
+                dot.title = "Disconnected";
+            }
+        });
+
+        // Live Data Listener & State Lock
         onValue(draftRef, (snapshot) => {
             const data = snapshot.val();
-            if (data) {
+            
+            // Hide the initial loading screen
+            document.getElementById('loading-tab').style.display = 'none';
+
+            if (data && data.fantasyTeams && data.fantasyTeams.length > 0) {
+                // A DRAFT EXISTS! 
+                // Force sync data and strictly hide the Setup tab to prevent resets.
                 players = data.players || players;
-                fantasyTeams = data.fantasyTeams || [];
+                fantasyTeams = data.fantasyTeams;
                 draftOrder = data.draftOrder || [];
                 currentPickIndex = data.currentPickIndex || 0;
                 maxPlayersPerTeam = data.maxPlayersPerTeam || 15;
     
-                const setupTab = document.getElementById('setup-tab');
-                if (setupTab.style.display !== 'none' && fantasyTeams.length > 0) {
-                    setupTab.style.display = 'none';
-                    document.getElementById('navTabs').style.display = 'flex';
+                document.getElementById('setup-tab').style.display = 'none';
+                document.getElementById('navTabs').style.display = 'flex';
+                
+                // If they are on a hidden tab or setup tab, push them to the draft room
+                const activeTab = document.querySelector('.tab-content.active');
+                if (!activeTab || activeTab.id === 'setup-tab') {
                     window.switchTab('draft');
                 }
     
                 updateDraftUI();
                 updateTeamsUI();
                 updateRosterUI();
+            } else {
+                // NO DRAFT EXISTS!
+                // Show the setup tab
+                document.getElementById('setup-tab').style.display = 'block';
+                document.getElementById('setup-tab').classList.add('active');
+                document.getElementById('navTabs').style.display = 'none';
+                document.getElementById('draft-tab').classList.remove('active');
             }
         });
     
-        // 6. Global Functions
+        // Global Functions
         window.generateTeamInputs = function() {
             const num = document.getElementById('numTeams').value;
             const container = document.getElementById('teamNamesContainer');
@@ -347,8 +406,15 @@
         window.switchTab = function(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.nav-tabs button').forEach(el => el.classList.remove('active'));
+            
+            // Prevent going to setup tab once draft has started
+            if (tabId === 'setup' && fantasyTeams.length > 0) return;
+
             document.getElementById(tabId + '-tab').classList.add('active');
-            document.getElementById('btn-' + tabId).classList.add('active');
+            
+            // Some tabs don't have buttons (like setup/loading), so handle safely
+            const btn = document.getElementById('btn-' + tabId);
+            if (btn) btn.classList.add('active');
         };
     
         window.startDraft = async function() {
