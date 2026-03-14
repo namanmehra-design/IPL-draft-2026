@@ -1,599 +1,897 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IPL 2026 Fantasy Draft - Premium Edition</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
-
-        :root {
-            --bg-gradient: linear-gradient(135deg, #0f172a 0%, #020617 100%);
-            --glass-bg: rgba(255, 255, 255, 0.03);
-            --glass-border: rgba(255, 255, 255, 0.08);
-            --cream: #F5E6CC;
-            --cream-hover: #e0d0b5;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --danger: #ef4444;
-            --success: #22c55e;
-        }
-
-        body { 
-            font-family: 'Inter', sans-serif; 
-            background: var(--bg-gradient); 
-            background-attachment: fixed;
-            margin: 0; 
-            padding: 30px; 
-            color: var(--text-main); 
-            min-height: 100vh;
-        }
-
-        h1, h2, h3 { color: var(--cream); font-weight: 600; letter-spacing: 0.5px; }
-        h1 { 
-            text-align: center; 
-            margin-bottom: 30px; 
-            text-shadow: 0 2px 10px rgba(245, 230, 204, 0.2); 
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 15px;
-        }
-
-        /* Live Connection Dots */
-        .status-dot {
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            display: inline-block;
-            transition: all 0.3s ease;
-        }
-        .dot-red { background-color: var(--danger); box-shadow: 0 0 10px var(--danger); }
-        .dot-green { background-color: var(--success); box-shadow: 0 0 10px var(--success); }
-
-        /* Glassmorphism Utility */
-        .glass-panel {
-            background: var(--glass-bg);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid var(--glass-border);
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-        }
-
-        /* Navigation Tabs */
-        .nav-tabs { 
-            display: flex; 
-            gap: 15px; 
-            margin-bottom: 25px; 
-            padding: 10px;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-        .nav-tabs button { 
-            background: rgba(255, 255, 255, 0.05); 
-            color: var(--text-muted); 
-            border: 1px solid transparent; 
-            padding: 12px 24px; 
-            border-radius: 8px; 
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-        .nav-tabs button:hover {
-            background: rgba(255, 255, 255, 0.1);
-            color: var(--text-main);
-            transform: translateY(-2px);
-        }
-        .nav-tabs button.active { 
-            background: var(--cream); 
-            color: #0f172a; 
-            box-shadow: 0 4px 15px rgba(245, 230, 204, 0.3);
-        }
-
-        /* Content Areas */
-        .tab-content { display: none; padding: 30px; animation: fadeIn 0.4s ease-in-out; }
-        .tab-content.active { display: block; }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* Form Controls */
-        .form-group { margin-bottom: 20px; }
-        label { font-weight: 400; display: block; margin-bottom: 8px; color: var(--text-muted); }
-        
-        input, select { 
-            padding: 12px 15px; 
-            width: 100%; 
-            max-width: 350px; 
-            background: rgba(0, 0, 0, 0.2);
-            border: 1px solid var(--glass-border); 
-            border-radius: 8px; 
-            color: var(--text-main);
-            font-family: inherit;
-            transition: all 0.3s ease;
-            box-sizing: border-box;
-        }
-        input:focus, select:focus {
-            outline: none;
-            border-color: var(--cream);
-            box-shadow: 0 0 10px rgba(245, 230, 204, 0.2);
-            background: rgba(0, 0, 0, 0.4);
-        }
-        
-        select option { background: #0f172a; color: var(--text-main); }
-
-        /* Buttons */
-        button { 
-            background-color: var(--cream); 
-            color: #0f172a; 
-            border: none; 
-            cursor: pointer; 
-            padding: 12px 24px;
-            font-weight: 700; 
-            border-radius: 8px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        button:hover { 
-            background-color: var(--cream-hover); 
-            transform: translateY(-2px) scale(1.02);
-            box-shadow: 0 6px 20px rgba(245, 230, 204, 0.3);
-        }
-        button:active { transform: translateY(0) scale(0.98); }
-
-        /* Tables */
-        table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 20px; }
-        th, td { padding: 15px; text-align: left; border-bottom: 1px solid var(--glass-border); }
-        th { color: var(--cream); font-weight: 600; background: rgba(0,0,0,0.2); backdrop-filter: blur(5px); }
-        tr { transition: background 0.2s ease; }
-        tbody tr:hover { background: rgba(245, 230, 204, 0.05); }
-
-        /* Grid & Cards */
-        .filters { display: flex; gap: 15px; margin-bottom: 25px; flex-wrap: wrap; }
-        .team-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 25px; }
-        
-        .team-card { 
-            padding: 20px; 
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-        .team-card::before {
-            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 4px;
-            background: var(--cream); opacity: 0.8;
-        }
-        .team-card:hover { transform: translateY(-5px); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4); }
-        .team-card ul { list-style: none; padding: 0; margin: 15px 0 0 0; }
-        .team-card li { 
-            padding: 8px 0; 
-            border-bottom: 1px solid rgba(255,255,255,0.05); 
-            display: flex; 
-            justify-content: space-between;
-            align-items: center;
-        }
-        .team-card li:last-child { border-bottom: none; }
-
-        .alert { color: var(--danger); font-weight: 600; padding: 10px; background: rgba(239, 68, 68, 0.1); border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.3); display: inline-block; margin-bottom: 20px; }
-        .disclaimer { border-left: 4px solid var(--danger); padding: 15px; background: rgba(239, 68, 68, 0.05); margin-bottom: 25px; font-size: 0.9em; line-height: 1.5; }
-        .overseas-badge { background: rgba(245, 230, 204, 0.15); color: var(--cream); border: 1px solid var(--cream); padding: 3px 8px; border-radius: 12px; font-size: 0.75em; font-weight: 600; letter-spacing: 0.5px;}
-        
-        #upcomingOrderList { list-style: none; padding: 0; display: flex; gap: 10px; flex-wrap: wrap; }
-        #upcomingOrderList li { background: rgba(0,0,0,0.3); padding: 8px 15px; border-radius: 20px; font-size: 0.9em; border: 1px solid var(--glass-border); }
-        #upcomingOrderList li.active-pick { border-color: var(--cream); color: var(--cream); box-shadow: 0 0 10px rgba(245, 230, 204, 0.2); }
-        
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #0f172a; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--cream); }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>IPL 2026 Fantasy Draft</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--gold:#D4A847;--gold-l:#F0C96B;--gold-dim:rgba(212,168,71,0.12);--red:#C0392B;--red-dim:rgba(192,57,43,0.12);--bg:#07090F;--bg2:#0C1018;--bg3:#111827;--sur:rgba(255,255,255,0.04);--sur2:rgba(255,255,255,0.07);--bdr:rgba(255,255,255,0.07);--bdr-hi:rgba(255,255,255,0.12);--bdr-g:rgba(212,168,71,0.35);--txt:#EDE9E0;--muted:#6B7280;--muted2:#9CA3AF;--ok:#10B981;--err:#EF4444;--info:#3B82F6;--ff:'Bebas Neue',sans-serif;--fb:'DM Sans',sans-serif;--r:10px;--rl:16px;--rxl:22px;}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--fb);background:var(--bg);color:var(--txt);min-height:100vh;overflow-x:hidden;-webkit-tap-highlight-color:transparent;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 90% 55% at 15% 5%,rgba(212,168,71,.055) 0%,transparent 65%),radial-gradient(ellipse 70% 45% at 85% 95%,rgba(192,57,43,.045) 0%,transparent 60%);pointer-events:none;z-index:0;}
+::-webkit-scrollbar{width:4px;height:4px;}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px;}
+#toast{position:fixed;top:18px;left:50%;transform:translateX(-50%) translateY(-90px);background:var(--bg3);border:1px solid var(--bdr-hi);border-radius:50px;padding:11px 22px;font-size:.84rem;font-weight:500;display:flex;align-items:center;gap:9px;z-index:9999;transition:transform .38s cubic-bezier(.34,1.56,.64,1);max-width:92vw;box-shadow:0 12px 40px rgba(0,0,0,.6);}
+#toast.show{transform:translateX(-50%) translateY(0);}
+.tdot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+#toast.ok .tdot{background:var(--ok);}#toast.err .tdot{background:var(--err);}#toast.info .tdot{background:var(--gold);}
+.conn-dot{width:10px;height:10px;border-radius:50%;display:inline-block;transition:all .3s;}
+.conn-dot.live{background:var(--ok);box-shadow:0 0 8px var(--ok);}
+.conn-dot.dead{background:var(--err);box-shadow:0 0 8px var(--err);}
+.view{display:none;}.view.active{display:block;animation:fu .3s ease both;}
+@keyframes fu{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+#auth-view{min-height:100vh;display:none;align-items:center;justify-content:center;padding:20px;}
+#auth-view.active{display:flex;}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;align-items:center;justify-content:center;padding:20px;}
+.modal-bg.open{display:flex;}
+.modal{background:var(--bg2);border:1px solid var(--bdr-hi);border-radius:var(--rxl);padding:28px;width:100%;max-width:420px;animation:fu .25s ease both;}
+.modal h3{font-family:var(--ff);font-size:22px;color:var(--gold);margin-bottom:16px;letter-spacing:.04em;}
+.auth-card{width:100%;max-width:400px;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--rxl);overflow:hidden;}
+.auth-hdr{padding:34px 30px 26px;background:linear-gradient(150deg,rgba(212,168,71,.09),transparent);border-bottom:1px solid var(--bdr);text-align:center;}
+.auth-logo{width:54px;height:54px;background:linear-gradient(135deg,var(--gold),var(--red));border-radius:15px;display:flex;align-items:center;justify-content:center;font-family:var(--ff);font-size:26px;color:#fff;margin:0 auto 14px;box-shadow:0 8px 28px rgba(212,168,71,.22);}
+.auth-brand{font-family:var(--ff);font-size:28px;color:var(--gold);letter-spacing:.06em;}
+.auth-tag{font-size:.8rem;color:var(--muted);margin-top:3px;}
+.auth-bdy{padding:26px 30px;}
+.auth-lbl{font-size:.95rem;font-weight:600;color:var(--txt);margin-bottom:18px;}
+.pw-hint{font-size:.75rem;color:var(--muted);margin-top:4px;}
+.fld{margin-bottom:13px;}
+.fld label{display:block;font-size:.75rem;font-weight:600;color:var(--muted2);margin-bottom:5px;letter-spacing:.05em;text-transform:uppercase;}
+input[type=text],input[type=email],input[type=password],input[type=number],select{width:100%;padding:12px 14px;background:var(--sur);border:1px solid var(--bdr);border-radius:var(--r);color:var(--txt);font-family:var(--fb);font-size:.95rem;outline:none;transition:border-color .2s,box-shadow .2s;}
+input:focus,select:focus{border-color:var(--bdr-g);box-shadow:0 0 0 3px rgba(212,168,71,.07);}
+input::placeholder{color:var(--muted);}
+select option{background:#0C1018;}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px 18px;border:none;border-radius:var(--r);font-family:var(--fb);font-size:.95rem;font-weight:600;cursor:pointer;transition:all .18s;}
+.btn:active{transform:scale(.98);}
+.btn-gold{background:var(--gold);color:#0a0800;}.btn-gold:hover{background:var(--gold-l);}
+.btn-outline{background:transparent;border:1px solid var(--bdr-hi);color:var(--txt);}.btn-outline:hover{border-color:var(--bdr-g);background:var(--gold-dim);}
+.btn-ghost{background:var(--sur);color:var(--muted2);border:1px solid var(--bdr);}.btn-ghost:hover{background:var(--sur2);color:var(--txt);}
+.btn-danger{background:rgba(239,68,68,.1);color:var(--err);border:1px solid rgba(239,68,68,.3);}
+.btn-ok{background:rgba(16,185,129,.12);color:var(--ok);border:1px solid rgba(16,185,129,.3);}
+.btn-info{background:rgba(59,130,246,.12);color:#60a5fa;border:1px solid rgba(59,130,246,.3);}
+.btn-sm{padding:8px 14px;font-size:.85rem;width:auto;}
+.btn-white{background:#fff;color:#111;gap:10px;}.btn-white:hover{background:#f3f3f3;}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important;}
+.divider{display:flex;align-items:center;gap:10px;margin:16px 0;color:var(--muted);font-size:.8rem;}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--bdr);}
+.tbtn{background:none;border:none;color:var(--info);font-size:.85rem;cursor:pointer;text-decoration:underline;font-family:var(--fb);padding:0;}
+#app-shell{display:none;flex-direction:column;min-height:100vh;}
+#app-shell.active{display:flex;}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:var(--bg2);border-bottom:1px solid var(--bdr);position:sticky;top:0;z-index:100;}
+.tb-logo{width:34px;height:34px;background:linear-gradient(135deg,var(--gold),var(--red));border-radius:9px;display:flex;align-items:center;justify-content:center;font-family:var(--ff);font-size:18px;color:#fff;}
+.tb-title{font-family:var(--ff);font-size:19px;color:var(--gold);letter-spacing:.05em;}
+.tb-user{font-size:.72rem;color:var(--muted);}
+.content{flex:1;padding:18px;max-width:1000px;margin:0 auto;width:100%;position:relative;z-index:1;}
+.dtabs{display:flex;gap:4px;background:var(--sur);border:1px solid var(--bdr);border-radius:var(--rl);padding:5px;margin-bottom:20px;}
+.dtab{flex:1;padding:10px;border:none;border-radius:8px;background:transparent;color:var(--muted);font-family:var(--fb);font-size:.88rem;font-weight:500;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px;}
+.dtab.active{background:var(--bg3);color:var(--txt);box-shadow:0 2px 8px rgba(0,0,0,.3);}
+.card{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--rl);overflow:hidden;margin-bottom:16px;}
+.card-hdr{padding:16px 20px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+.card-title{font-family:var(--ff);font-size:20px;color:var(--gold);letter-spacing:.04em;}
+.card-bdy{padding:20px;}
+.rc{background:var(--sur);border:1px solid var(--bdr);border-radius:var(--r);padding:15px;margin-bottom:9px;display:flex;align-items:center;gap:14px;transition:border-color .2s;}
+.rc:hover{border-color:var(--bdr-g);}
+.rc-icon{width:40px;height:40px;border-radius:10px;background:var(--gold-dim);border:1px solid var(--bdr-g);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.rc-info{flex:1;min-width:0;}
+.rc-name{font-weight:600;font-size:.93rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.rc-meta{font-size:.76rem;color:var(--muted);margin-top:2px;}
+.rc-actions{display:flex;gap:6px;align-items:center;flex-shrink:0;}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:.72rem;font-weight:600;}
+.bg{background:var(--gold-dim);color:var(--gold);border:1px solid rgba(212,168,71,.25);}
+.bb{background:rgba(59,130,246,.12);color:#60a5fa;border:1px solid rgba(59,130,246,.25);}
+.bs{background:rgba(16,185,129,.1);color:var(--ok);border:1px solid rgba(16,185,129,.25);}
+.br{background:var(--red-dim);color:#f87171;border:1px solid rgba(239,68,68,.25);}
+.bpu{background:rgba(168,85,247,.12);color:#c084fc;border:1px solid rgba(168,85,247,.25);}
+.join-row{display:flex;gap:10px;margin-bottom:20px;}.join-row input{flex:1;}
+.g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;}
+.slbl{font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px;}
+.dr-head{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--rl);margin-bottom:14px;flex-wrap:wrap;gap:10px;}
+.dr-title{font-family:var(--ff);font-size:22px;color:var(--gold);letter-spacing:.04em;}
+.dnav{display:flex;gap:4px;background:var(--sur);border:1px solid var(--bdr);border-radius:var(--rl);padding:4px;flex-wrap:wrap;margin-bottom:14px;}
+.dnav-btn{padding:9px 16px;border:none;border-radius:8px;background:transparent;color:var(--muted);font-family:var(--fb);font-size:.83rem;font-weight:500;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.dnav-btn.active{background:var(--bg3);color:var(--txt);box-shadow:0 2px 6px rgba(0,0,0,.3);}
+.clock-card{background:linear-gradient(135deg,rgba(212,168,71,.1),rgba(212,168,71,.03));border:2px solid var(--bdr-g);border-radius:var(--rxl);padding:28px 20px;text-align:center;margin-bottom:18px;transition:all .3s;}
+.clock-card.your-turn{background:linear-gradient(135deg,rgba(16,185,129,.12),rgba(16,185,129,.03));border-color:rgba(16,185,129,.5);}
+.clock-round{font-size:.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;}
+.clock-team{font-family:var(--ff);font-size:2.2rem;color:var(--gold);letter-spacing:.03em;line-height:1;}
+.clock-card.your-turn .clock-team{color:var(--ok);}
+.clock-sub{font-size:.85rem;color:var(--muted);margin-top:6px;}
+.clock-you{font-size:.88rem;color:var(--ok);font-weight:600;margin-top:8px;animation:pulse .9s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.6;}}
+.pick-box{background:rgba(0,0,0,.25);border:1px solid var(--bdr-g);border-radius:var(--rl);padding:20px;margin-bottom:18px;}
+.filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+.filters input,.filters select{flex:1;min-width:130px;padding:10px 12px;font-size:.88rem;}
+.order-strip{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+.order-pill{padding:6px 12px;border-radius:20px;font-size:.8rem;border:1px solid var(--bdr);color:var(--muted);transition:all .2s;background:rgba(0,0,0,.2);}
+.order-pill.current{border-color:var(--gold);color:var(--gold);background:var(--gold-dim);font-weight:600;}
+.order-pill.mine{border-color:rgba(168,85,247,.4);color:#c084fc;}
+.order-pill.done{opacity:.25;text-decoration:line-through;}
+.tgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;}
+.tcard{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--rl);overflow:hidden;}
+.tcard-hdr{padding:14px 18px;border-bottom:1px solid var(--bdr);}
+.tcard-name{font-family:var(--ff);font-size:17px;color:var(--gold);letter-spacing:.04em;}
+.tcard-meta{font-size:.76rem;color:var(--muted);margin-top:3px;}
+.troster{list-style:none;max-height:260px;overflow-y:auto;}
+.troster li{display:flex;justify-content:space-between;align-items:center;padding:8px 18px;border-bottom:1px solid var(--bdr);font-size:.84rem;}
+.troster li:last-child{border-bottom:none;}
+.rrole{font-size:.72rem;color:var(--muted);}
+.empty{padding:20px;text-align:center;color:var(--muted);font-size:.85rem;}
+.srow{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+.spill{background:var(--sur);border:1px solid var(--bdr);border-radius:var(--r);padding:12px 16px;flex:1;min-width:90px;text-align:center;}
+.sval{font-family:var(--ff);font-size:22px;color:var(--gold);}
+.slb2{font-size:.72rem;color:var(--muted);margin-top:2px;}
+.twrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;min-width:500px;}
+thead tr{background:rgba(0,0,0,.4);}
+th{padding:10px 13px;text-align:left;color:var(--gold);font-size:.76rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;border-bottom:1px solid var(--bdr);white-space:nowrap;}
+td{padding:10px 13px;font-size:.86rem;border-bottom:1px solid var(--bdr);}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:var(--sur);}
+.members-bar{margin-bottom:14px;}
+.members-bar-title{font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;}
+.members-pills{display:flex;gap:8px;flex-wrap:wrap;}
+.setup-warn{background:var(--red-dim);border:1px solid rgba(239,68,68,.25);border-radius:var(--r);padding:10px 14px;font-size:.82rem;color:#f87171;margin-bottom:14px;}
+.search-bar{display:flex;gap:8px;padding:14px 20px;border-bottom:1px solid var(--bdr);flex-wrap:wrap;}
+.search-bar input,.search-bar select{flex:1;min-width:120px;padding:9px 12px;font-size:.85rem;}
+.member-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--bdr);font-size:.85rem;}
+.member-row:last-child{border-bottom:none;}
+.member-team{font-weight:600;color:var(--gold);}
+.member-email{font-size:.78rem;color:var(--muted);}
+</style>
 </head>
 <body>
 
-    <h1>
-        IPL 2026 Fantasy Draft Room
-        <span id="connectionDot" class="status-dot dot-red" title="Connecting..."></span>
-    </h1>
+<div id="toast"><span class="tdot"></span><span id="tmsg"></span></div>
 
-    <div class="nav-tabs glass-panel" id="navTabs" style="display: none;">
-        <button id="btn-setup" onclick="switchTab('setup')">Setup & Reset</button>
-        <button id="btn-draft" onclick="switchTab('draft')">Draft Room</button>
-        <button id="btn-teams" onclick="switchTab('teams')">Team Rosters</button>
-        <button id="btn-roster" onclick="switchTab('roster')">Global Player Roster</button>
+<!-- Franchise Name Modal -->
+<div class="modal-bg" id="teamNameModal">
+  <div class="modal">
+    <h3>🏏 Register Your Franchise</h3>
+    <p style="color:var(--muted);font-size:.87rem;margin-bottom:18px;">Enter the franchise name you'll draft under. This cannot be changed once confirmed.</p>
+    <div class="fld"><label>Franchise Name</label><input type="text" id="modalTeamName" placeholder="e.g. Naman's XI" maxlength="30" onkeydown="if(event.key==='Enter')window.confirmTeamName()"></div>
+    <div style="display:flex;gap:10px;margin-top:6px;">
+      <button class="btn btn-gold" onclick="window.confirmTeamName()">Register & Enter →</button>
+      <button class="btn btn-ghost btn-sm" onclick="window.closeTeamModal()" style="width:auto;">Cancel</button>
     </div>
+  </div>
+</div>
 
-    <div id="loading-tab" class="tab-content glass-panel active" style="text-align: center; padding: 60px;">
-        <h2>Connecting to Live Server...</h2>
-        <p style="color: var(--text-muted);">Please wait while we sync the draft room.</p>
+<!-- Delete Draft Modal -->
+<div class="modal-bg" id="deleteModal">
+  <div class="modal">
+    <h3>⚠️ Delete Draft Room</h3>
+    <p style="color:var(--muted);font-size:.87rem;margin-bottom:8px;">This permanently deletes the room and all draft data. Cannot be undone.</p>
+    <p style="color:var(--err);font-weight:600;font-size:.87rem;margin-bottom:20px;" id="deleteRoomNameLbl"></p>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-danger" onclick="window.confirmDeleteRoom()">Delete Permanently</button>
+      <button class="btn btn-ghost btn-sm" onclick="window.closeDeleteModal()" style="width:auto;">Cancel</button>
     </div>
+  </div>
+</div>
 
-    <div id="setup-tab" class="tab-content glass-panel">
-        <div class="disclaimer">
-            <strong>⚠️ IMPORTANT DISCLAIMER:</strong> This is the <b>Initiation & Reset Page</b>. 
-            Clicking the Initialize button will <b>completely wipe</b> the current database, erase all drafted players, generate a new draft order, and restart the entire process from scratch. Only the League Commissioner should use this!
-        </div>
-        <h2>Draft Setup</h2>
-        <div class="form-group">
-            <label>Number of Teams (Max 10):</label>
-            <input type="number" id="numTeams" min="2" max="10" value="4" onchange="generateTeamInputs()">
-        </div>
-        <div class="form-group">
-            <label>Players per Team (Max 20):</label>
-            <input type="number" id="playersPerTeam" min="1" max="20" value="15">
-        </div>
-        <div id="teamNamesContainer" style="margin-top: 30px; border-top: 1px solid var(--glass-border); padding-top: 20px;"></div>
-        <button onclick="startDraft()" style="margin-top: 20px; width: 100%; max-width: 350px; background-color: var(--danger); color: white;">Initialize & Reset Draft Engine</button>
+<!-- AUTH -->
+<div id="auth-view" class="view active">
+  <div class="auth-card">
+    <div class="auth-hdr">
+      <div class="auth-logo">🏏</div>
+      <div class="auth-brand">IPL DRAFT 2026</div>
+      <div class="auth-tag">Fantasy Snake Draft Platform</div>
     </div>
+    <div class="auth-bdy">
+      <div class="auth-lbl" id="authLabel">Sign in to continue</div>
+      <div class="fld"><label>Email</label><input type="email" id="authEmail" placeholder="you@example.com"></div>
+      <div class="fld">
+        <label>Password</label>
+        <input type="password" id="authPassword" placeholder="••••••••" minlength="6" onkeydown="if(event.key==='Enter')window.handleAuth()">
+        <div class="pw-hint" id="pwHint" style="display:none;">Minimum 6 characters</div>
+      </div>
+      <button class="btn btn-gold" id="authBtn" onclick="window.handleAuth()">Sign In</button>
+      <div class="divider">or</div>
+      <button class="btn btn-white" onclick="window.googleSignIn()">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" width="18" height="18" alt="G">
+        Continue with Google
+      </button>
+      <div style="margin-top:16px;text-align:center;display:flex;flex-direction:column;gap:9px;">
+        <button class="tbtn" id="authToggleBtn" onclick="window.toggleAuthMode()">Create an account instead</button>
+        <button class="tbtn" onclick="window.resetPassword()">Forgot password?</button>
+      </div>
+    </div>
+  </div>
+</div>
 
-    <div id="draft-tab" class="tab-content glass-panel">
-        <h2>Draft Control Center</h2>
-        <h3 id="currentPickDisplay" style="color: var(--text-main); font-size: 1.5em; border-left: 4px solid var(--cream); padding-left: 15px;">Current Pick: Loading...</h3>
-        <p id="draftAlert" class="alert" style="display:none;"></p>
-        
-        <div class="filters">
-            <input type="text" id="filterName" placeholder="Search Player Name..." oninput="populateDraftDropdown()">
-            <select id="filterRole" onchange="populateDraftDropdown()">
-                <option value="All">All Roles</option>
-                <option value="Batter">Batter</option>
-                <option value="Bowler">Bowler</option>
-                <option value="All-Rounder">All-Rounder</option>
-                <option value="Wicketkeeper">Wicketkeeper</option>
-            </select>
-            <select id="filterIPLTeam" onchange="populateDraftDropdown()">
-                <option value="All">All IPL Teams</option>
-                <option value="CSK">CSK</option>
-                <option value="MI">MI</option>
-                <option value="KKR">KKR</option>
-                <option value="RCB">RCB</option>
-                <option value="PBKS">PBKS</option>
-                <option value="GT">GT</option>
-                <option value="RR">RR</option>
-                <option value="SRH">SRH</option>
-                <option value="LSG">LSG</option>
-                <option value="DC">DC</option>
-            </select>
-            <select id="filterOverseas" onchange="populateDraftDropdown()">
-                <option value="All">All Origin</option>
-                <option value="Indian">Indian Only</option>
-                <option value="Overseas">Overseas Only</option>
-            </select>
-        </div>
+<!-- APP SHELL -->
+<div id="app-shell" class="view">
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="tb-logo">🏏</div>
+      <div><div class="tb-title">IPL DRAFT 2026</div><div class="tb-user" id="topbarUser"></div></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span class="conn-dot dead" id="connDot" title="Connecting..."></span>
+      <button class="btn btn-danger btn-sm" onclick="window.doLogout()">Sign Out</button>
+    </div>
+  </div>
 
-        <div class="form-group" style="display: flex; gap: 15px; align-items: center; background: rgba(0,0,0,0.2); padding: 20px; border-radius: 12px; border: 1px solid var(--glass-border);">
-            <div style="flex-grow: 1; max-width: 500px;">
-                <label>Select Player on the Clock:</label>
-                <select id="playerSelect" style="max-width: 100%;"></select>
+  <div class="content">
+    <!-- DASHBOARD -->
+    <div id="dash-view" class="view">
+      <div class="dtabs">
+        <button class="dtab active" id="dt-my" onclick="window.switchDashTab('my')">🏟 My Draft Rooms</button>
+        <button class="dtab" id="dt-joined" onclick="window.switchDashTab('joined')">🤝 Joined Rooms</button>
+      </div>
+      <div id="dpanel-my">
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">My Draft Rooms</span>
+            <button class="btn btn-gold btn-sm" id="createToggleBtn" onclick="window.toggleCreateForm()">+ Create New</button>
+          </div>
+          <div class="card-bdy">
+            <div id="create-form" style="display:none;margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--bdr);">
+              <div class="slbl">New Draft Room</div>
+              <div class="g2">
+                <div class="fld"><label>Room Name</label><input type="text" id="newDraftName" placeholder="e.g. Office Draft 2026"></div>
+                <div class="fld"><label>Max Teams</label><input type="number" id="newMaxTeams" value="6" min="2" max="10"></div>
+                <div class="fld"><label>Picks per Team</label><input type="number" id="newPicksPerTeam" value="15" min="5" max="25"></div>
+              </div>
+              <button class="btn btn-gold" onclick="window.createDraftRoom()" style="margin-top:6px;">Generate Room</button>
             </div>
-            <button onclick="draftPlayer()" style="margin-top: 25px;">Lock In Pick</button>
+            <div id="myDraftsList"><div class="empty">No draft rooms yet — create one above.</div></div>
+          </div>
         </div>
-
-        <div style="margin-top: 40px;">
-            <h3 style="font-size: 1.1em; color: var(--text-muted);">Draft Order (Next 5)</h3>
-            <ul id="upcomingOrderList"></ul>
+      </div>
+      <div id="dpanel-joined" style="display:none;">
+        <div class="card">
+          <div class="card-hdr"><span class="card-title">Join a Draft Room</span></div>
+          <div class="card-bdy">
+            <div class="slbl">Paste invite link or room ID</div>
+            <div class="join-row">
+              <input type="text" id="joinDraftCode" placeholder="https://...?draft=abc  or  -abc123" onkeydown="if(event.key==='Enter')window.initiateJoin()">
+              <button class="btn btn-gold btn-sm" style="padding:12px 20px;" onclick="window.initiateJoin()">Join →</button>
+            </div>
+            <div class="slbl" style="margin-top:8px;">Previously Joined</div>
+            <div id="joinedDraftsList"><div class="empty">No joined rooms yet.</div></div>
+          </div>
         </div>
+      </div>
     </div>
 
-    <div id="teams-tab" class="tab-content glass-panel">
-        <h2 style="margin-bottom: 30px;">Live Team Rosters</h2>
-        <div class="team-grid" id="teamGrid"></div>
-    </div>
-
-    <div id="roster-tab" class="tab-content glass-panel">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h2>Global Player Database</h2>
-            <button onclick="exportCSV()">Download CSV</button>
+    <!-- DRAFT ROOM -->
+    <div id="draft-view" class="view">
+      <div class="dr-head">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm" onclick="window.backToDash()">← Dashboard</button>
+          <span class="dr-title" id="draftRoomTitle">Loading...</span>
+          <span class="badge" id="draftRoleBadge"></span>
         </div>
-        <div style="overflow-x: auto;">
-            <table id="globalRosterTable">
-                <thead>
-                    <tr>
-                        <th>Player Name</th>
-                        <th>IPL Franchise</th>
-                        <th>Primary Role</th>
-                        <th>Origin</th>
-                        <th>Draft Status</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
+        <button class="btn btn-outline btn-sm" onclick="window.copyDraftLink()">🔗 Copy Invite</button>
+      </div>
+
+      <div class="srow" id="draftStatsRow" style="display:none;">
+        <div class="spill"><div class="sval" id="st-round">—</div><div class="slb2">Round</div></div>
+        <div class="spill"><div class="sval" id="st-pick">—</div><div class="slb2">Pick #</div></div>
+        <div class="spill"><div class="sval" id="st-rem">—</div><div class="slb2">Available</div></div>
+        <div class="spill"><div class="sval" id="st-drafted">—</div><div class="slb2">Drafted</div></div>
+      </div>
+
+      <div class="dnav">
+        <button class="dnav-btn active" id="dbtn-setup" onclick="window.switchDraftTab('setup')">⚙ Setup</button>
+        <button class="dnav-btn" id="dbtn-draft" onclick="window.switchDraftTab('draft')">🎯 Draft Room</button>
+        <button class="dnav-btn" id="dbtn-teams" onclick="window.switchDraftTab('teams')">📋 Rosters</button>
+        <button class="dnav-btn" id="dbtn-roster" onclick="window.switchDraftTab('roster')">📊 Players</button>
+      </div>
+
+      <!-- SETUP TAB -->
+      <div id="dtab-setup" class="card">
+        <div class="card-hdr"><span class="card-title">Draft Setup</span><span class="badge br">Admin Only</span></div>
+        <div class="card-bdy">
+          <div class="setup-warn">⚠️ Once the draft starts, the snake order is locked and picks begin immediately. Make sure all franchises have joined first.</div>
+          <div id="setupInfoBox" style="background:rgba(0,0,0,.2);border-radius:var(--r);padding:14px;font-size:.87rem;color:var(--muted2);margin-bottom:20px;"></div>
+          <div style="margin-bottom:20px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+              <div class="slbl" style="margin-bottom:0;">Registered Franchises <span id="teamsCountBadge" class="badge bb" style="margin-left:6px;"></span></div>
+            </div>
+            <div id="setupMembersList"><div class="empty">No franchises yet. Share the invite link!</div></div>
+          </div>
+          <button class="btn btn-gold" id="startDraftBtn" onclick="window.startDraft()">🚀 Start Snake Draft</button>
         </div>
-    </div>
+      </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getDatabase, ref, set, update, onValue } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
-    
-        const firebaseConfig = {
-            apiKey: "AIzaSyBlHdz4Vu1kMlEjwXs-dcDwFeHGhjSSb3I",
-            authDomain: "ipl-2026-draft.firebaseapp.com",
-            databaseURL: "https://ipl-2026-draft-default-rtdb.firebaseio.com",
-            projectId: "ipl-2026-draft",
-            storageBucket: "ipl-2026-draft.firebasestorage.app",
-            messagingSenderId: "5757407923",
-            appId: "1:5757407923:web:6afc487aed6cf15fb516c6",
-            measurementId: "G-Z1K8YE1Q5N"
-        };
-    
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-        const draftRef = ref(db, 'draft2026');
-        const connectedRef = ref(db, ".info/connected");
-    
-        const rawData = [
-            {n:"Ruturaj Gaikwad", t:"CSK", r:"Batter", o:false}, {n:"Ayush Mhatre", t:"CSK", r:"Batter", o:false}, {n:"Dewald Brevis", t:"CSK", r:"Batter", o:true}, {n:"MS Dhoni", t:"CSK", r:"Wicketkeeper", o:false}, {n:"Urvil Patel", t:"CSK", r:"Wicketkeeper", o:false}, {n:"Shivam Dube", t:"CSK", r:"All-Rounder", o:false}, {n:"Jamie Overton", t:"CSK", r:"All-Rounder", o:true}, {n:"Ramakrishna Ghosh", t:"CSK", r:"Bowler", o:false}, {n:"Noor Ahmad", t:"CSK", r:"Bowler", o:true}, {n:"Khaleel Ahmed", t:"CSK", r:"Bowler", o:false}, {n:"Anshul Kamboj", t:"CSK", r:"All-Rounder", o:false}, {n:"Gurjapneet Singh", t:"CSK", r:"Bowler", o:false}, {n:"Nathan Ellis", t:"CSK", r:"Bowler", o:true}, {n:"Shreyas Gopal", t:"CSK", r:"Bowler", o:false}, {n:"Mukesh Choudhary", t:"CSK", r:"Bowler", o:false}, {n:"Sanju Samson", t:"CSK", r:"Wicketkeeper", o:false}, {n:"Akeal Hosein", t:"CSK", r:"Bowler", o:true}, {n:"Prashant Veer", t:"CSK", r:"All-Rounder", o:false}, {n:"Kartik Sharma", t:"CSK", r:"Batter", o:false}, {n:"Matthew Short", t:"CSK", r:"All-Rounder", o:true}, {n:"Aman Khan", t:"CSK", r:"All-Rounder", o:false}, {n:"Sarfaraz Khan", t:"CSK", r:"Batter", o:false}, {n:"Matt Henry", t:"CSK", r:"Bowler", o:true}, {n:"Rahul Chahar", t:"CSK", r:"Bowler", o:false}, {n:"Zak Foulkes", t:"CSK", r:"All-Rounder", o:true},
-            {n:"Rohit Sharma", t:"MI", r:"Batter", o:false}, {n:"Suryakumar Yadav", t:"MI", r:"Batter", o:false}, {n:"Tilak Varma", t:"MI", r:"Batter", o:false}, {n:"Robin Minz", t:"MI", r:"Wicketkeeper", o:false}, {n:"Ryan Rickelton", t:"MI", r:"Wicketkeeper", o:true}, {n:"Hardik Pandya", t:"MI", r:"All-Rounder", o:false}, {n:"Naman Dhir", t:"MI", r:"All-Rounder", o:false}, {n:"Mitchell Santner", t:"MI", r:"All-Rounder", o:true}, {n:"Will Jacks", t:"MI", r:"All-Rounder", o:true}, {n:"Corbin Bosch", t:"MI", r:"All-Rounder", o:true}, {n:"Raj Bawa", t:"MI", r:"All-Rounder", o:false}, {n:"Trent Boult", t:"MI", r:"Bowler", o:true}, {n:"Jasprit Bumrah", t:"MI", r:"Bowler", o:false}, {n:"Deepak Chahar", t:"MI", r:"Bowler", o:false}, {n:"Ashwani Kumar", t:"MI", r:"Bowler", o:false}, {n:"Raghu Sharma", t:"MI", r:"Bowler", o:false}, {n:"AM Ghazanfar", t:"MI", r:"Bowler", o:true}, {n:"Shardul Thakur", t:"MI", r:"All-Rounder", o:false}, {n:"Sherfane Rutherford", t:"MI", r:"Batter", o:true}, {n:"Mayank Markande", t:"MI", r:"Bowler", o:false}, {n:"Quinton de Kock", t:"MI", r:"Wicketkeeper", o:true}, {n:"Danish Malewar", t:"MI", r:"Batter", o:false}, {n:"Mohammad Izhar", t:"MI", r:"Batter", o:false}, {n:"Atharva Ankolekar", t:"MI", r:"All-Rounder", o:false}, {n:"Mayank Rawat", t:"MI", r:"All-Rounder", o:false},
-            {n:"Ajinkya Rahane", t:"KKR", r:"Batter", o:false}, {n:"Angkrish Raghuvanshi", t:"KKR", r:"Batter", o:false}, {n:"Anukul Roy", t:"KKR", r:"All-Rounder", o:false}, {n:"Harshit Rana", t:"KKR", r:"Bowler", o:false}, {n:"Manish Pandey", t:"KKR", r:"Batter", o:false}, {n:"Ramandeep Singh", t:"KKR", r:"All-Rounder", o:false}, {n:"Rinku Singh", t:"KKR", r:"Batter", o:false}, {n:"Rovman Powell", t:"KKR", r:"Batter", o:true}, {n:"Sunil Narine", t:"KKR", r:"All-Rounder", o:true}, {n:"Umran Malik", t:"KKR", r:"Bowler", o:false}, {n:"Vaibhav Arora", t:"KKR", r:"Bowler", o:false}, {n:"Varun Chakravarthy", t:"KKR", r:"Bowler", o:false}, {n:"Cameron Green", t:"KKR", r:"All-Rounder", o:true}, {n:"Matheesha Pathirana", t:"KKR", r:"Bowler", o:true}, {n:"Mustafizur Rahman", t:"KKR", r:"Bowler", o:true}, {n:"Tejasvi Singh", t:"KKR", r:"Bowler", o:false}, {n:"Rachin Ravindra", t:"KKR", r:"All-Rounder", o:true}, {n:"Finn Allen", t:"KKR", r:"Batter", o:true}, {n:"Tim Seifert", t:"KKR", r:"Wicketkeeper", o:true}, {n:"Akash Deep", t:"KKR", r:"Bowler", o:false}, {n:"Rahul Tripathi", t:"KKR", r:"Batter", o:false}, {n:"Daksh Kamra", t:"KKR", r:"Bowler", o:false}, {n:"Sarthak Ranjan", t:"KKR", r:"Batter", o:false}, {n:"Prashant Solanki", t:"KKR", r:"Bowler", o:false}, {n:"Kartik Tyagi", t:"KKR", r:"Bowler", o:false},
-            {n:"Rajat Patidar", t:"RCB", r:"Batter", o:false}, {n:"Virat Kohli", t:"RCB", r:"Batter", o:false}, {n:"Devdutt Padikkal", t:"RCB", r:"Batter", o:false}, {n:"Phil Salt", t:"RCB", r:"Wicketkeeper", o:true}, {n:"Jitesh Sharma", t:"RCB", r:"Wicketkeeper", o:false}, {n:"Krunal Pandya", t:"RCB", r:"All-Rounder", o:false}, {n:"Swapnil Singh", t:"RCB", r:"All-Rounder", o:false}, {n:"Tim David", t:"RCB", r:"Batter", o:true}, {n:"Romario Shepherd", t:"RCB", r:"All-Rounder", o:true}, {n:"Jacob Bethell", t:"RCB", r:"All-Rounder", o:true}, {n:"Josh Hazlewood", t:"RCB", r:"Bowler", o:true}, {n:"Yash Dayal", t:"RCB", r:"Bowler", o:false}, {n:"Bhuvneshwar Kumar", t:"RCB", r:"Bowler", o:false}, {n:"Nuwan Thushara", t:"RCB", r:"Bowler", o:true}, {n:"Rasikh Salam", t:"RCB", r:"Bowler", o:false}, {n:"Abhinandan Singh", t:"RCB", r:"Bowler", o:false}, {n:"Suyash Sharma", t:"RCB", r:"Bowler", o:false}, {n:"Venkatesh Iyer", t:"RCB", r:"All-Rounder", o:false}, {n:"Jacob Duffy", t:"RCB", r:"Bowler", o:true}, {n:"Satvik Deswal", t:"RCB", r:"All-Rounder", o:false}, {n:"Mangesh Yadav", t:"RCB", r:"All-Rounder", o:false}, {n:"Jordan Cox", t:"RCB", r:"Wicketkeeper", o:true}, {n:"Vicky Ostwal", t:"RCB", r:"Bowler", o:false}, {n:"Kanishk Chouhan", t:"RCB", r:"Batter", o:false}, {n:"Vihaan Malhotra", t:"RCB", r:"Batter", o:false},
-            {n:"Shreyas Iyer", t:"PBKS", r:"Batter", o:false}, {n:"Nehal Wadhera", t:"PBKS", r:"Batter", o:false}, {n:"Priyansh Arya", t:"PBKS", r:"Batter", o:false}, {n:"Prabhsimran Singh", t:"PBKS", r:"Wicketkeeper", o:false}, {n:"Shashank Singh", t:"PBKS", r:"Batter", o:false}, {n:"Pyla Avinash", t:"PBKS", r:"Batter", o:false}, {n:"Harnoor Pannu", t:"PBKS", r:"Batter", o:false}, {n:"Musheer Khan", t:"PBKS", r:"All-Rounder", o:false}, {n:"Vishnu Vinod", t:"PBKS", r:"Wicketkeeper", o:false}, {n:"Marcus Stoinis", t:"PBKS", r:"All-Rounder", o:true}, {n:"Azmatullah Omarzai", t:"PBKS", r:"All-Rounder", o:true}, {n:"Suryansh Shedge", t:"PBKS", r:"All-Rounder", o:false}, {n:"Mitchell Owen", t:"PBKS", r:"All-Rounder", o:true}, {n:"Arshdeep Singh", t:"PBKS", r:"Bowler", o:false}, {n:"Vyshak Vijaykumar", t:"PBKS", r:"Bowler", o:false}, {n:"Marco Jansen", t:"PBKS", r:"Bowler", o:true}, {n:"Yash Thakur", t:"PBKS", r:"Bowler", o:false}, {n:"Xavier Bartlett", t:"PBKS", r:"Bowler", o:true}, {n:"Lockie Ferguson", t:"PBKS", r:"Bowler", o:true}, {n:"Yuzvendra Chahal", t:"PBKS", r:"Bowler", o:false}, {n:"Harpreet Brar", t:"PBKS", r:"All-Rounder", o:false}, {n:"Ben Dwarshuis", t:"PBKS", r:"Bowler", o:true}, {n:"Cooper Connolly", t:"PBKS", r:"All-Rounder", o:true}, {n:"Pravin Dubey", t:"PBKS", r:"Bowler", o:false}, {n:"Vishal Nishad", t:"PBKS", r:"Batter", o:false},
-            {n:"Shubman Gill", t:"GT", r:"Batter", o:false}, {n:"Rashid Khan", t:"GT", r:"Bowler", o:true}, {n:"Sai Sudharsan", t:"GT", r:"Batter", o:false}, {n:"Rahul Tewatia", t:"GT", r:"All-Rounder", o:false}, {n:"Shahrukh Khan", t:"GT", r:"All-Rounder", o:false}, {n:"Kagiso Rabada", t:"GT", r:"Bowler", o:true}, {n:"Jos Buttler", t:"GT", r:"Wicketkeeper", o:true}, {n:"Mohammed Siraj", t:"GT", r:"Bowler", o:false}, {n:"Prasidh Krishna", t:"GT", r:"Bowler", o:false}, {n:"Nishant Sindhu", t:"GT", r:"All-Rounder", o:false}, {n:"Kumar Kushagra", t:"GT", r:"Wicketkeeper", o:false}, {n:"Anuj Rawat", t:"GT", r:"Wicketkeeper", o:false}, {n:"Manav Suthar", t:"GT", r:"Bowler", o:false}, {n:"Washington Sundar", t:"GT", r:"All-Rounder", o:false}, {n:"Arshad Khan", t:"GT", r:"Bowler", o:false}, {n:"Gurnoor Brar", t:"GT", r:"Bowler", o:false}, {n:"Sai Kishore", t:"GT", r:"Bowler", o:false}, {n:"Ishant Sharma", t:"GT", r:"Bowler", o:false}, {n:"Jayant Yadav", t:"GT", r:"All-Rounder", o:false}, {n:"Glenn Phillips", t:"GT", r:"Batter", o:true}, {n:"Jason Holder", t:"GT", r:"All-Rounder", o:true}, {n:"Ashok Sharma", t:"GT", r:"Bowler", o:false}, {n:"Tom Banton", t:"GT", r:"Wicketkeeper", o:true}, {n:"Prithviraj Yarra", t:"GT", r:"Bowler", o:false}, {n:"Luke Wood", t:"GT", r:"Bowler", o:true},
-            {n:"Yashasvi Jaiswal", t:"RR", r:"Batter", o:false}, {n:"Vaibhav Suryavanshi", t:"RR", r:"Batter", o:false}, {n:"Dhruv Jurel", t:"RR", r:"Wicketkeeper", o:false}, {n:"Riyan Parag", t:"RR", r:"All-Rounder", o:false}, {n:"Shimron Hetmyer", t:"RR", r:"Batter", o:true}, {n:"Shubham Dubey", t:"RR", r:"Batter", o:false}, {n:"Yudhvir Singh Charak", t:"RR", r:"Bowler", o:false}, {n:"Jofra Archer", t:"RR", r:"Bowler", o:true}, {n:"Tushar Deshpande", t:"RR", r:"Bowler", o:false}, {n:"Sandeep Sharma", t:"RR", r:"Bowler", o:false}, {n:"Kwena Maphaka", t:"RR", r:"Bowler", o:true}, {n:"Nandre Burger", t:"RR", r:"Bowler", o:true}, {n:"Lhuan-dre Pretorius", t:"RR", r:"Wicketkeeper", o:true}, {n:"Ravindra Jadeja", t:"RR", r:"All-Rounder", o:false}, {n:"Donovan Ferreira", t:"RR", r:"Wicketkeeper", o:true}, {n:"Sam Curran", t:"RR", r:"All-Rounder", o:true}, {n:"Ravi Bishnoi", t:"RR", r:"Bowler", o:false}, {n:"Ravi Singh", t:"RR", r:"Batter", o:false}, {n:"Sushant Mishra", t:"RR", r:"Bowler", o:false}, {n:"Brijesh Sharma", t:"RR", r:"All-Rounder", o:false}, {n:"Aman Rao Perala", t:"RR", r:"Batter", o:false}, {n:"Vignesh Puthur", t:"RR", r:"Bowler", o:false}, {n:"Yash Raj Punja", t:"RR", r:"Bowler", o:false}, {n:"Kuldeep Sen", t:"RR", r:"Bowler", o:false}, {n:"Adam Milne", t:"RR", r:"Bowler", o:true},
-            {n:"Pat Cummins", t:"SRH", r:"Bowler", o:true}, {n:"Travis Head", t:"SRH", r:"Batter", o:true}, {n:"Abhishek Sharma", t:"SRH", r:"All-Rounder", o:false}, {n:"Aniket Verma", t:"SRH", r:"Batter", o:false}, {n:"Smaran Ravichandran", t:"SRH", r:"Batter", o:false}, {n:"Ishan Kishan", t:"SRH", r:"Wicketkeeper", o:false}, {n:"Heinrich Klaasen", t:"SRH", r:"Wicketkeeper", o:true}, {n:"Nitish Kumar Reddy", t:"SRH", r:"All-Rounder", o:false}, {n:"Harsh Dubey", t:"SRH", r:"All-Rounder", o:false}, {n:"Kamindu Mendis", t:"SRH", r:"All-Rounder", o:true}, {n:"Harshal Patel", t:"SRH", r:"Bowler", o:false}, {n:"Brydon Carse", t:"SRH", r:"Bowler", o:true}, {n:"Jaydev Unadkat", t:"SRH", r:"Bowler", o:false}, {n:"Eshan Malinga", t:"SRH", r:"Bowler", o:true}, {n:"Zeeshan Ansari", t:"SRH", r:"Bowler", o:false}, {n:"Liam Livingstone", t:"SRH", r:"All-Rounder", o:true}, {n:"Jack Edwards", t:"SRH", r:"All-Rounder", o:true}, {n:"Salil Arora", t:"SRH", r:"Wicketkeeper", o:false}, {n:"Shivam Mavi", t:"SRH", r:"Bowler", o:false}, {n:"Krains Fuletra", t:"SRH", r:"Bowler", o:false}, {n:"Praful Hinge", t:"SRH", r:"Bowler", o:false}, {n:"Amit Kumar", t:"SRH", r:"All-Rounder", o:false}, {n:"Onkar Tarmale", t:"SRH", r:"Batter", o:false}, {n:"Sakib Hussain", t:"SRH", r:"Bowler", o:false}, {n:"Shivang Kumar", t:"SRH", r:"Bowler", o:false},
-            {n:"Rishabh Pant", t:"LSG", r:"Wicketkeeper", o:false}, {n:"Abdul Samad", t:"LSG", r:"Batter", o:false}, {n:"Ayush Badoni", t:"LSG", r:"Batter", o:false}, {n:"Aiden Markram", t:"LSG", r:"Batter", o:true}, {n:"Mitchell Marsh", t:"LSG", r:"All-Rounder", o:true}, {n:"Matthew Breetzke", t:"LSG", r:"Batter", o:true}, {n:"Nicholas Pooran", t:"LSG", r:"Wicketkeeper", o:true}, {n:"Himmat Singh", t:"LSG", r:"Batter", o:false}, {n:"Shahbaz Ahmed", t:"LSG", r:"All-Rounder", o:false}, {n:"Arshin Kulkarni", t:"LSG", r:"All-Rounder", o:false}, {n:"Mayank Yadav", t:"LSG", r:"Bowler", o:false}, {n:"Avesh Khan", t:"LSG", r:"Bowler", o:false}, {n:"Mohsin Khan", t:"LSG", r:"Bowler", o:false}, {n:"Digvesh Rathi", t:"LSG", r:"Batter", o:false}, {n:"M. Siddharth", t:"LSG", r:"Bowler", o:false}, {n:"Prince Yadav", t:"LSG", r:"All-Rounder", o:false}, {n:"Akash Singh", t:"LSG", r:"Bowler", o:false}, {n:"Arjun Tendulkar", t:"LSG", r:"All-Rounder", o:false}, {n:"Mohammed Shami", t:"LSG", r:"Bowler", o:false}, {n:"Naman Tiwari", t:"LSG", r:"Bowler", o:false}, {n:"Wanindu Hasaranga", t:"LSG", r:"All-Rounder", o:true}, {n:"Josh Inglis", t:"LSG", r:"Wicketkeeper", o:true}, {n:"Akshat Raghuwanshi", t:"LSG", r:"Batter", o:false}, {n:"Anrich Nortje", t:"LSG", r:"Bowler", o:true}, {n:"Mukul Choudhary", t:"LSG", r:"Bowler", o:false},
-            {n:"Axar Patel", t:"DC", r:"All-Rounder", o:false}, {n:"KL Rahul", t:"DC", r:"Wicketkeeper", o:false}, {n:"Tristan Stubbs", t:"DC", r:"Wicketkeeper", o:true}, {n:"Sameer Rizvi", t:"DC", r:"Batter", o:false}, {n:"Karun Nair", t:"DC", r:"Batter", o:false}, {n:"Abishek Porel", t:"DC", r:"Wicketkeeper", o:false}, {n:"Ashutosh Sharma", t:"DC", r:"Batter", o:false}, {n:"Vipraj Nigam", t:"DC", r:"Bowler", o:false}, {n:"Madhav Tiwari", t:"DC", r:"Bowler", o:false}, {n:"Tripurana Vijay", t:"DC", r:"All-Rounder", o:false}, {n:"Ajay Mandal", t:"DC", r:"All-Rounder", o:false}, {n:"Kuldeep Yadav", t:"DC", r:"Bowler", o:false}, {n:"Mitchell Starc", t:"DC", r:"Bowler", o:true}, {n:"T. Natarajan", t:"DC", r:"Bowler", o:false}, {n:"Mukesh Kumar", t:"DC", r:"Bowler", o:false}, {n:"Dushmantha Chameera", t:"DC", r:"Bowler", o:true}, {n:"Nitish Rana", t:"DC", r:"All-Rounder", o:false}, {n:"Auqib Dar", t:"DC", r:"Bowler", o:false}, {n:"Pathum Nissanka", t:"DC", r:"Batter", o:true}, {n:"Kyle Jamieson", t:"DC", r:"Bowler", o:true}, {n:"Lungisani Ngidi", t:"DC", r:"Bowler", o:true}, {n:"Ben Duckett", t:"DC", r:"Batter", o:true}, {n:"David Miller", t:"DC", r:"Batter", o:true}, {n:"Prithvi Shaw", t:"DC", r:"Batter", o:false}, {n:"Sahil Parakh", t:"DC", r:"Batter", o:false}
-        ];
-    
-        let players = rawData.map((p, i) => ({
-            id: i, name: p.n, iplTeam: p.t, role: p.r, isOverseas: p.o, draftedBy: null
-        }));
-    
-        let fantasyTeams = [];
-        let maxPlayersPerTeam = 15;
-        let draftOrder = [];
-        let currentPickIndex = 0;
-        let initialLoad = true;
-    
-        // Track Live Connection (Green/Red Dot)
-        onValue(connectedRef, (snap) => {
-            const dot = document.getElementById("connectionDot");
-            if (snap.val() === true) {
-                dot.className = "status-dot dot-green";
-                dot.title = "Connected to Live Draft";
-            } else {
-                dot.className = "status-dot dot-red";
-                dot.title = "Disconnected";
-            }
-        });
+      <!-- DRAFT TAB -->
+      <div id="dtab-draft" class="card" style="display:none;">
+        <div class="card-bdy">
+          <!-- Live franchises -->
+          <div class="members-bar" id="liveFranchisesBar" style="display:none;">
+            <div class="members-bar-title">Franchises in Draft</div>
+            <div class="members-pills" id="liveFranchisesList"></div>
+          </div>
+          <!-- My franchise -->
+          <div id="myFranchiseBadge" style="display:none;background:rgba(168,85,247,.08);border:1px solid rgba(168,85,247,.25);border-radius:var(--r);padding:8px 14px;font-size:.82rem;color:#c084fc;margin-bottom:14px;">
+            🏏 Drafting as: <strong id="myFranchiseName">—</strong>
+          </div>
+          <!-- Clock -->
+          <div class="clock-card" id="clockCard">
+            <div class="clock-round" id="clockRound">Waiting to start...</div>
+            <div class="clock-team" id="clockTeam">—</div>
+            <div class="clock-sub" id="clockSub"></div>
+            <div class="clock-you" id="clockYou" style="display:none;">⭐ YOUR PICK — Choose wisely!</div>
+          </div>
+          <!-- Pick controls (your turn only) -->
+          <div class="pick-box" id="pickBox" style="display:none;">
+            <div class="filters">
+              <input type="text" id="filterName" placeholder="Search player..." oninput="window.refreshDropdown()">
+              <select id="filterRole" onchange="window.refreshDropdown()">
+                <option value="All">All Roles</option><option>Batter</option><option>Bowler</option><option>All-Rounder</option><option>Wicketkeeper</option>
+              </select>
+              <select id="filterIPL" onchange="window.refreshDropdown()">
+                <option value="All">All IPL Teams</option>
+                <option>CSK</option><option>MI</option><option>KKR</option><option>RCB</option><option>PBKS</option><option>GT</option><option>RR</option><option>SRH</option><option>LSG</option><option>DC</option>
+              </select>
+              <select id="filterOrigin" onchange="window.refreshDropdown()">
+                <option value="All">All Origin</option><option value="Indian">Indian</option><option value="Overseas">Overseas</option>
+              </select>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-end;">
+              <div class="fld" style="flex:1;margin-bottom:0;"><label>Select Your Pick</label>
+                <select id="playerPickSelect" style="max-width:100%;"></select>
+              </div>
+              <button class="btn btn-gold btn-sm" style="flex-shrink:0;padding:13px 20px;" onclick="window.lockInPick()">🔒 Lock In Pick</button>
+            </div>
+          </div>
+          <!-- Order strip -->
+          <div>
+            <div class="slbl">Upcoming Draft Order</div>
+            <div class="order-strip" id="orderStrip"></div>
+          </div>
+        </div>
+      </div>
 
-        // Live Data Listener & Crash Prevention
-        onValue(draftRef, (snapshot) => {
-            const data = snapshot.val();
-            
-            document.getElementById('loading-tab').style.display = 'none';
-            document.getElementById('navTabs').style.display = 'flex';
+      <!-- TEAMS TAB -->
+      <div id="dtab-teams" style="display:none;">
+        <div class="tgrid" id="teamRosterGrid"><div class="empty">Draft not started yet.</div></div>
+      </div>
 
-            if (data && data.fantasyTeams) {
-                // A DRAFT EXISTS
-                // Force Firebase Objects back into strict JavaScript Arrays
-                players = Array.isArray(data.players) ? data.players : Object.values(data.players || {});
-                fantasyTeams = Array.isArray(data.fantasyTeams) ? data.fantasyTeams : Object.values(data.fantasyTeams || {});
-                draftOrder = Array.isArray(data.draftOrder) ? data.draftOrder : Object.values(data.draftOrder || {});
-                
-                // Fix internal team rosters
-                fantasyTeams.forEach(team => {
-                    team.roster = Array.isArray(team.roster) ? team.roster : Object.values(team.roster || {});
-                });
+      <!-- ROSTER TAB -->
+      <div id="dtab-roster" class="card" style="display:none;">
+        <div class="card-hdr">
+          <span class="card-title">Player Database</span>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span id="rosterCountBadge" class="badge bb"></span>
+            <button class="btn btn-info btn-sm" onclick="window.exportCSV()">⬇ CSV</button>
+          </div>
+        </div>
+        <div class="search-bar">
+          <input type="text" id="rosterSearch" placeholder="Search name or IPL team..." oninput="window.filterRoster()" style="flex:2;">
+          <select id="rosterFilterRole" onchange="window.filterRoster()" style="width:140px;">
+            <option value="">All Roles</option><option>Batter</option><option>Bowler</option><option>All-Rounder</option><option>Wicketkeeper</option>
+          </select>
+          <select id="rosterFilterStatus" onchange="window.filterRoster()" style="width:130px;">
+            <option value="">All Status</option><option value="available">Available</option><option value="drafted">Drafted</option>
+          </select>
+        </div>
+        <div class="twrap">
+          <table>
+            <thead><tr><th>#</th><th>Player</th><th>IPL Team</th><th>Role</th><th>Origin</th><th>Status</th><th>Drafted By</th></tr></thead>
+            <tbody id="rosterTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div><!-- /draft-view -->
+  </div>
+</div>
 
-                currentPickIndex = data.currentPickIndex || 0;
-                maxPlayersPerTeam = data.maxPlayersPerTeam || 15;
-    
-                if (initialLoad) {
-                    window.switchTab('draft');
-                    initialLoad = false;
-                }
-    
-                updateDraftUI();
-                updateTeamsUI();
-                updateRosterUI(); 
-            } else {
-                // NO DRAFT EXISTS
-                if (initialLoad) {
-                    window.switchTab('setup');
-                    initialLoad = false;
-                }
-                
-                // Reset arrays completely
-                players = rawData.map((p, i) => ({
-                    id: i, name: p.n, iplTeam: p.t, role: p.r, isOverseas: p.o, draftedBy: null
-                }));
-                
-                updateRosterUI(); 
-                updateTeamsUI();
-            }
-        });
-    
-        // Global Functions
-        window.generateTeamInputs = function() {
-            const num = document.getElementById('numTeams').value;
-            const container = document.getElementById('teamNamesContainer');
-            container.innerHTML = '<h3 style="font-size:1.1em; color:var(--text-muted);">Enter Franchise Names:</h3>';
-            for (let i = 1; i <= num; i++) {
-                container.innerHTML += `<div class="form-group"><input type="text" id="teamName${i}" value="Franchise ${i}"></div>`;
-            }
-        };
-        
-        // Immediately draw initial layout elements
-        window.generateTeamInputs();
-        updateRosterUI(); 
-    
-        window.switchTab = function(tabId) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.nav-tabs button').forEach(el => el.classList.remove('active'));
-            
-            document.getElementById(tabId + '-tab').classList.add('active');
-            
-            const btn = document.getElementById('btn-' + tabId);
-            if (btn) btn.classList.add('active');
-        };
-    
-        window.startDraft = async function() {
-            const num = document.getElementById('numTeams').value;
-            maxPlayersPerTeam = document.getElementById('playersPerTeam').value;
-            
-            // RESET PLAYERS ARRAY
-            players = rawData.map((p, i) => ({
-                id: i, name: p.n, iplTeam: p.t, role: p.r, isOverseas: p.o, draftedBy: null
-            }));
+<script type="module">
+import{initializeApp}from"https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+import{getDatabase,ref,set,onValue,update,push,get,remove}from"https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+import{getAuth,signInWithEmailAndPassword,createUserWithEmailAndPassword,sendPasswordResetEmail,onAuthStateChanged,signOut,GoogleAuthProvider,signInWithPopup,signInWithRedirect,getRedirectResult}from"https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 
-            fantasyTeams = [];
-            let tempTeams = [];
-            for (let i = 1; i <= num; i++) {
-                const name = document.getElementById(`teamName${i}`).value || `Franchise ${i}`;
-                let teamObj = { name: name, roster: [] };
-                fantasyTeams.push(teamObj);
-                tempTeams.push(teamObj);
-            }
-    
-            tempTeams = tempTeams.sort(() => Math.random() - 0.5);
-            draftOrder = [];
-            for(let round = 1; round <= maxPlayersPerTeam; round++) {
-                let roundOrder = [...tempTeams];
-                if (round % 2 === 0) roundOrder.reverse(); 
-                draftOrder = draftOrder.concat(roundOrder);
-            }
-    
-            await set(draftRef, {
-                players: players,
-                fantasyTeams: fantasyTeams,
-                draftOrder: draftOrder,
-                currentPickIndex: 0,
-                maxPlayersPerTeam: maxPlayersPerTeam
-            });
+const cfg={apiKey:"AIzaSyBIHdz4Vu1kMlEjwXs-dcDwFeHGhjSSb3I",authDomain:"ipl-2026-draft.firebaseapp.com",databaseURL:"https://ipl-2026-draft-default-rtdb.firebaseio.com",projectId:"ipl-2026-draft",storageBucket:"ipl-2026-draft.firebasestorage.app",messagingSenderId:"5757407923",appId:"1:5757407923:web:6afc487aed6cf15fb516c6"};
+const app=initializeApp(cfg),db=getDatabase(app),auth=getAuth(app),gp=new GoogleAuthProvider();
 
-            window.switchTab('draft');
-        };
-    
-        window.populateDraftDropdown = function() {
-            const search = document.getElementById('filterName').value.toLowerCase();
-            const role = document.getElementById('filterRole').value;
-            const iplTeam = document.getElementById('filterIPLTeam').value;
-            const overseas = document.getElementById('filterOverseas').value;
-            const select = document.getElementById('playerSelect');
-            
-            let htmlBuffer = '';
-            let filtered = players.filter(p => !p.draftedBy);
-    
-            if (search) filtered = filtered.filter(p => p.name.toLowerCase().includes(search));
-            if (role !== 'All') filtered = filtered.filter(p => p.role === role);
-            if (iplTeam !== 'All') filtered = filtered.filter(p => p.iplTeam === iplTeam);
-            if (overseas === 'Indian') filtered = filtered.filter(p => !p.isOverseas);
-            if (overseas === 'Overseas') filtered = filtered.filter(p => p.isOverseas);
-    
-            filtered.forEach(p => {
-                htmlBuffer += `<option value="${p.id}">${p.name} — ${p.iplTeam} | ${p.role} ${p.isOverseas ? '[✈️ OS]' : ''}</option>`;
-            });
-            
-            select.innerHTML = htmlBuffer;
-        };
-    
-        function updateDraftUI() {
-            if (currentPickIndex >= draftOrder.length) {
-                document.getElementById('currentPickDisplay').innerHTML = "🏁 Draft Complete!";
-                document.getElementById('playerSelect').disabled = true;
-                return;
-            }
-    
-            const currentTeam = draftOrder[currentPickIndex].name;
-            const round = Math.floor(currentPickIndex / fantasyTeams.length) + 1;
-            document.getElementById('currentPickDisplay').innerHTML = `<span style="color:var(--text-muted); font-size: 0.7em; display:block; margin-bottom:5px;">Round ${round}</span> ${currentTeam} is on the clock!`;
-            
-            const list = document.getElementById('upcomingOrderList');
-            let listHtml = '';
-            for(let i = currentPickIndex; i < Math.min(currentPickIndex + 5, draftOrder.length); i++) {
-                listHtml += `<li class="${i === currentPickIndex ? 'active-pick' : ''}">${draftOrder[i].name}</li>`;
-            }
-            list.innerHTML = listHtml;
-    
-            window.populateDraftDropdown();
-            document.getElementById('draftAlert').style.display = 'none';
+// Connection dot
+onValue(ref(db,'.info/connected'),s=>{
+  const d=document.getElementById('connDot');if(!d)return;
+  if(s.val()){d.className='conn-dot live';d.title='Live';}else{d.className='conn-dot dead';d.title='Reconnecting...';}
+});
+
+// ── 250 Players ──
+const RAW=[
+  {n:"Ruturaj Gaikwad",t:"CSK",r:"Batter",o:false},{n:"Ayush Mhatre",t:"CSK",r:"Batter",o:false},{n:"Dewald Brevis",t:"CSK",r:"Batter",o:true},{n:"MS Dhoni",t:"CSK",r:"Wicketkeeper",o:false},{n:"Urvil Patel",t:"CSK",r:"Wicketkeeper",o:false},{n:"Shivam Dube",t:"CSK",r:"All-Rounder",o:false},{n:"Jamie Overton",t:"CSK",r:"All-Rounder",o:true},{n:"Ramakrishna Ghosh",t:"CSK",r:"Bowler",o:false},{n:"Noor Ahmad",t:"CSK",r:"Bowler",o:true},{n:"Khaleel Ahmed",t:"CSK",r:"Bowler",o:false},{n:"Anshul Kamboj",t:"CSK",r:"All-Rounder",o:false},{n:"Gurjapneet Singh",t:"CSK",r:"Bowler",o:false},{n:"Nathan Ellis",t:"CSK",r:"Bowler",o:true},{n:"Shreyas Gopal",t:"CSK",r:"Bowler",o:false},{n:"Mukesh Choudhary",t:"CSK",r:"Bowler",o:false},{n:"Sanju Samson",t:"CSK",r:"Wicketkeeper",o:false},{n:"Akeal Hosein",t:"CSK",r:"Bowler",o:true},{n:"Prashant Veer",t:"CSK",r:"All-Rounder",o:false},{n:"Kartik Sharma",t:"CSK",r:"Batter",o:false},{n:"Matthew Short",t:"CSK",r:"All-Rounder",o:true},{n:"Aman Khan",t:"CSK",r:"All-Rounder",o:false},{n:"Sarfaraz Khan",t:"CSK",r:"Batter",o:false},{n:"Matt Henry",t:"CSK",r:"Bowler",o:true},{n:"Rahul Chahar",t:"CSK",r:"Bowler",o:false},{n:"Zak Foulkes",t:"CSK",r:"All-Rounder",o:true},
+  {n:"Rohit Sharma",t:"MI",r:"Batter",o:false},{n:"Suryakumar Yadav",t:"MI",r:"Batter",o:false},{n:"Tilak Varma",t:"MI",r:"Batter",o:false},{n:"Robin Minz",t:"MI",r:"Wicketkeeper",o:false},{n:"Ryan Rickelton",t:"MI",r:"Wicketkeeper",o:true},{n:"Hardik Pandya",t:"MI",r:"All-Rounder",o:false},{n:"Naman Dhir",t:"MI",r:"All-Rounder",o:false},{n:"Mitchell Santner",t:"MI",r:"All-Rounder",o:true},{n:"Will Jacks",t:"MI",r:"All-Rounder",o:true},{n:"Corbin Bosch",t:"MI",r:"All-Rounder",o:true},{n:"Raj Bawa",t:"MI",r:"All-Rounder",o:false},{n:"Trent Boult",t:"MI",r:"Bowler",o:true},{n:"Jasprit Bumrah",t:"MI",r:"Bowler",o:false},{n:"Deepak Chahar",t:"MI",r:"Bowler",o:false},{n:"Ashwani Kumar",t:"MI",r:"Bowler",o:false},{n:"Raghu Sharma",t:"MI",r:"Bowler",o:false},{n:"AM Ghazanfar",t:"MI",r:"Bowler",o:true},{n:"Shardul Thakur",t:"MI",r:"All-Rounder",o:false},{n:"Sherfane Rutherford",t:"MI",r:"Batter",o:true},{n:"Mayank Markande",t:"MI",r:"Bowler",o:false},{n:"Quinton de Kock",t:"MI",r:"Wicketkeeper",o:true},{n:"Danish Malewar",t:"MI",r:"Batter",o:false},{n:"Mohammad Izhar",t:"MI",r:"Batter",o:false},{n:"Atharva Ankolekar",t:"MI",r:"All-Rounder",o:false},{n:"Mayank Rawat",t:"MI",r:"All-Rounder",o:false},
+  {n:"Ajinkya Rahane",t:"KKR",r:"Batter",o:false},{n:"Angkrish Raghuvanshi",t:"KKR",r:"Batter",o:false},{n:"Anukul Roy",t:"KKR",r:"All-Rounder",o:false},{n:"Harshit Rana",t:"KKR",r:"Bowler",o:false},{n:"Manish Pandey",t:"KKR",r:"Batter",o:false},{n:"Ramandeep Singh",t:"KKR",r:"All-Rounder",o:false},{n:"Rinku Singh",t:"KKR",r:"Batter",o:false},{n:"Rovman Powell",t:"KKR",r:"Batter",o:true},{n:"Sunil Narine",t:"KKR",r:"All-Rounder",o:true},{n:"Umran Malik",t:"KKR",r:"Bowler",o:false},{n:"Vaibhav Arora",t:"KKR",r:"Bowler",o:false},{n:"Varun Chakravarthy",t:"KKR",r:"Bowler",o:false},{n:"Cameron Green",t:"KKR",r:"All-Rounder",o:true},{n:"Matheesha Pathirana",t:"KKR",r:"Bowler",o:true},{n:"Mustafizur Rahman",t:"KKR",r:"Bowler",o:true},{n:"Tejasvi Singh",t:"KKR",r:"Bowler",o:false},{n:"Rachin Ravindra",t:"KKR",r:"All-Rounder",o:true},{n:"Finn Allen",t:"KKR",r:"Batter",o:true},{n:"Tim Seifert",t:"KKR",r:"Wicketkeeper",o:true},{n:"Akash Deep",t:"KKR",r:"Bowler",o:false},{n:"Rahul Tripathi",t:"KKR",r:"Batter",o:false},{n:"Daksh Kamra",t:"KKR",r:"Bowler",o:false},{n:"Sarthak Ranjan",t:"KKR",r:"Batter",o:false},{n:"Prashant Solanki",t:"KKR",r:"Bowler",o:false},{n:"Kartik Tyagi",t:"KKR",r:"Bowler",o:false},
+  {n:"Rajat Patidar",t:"RCB",r:"Batter",o:false},{n:"Virat Kohli",t:"RCB",r:"Batter",o:false},{n:"Devdutt Padikkal",t:"RCB",r:"Batter",o:false},{n:"Phil Salt",t:"RCB",r:"Wicketkeeper",o:true},{n:"Jitesh Sharma",t:"RCB",r:"Wicketkeeper",o:false},{n:"Krunal Pandya",t:"RCB",r:"All-Rounder",o:false},{n:"Swapnil Singh",t:"RCB",r:"All-Rounder",o:false},{n:"Tim David",t:"RCB",r:"Batter",o:true},{n:"Romario Shepherd",t:"RCB",r:"All-Rounder",o:true},{n:"Jacob Bethell",t:"RCB",r:"All-Rounder",o:true},{n:"Josh Hazlewood",t:"RCB",r:"Bowler",o:true},{n:"Yash Dayal",t:"RCB",r:"Bowler",o:false},{n:"Bhuvneshwar Kumar",t:"RCB",r:"Bowler",o:false},{n:"Nuwan Thushara",t:"RCB",r:"Bowler",o:true},{n:"Rasikh Salam",t:"RCB",r:"Bowler",o:false},{n:"Abhinandan Singh",t:"RCB",r:"Bowler",o:false},{n:"Suyash Sharma",t:"RCB",r:"Bowler",o:false},{n:"Venkatesh Iyer",t:"RCB",r:"All-Rounder",o:false},{n:"Jacob Duffy",t:"RCB",r:"Bowler",o:true},{n:"Satvik Deswal",t:"RCB",r:"All-Rounder",o:false},{n:"Mangesh Yadav",t:"RCB",r:"All-Rounder",o:false},{n:"Jordan Cox",t:"RCB",r:"Wicketkeeper",o:true},{n:"Vicky Ostwal",t:"RCB",r:"Bowler",o:false},{n:"Kanishk Chouhan",t:"RCB",r:"Batter",o:false},{n:"Vihaan Malhotra",t:"RCB",r:"Batter",o:false},
+  {n:"Shreyas Iyer",t:"PBKS",r:"Batter",o:false},{n:"Nehal Wadhera",t:"PBKS",r:"Batter",o:false},{n:"Priyansh Arya",t:"PBKS",r:"Batter",o:false},{n:"Prabhsimran Singh",t:"PBKS",r:"Wicketkeeper",o:false},{n:"Shashank Singh",t:"PBKS",r:"Batter",o:false},{n:"Pyla Avinash",t:"PBKS",r:"Batter",o:false},{n:"Harnoor Pannu",t:"PBKS",r:"Batter",o:false},{n:"Musheer Khan",t:"PBKS",r:"All-Rounder",o:false},{n:"Vishnu Vinod",t:"PBKS",r:"Wicketkeeper",o:false},{n:"Marcus Stoinis",t:"PBKS",r:"All-Rounder",o:true},{n:"Azmatullah Omarzai",t:"PBKS",r:"All-Rounder",o:true},{n:"Suryansh Shedge",t:"PBKS",r:"All-Rounder",o:false},{n:"Mitchell Owen",t:"PBKS",r:"All-Rounder",o:true},{n:"Arshdeep Singh",t:"PBKS",r:"Bowler",o:false},{n:"Vyshak Vijaykumar",t:"PBKS",r:"Bowler",o:false},{n:"Marco Jansen",t:"PBKS",r:"Bowler",o:true},{n:"Yash Thakur",t:"PBKS",r:"Bowler",o:false},{n:"Xavier Bartlett",t:"PBKS",r:"Bowler",o:true},{n:"Lockie Ferguson",t:"PBKS",r:"Bowler",o:true},{n:"Yuzvendra Chahal",t:"PBKS",r:"Bowler",o:false},{n:"Harpreet Brar",t:"PBKS",r:"All-Rounder",o:false},{n:"Ben Dwarshuis",t:"PBKS",r:"Bowler",o:true},{n:"Cooper Connolly",t:"PBKS",r:"All-Rounder",o:true},{n:"Pravin Dubey",t:"PBKS",r:"Bowler",o:false},{n:"Vishal Nishad",t:"PBKS",r:"Batter",o:false},
+  {n:"Shubman Gill",t:"GT",r:"Batter",o:false},{n:"Rashid Khan",t:"GT",r:"Bowler",o:true},{n:"Sai Sudharsan",t:"GT",r:"Batter",o:false},{n:"Rahul Tewatia",t:"GT",r:"All-Rounder",o:false},{n:"Shahrukh Khan",t:"GT",r:"All-Rounder",o:false},{n:"Kagiso Rabada",t:"GT",r:"Bowler",o:true},{n:"Jos Buttler",t:"GT",r:"Wicketkeeper",o:true},{n:"Mohammed Siraj",t:"GT",r:"Bowler",o:false},{n:"Prasidh Krishna",t:"GT",r:"Bowler",o:false},{n:"Nishant Sindhu",t:"GT",r:"All-Rounder",o:false},{n:"Kumar Kushagra",t:"GT",r:"Wicketkeeper",o:false},{n:"Anuj Rawat",t:"GT",r:"Wicketkeeper",o:false},{n:"Manav Suthar",t:"GT",r:"Bowler",o:false},{n:"Washington Sundar",t:"GT",r:"All-Rounder",o:false},{n:"Arshad Khan",t:"GT",r:"Bowler",o:false},{n:"Gurnoor Brar",t:"GT",r:"Bowler",o:false},{n:"Sai Kishore",t:"GT",r:"Bowler",o:false},{n:"Ishant Sharma",t:"GT",r:"Bowler",o:false},{n:"Jayant Yadav",t:"GT",r:"All-Rounder",o:false},{n:"Glenn Phillips",t:"GT",r:"Batter",o:true},{n:"Jason Holder",t:"GT",r:"All-Rounder",o:true},{n:"Ashok Sharma",t:"GT",r:"Bowler",o:false},{n:"Tom Banton",t:"GT",r:"Wicketkeeper",o:true},{n:"Prithviraj Yarra",t:"GT",r:"Bowler",o:false},{n:"Luke Wood",t:"GT",r:"Bowler",o:true},
+  {n:"Yashasvi Jaiswal",t:"RR",r:"Batter",o:false},{n:"Vaibhav Suryavanshi",t:"RR",r:"Batter",o:false},{n:"Dhruv Jurel",t:"RR",r:"Wicketkeeper",o:false},{n:"Riyan Parag",t:"RR",r:"All-Rounder",o:false},{n:"Shimron Hetmyer",t:"RR",r:"Batter",o:true},{n:"Shubham Dubey",t:"RR",r:"Batter",o:false},{n:"Yudhvir Singh Charak",t:"RR",r:"Bowler",o:false},{n:"Jofra Archer",t:"RR",r:"Bowler",o:true},{n:"Tushar Deshpande",t:"RR",r:"Bowler",o:false},{n:"Sandeep Sharma",t:"RR",r:"Bowler",o:false},{n:"Kwena Maphaka",t:"RR",r:"Bowler",o:true},{n:"Nandre Burger",t:"RR",r:"Bowler",o:true},{n:"Lhuan-dre Pretorius",t:"RR",r:"Wicketkeeper",o:true},{n:"Ravindra Jadeja",t:"RR",r:"All-Rounder",o:false},{n:"Donovan Ferreira",t:"RR",r:"Wicketkeeper",o:true},{n:"Sam Curran",t:"RR",r:"All-Rounder",o:true},{n:"Ravi Bishnoi",t:"RR",r:"Bowler",o:false},{n:"Ravi Singh",t:"RR",r:"Batter",o:false},{n:"Sushant Mishra",t:"RR",r:"Bowler",o:false},{n:"Brijesh Sharma",t:"RR",r:"All-Rounder",o:false},{n:"Aman Rao Perala",t:"RR",r:"Batter",o:false},{n:"Vignesh Puthur",t:"RR",r:"Bowler",o:false},{n:"Yash Raj Punja",t:"RR",r:"Bowler",o:false},{n:"Kuldeep Sen",t:"RR",r:"Bowler",o:false},{n:"Adam Milne",t:"RR",r:"Bowler",o:true},
+  {n:"Pat Cummins",t:"SRH",r:"Bowler",o:true},{n:"Travis Head",t:"SRH",r:"Batter",o:true},{n:"Abhishek Sharma",t:"SRH",r:"All-Rounder",o:false},{n:"Aniket Verma",t:"SRH",r:"Batter",o:false},{n:"Smaran Ravichandran",t:"SRH",r:"Batter",o:false},{n:"Ishan Kishan",t:"SRH",r:"Wicketkeeper",o:false},{n:"Heinrich Klaasen",t:"SRH",r:"Wicketkeeper",o:true},{n:"Nitish Kumar Reddy",t:"SRH",r:"All-Rounder",o:false},{n:"Harsh Dubey",t:"SRH",r:"All-Rounder",o:false},{n:"Kamindu Mendis",t:"SRH",r:"All-Rounder",o:true},{n:"Harshal Patel",t:"SRH",r:"Bowler",o:false},{n:"Brydon Carse",t:"SRH",r:"Bowler",o:true},{n:"Jaydev Unadkat",t:"SRH",r:"Bowler",o:false},{n:"Eshan Malinga",t:"SRH",r:"Bowler",o:true},{n:"Zeeshan Ansari",t:"SRH",r:"Bowler",o:false},{n:"Liam Livingstone",t:"SRH",r:"All-Rounder",o:true},{n:"Jack Edwards",t:"SRH",r:"All-Rounder",o:true},{n:"Salil Arora",t:"SRH",r:"Wicketkeeper",o:false},{n:"Shivam Mavi",t:"SRH",r:"Bowler",o:false},{n:"Krains Fuletra",t:"SRH",r:"Bowler",o:false},{n:"Praful Hinge",t:"SRH",r:"Bowler",o:false},{n:"Amit Kumar",t:"SRH",r:"All-Rounder",o:false},{n:"Onkar Tarmale",t:"SRH",r:"Batter",o:false},{n:"Sakib Hussain",t:"SRH",r:"Bowler",o:false},{n:"Shivang Kumar",t:"SRH",r:"Bowler",o:false},
+  {n:"Rishabh Pant",t:"LSG",r:"Wicketkeeper",o:false},{n:"Abdul Samad",t:"LSG",r:"Batter",o:false},{n:"Ayush Badoni",t:"LSG",r:"Batter",o:false},{n:"Aiden Markram",t:"LSG",r:"Batter",o:true},{n:"Mitchell Marsh",t:"LSG",r:"All-Rounder",o:true},{n:"Matthew Breetzke",t:"LSG",r:"Batter",o:true},{n:"Nicholas Pooran",t:"LSG",r:"Wicketkeeper",o:true},{n:"Himmat Singh",t:"LSG",r:"Batter",o:false},{n:"Shahbaz Ahmed",t:"LSG",r:"All-Rounder",o:false},{n:"Arshin Kulkarni",t:"LSG",r:"All-Rounder",o:false},{n:"Mayank Yadav",t:"LSG",r:"Bowler",o:false},{n:"Avesh Khan",t:"LSG",r:"Bowler",o:false},{n:"Mohsin Khan",t:"LSG",r:"Bowler",o:false},{n:"Digvesh Rathi",t:"LSG",r:"Batter",o:false},{n:"M. Siddharth",t:"LSG",r:"Bowler",o:false},{n:"Prince Yadav",t:"LSG",r:"All-Rounder",o:false},{n:"Akash Singh",t:"LSG",r:"Bowler",o:false},{n:"Arjun Tendulkar",t:"LSG",r:"All-Rounder",o:false},{n:"Mohammed Shami",t:"LSG",r:"Bowler",o:false},{n:"Naman Tiwari",t:"LSG",r:"Bowler",o:false},{n:"Wanindu Hasaranga",t:"LSG",r:"All-Rounder",o:true},{n:"Josh Inglis",t:"LSG",r:"Wicketkeeper",o:true},{n:"Akshat Raghuwanshi",t:"LSG",r:"Batter",o:false},{n:"Anrich Nortje",t:"LSG",r:"Bowler",o:true},{n:"Mukul Choudhary",t:"LSG",r:"Bowler",o:false},
+  {n:"Axar Patel",t:"DC",r:"All-Rounder",o:false},{n:"KL Rahul",t:"DC",r:"Wicketkeeper",o:false},{n:"Tristan Stubbs",t:"DC",r:"Wicketkeeper",o:true},{n:"Sameer Rizvi",t:"DC",r:"Batter",o:false},{n:"Karun Nair",t:"DC",r:"Batter",o:false},{n:"Abishek Porel",t:"DC",r:"Wicketkeeper",o:false},{n:"Ashutosh Sharma",t:"DC",r:"Batter",o:false},{n:"Vipraj Nigam",t:"DC",r:"Bowler",o:false},{n:"Madhav Tiwari",t:"DC",r:"Bowler",o:false},{n:"Tripurana Vijay",t:"DC",r:"All-Rounder",o:false},{n:"Ajay Mandal",t:"DC",r:"All-Rounder",o:false},{n:"Kuldeep Yadav",t:"DC",r:"Bowler",o:false},{n:"Mitchell Starc",t:"DC",r:"Bowler",o:true},{n:"T. Natarajan",t:"DC",r:"Bowler",o:false},{n:"Mukesh Kumar",t:"DC",r:"Bowler",o:false},{n:"Dushmantha Chameera",t:"DC",r:"Bowler",o:true},{n:"Nitish Rana",t:"DC",r:"All-Rounder",o:false},{n:"Auqib Dar",t:"DC",r:"Bowler",o:false},{n:"Pathum Nissanka",t:"DC",r:"Batter",o:true},{n:"Kyle Jamieson",t:"DC",r:"Bowler",o:true},{n:"Lungisani Ngidi",t:"DC",r:"Bowler",o:true},{n:"Ben Duckett",t:"DC",r:"Batter",o:true},{n:"David Miller",t:"DC",r:"Batter",o:true},{n:"Prithvi Shaw",t:"DC",r:"Batter",o:false},{n:"Sahil Parakh",t:"DC",r:"Batter",o:false}
+];
+
+// ── State ──
+let user=null,draftId=null,draftState=null,draftListener=null;
+let isAdmin=false,myTeamName='',isSignup=false,pendingJoinId='',roomToDelete='',cachedPlayers=null;
+
+const ERRS={'auth/invalid-credential':'Invalid email or password.','auth/user-not-found':'No account found.','auth/wrong-password':'Incorrect password.','auth/email-already-in-use':'Email already registered.','auth/weak-password':'Password needs 6+ characters.','auth/invalid-email':'Enter a valid email.','auth/too-many-requests':'Too many attempts. Try later.','auth/unauthorized-domain':'Domain not authorized in Firebase Console.'};
+
+// ── Helpers ──
+window.showAlert=function(msg,type='err'){
+  const t=document.getElementById('toast');
+  document.getElementById('tmsg').textContent=msg;
+  t.className=`show ${type}`;
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),4800);
+};
+function showAuthView(){document.getElementById('auth-view').classList.add('active');document.getElementById('app-shell').classList.remove('active');}
+function showAppView(){document.getElementById('auth-view').classList.remove('active');document.getElementById('app-shell').classList.add('active');document.getElementById('topbarUser').textContent=user?.email||'';}
+function showInner(id){['dash-view','draft-view'].forEach(v=>document.getElementById(v).classList.remove('active'));document.getElementById(id).classList.add('active');}
+
+// ── Auth ──
+getRedirectResult(auth).then(r=>{if(r?.user)window.showAlert('Signed in!','ok');}).catch(e=>{if(e.code&&e.code!=='auth/no-current-user')window.showAlert(ERRS[e.code]||e.message);});
+
+onAuthStateChanged(auth,u=>{
+  user=u;
+  if(u){
+    showAppView();
+    const dp=new URLSearchParams(window.location.search).get('draft');
+    if(dp)loadDraftRoom(dp);else loadDash();
+  } else showAuthView();
+});
+
+window.toggleAuthMode=function(){
+  isSignup=!isSignup;
+  document.getElementById('authLabel').textContent=isSignup?'Create your account':'Sign in to continue';
+  document.getElementById('authBtn').textContent=isSignup?'Create Account':'Sign In';
+  document.getElementById('authToggleBtn').textContent=isSignup?'Already have an account? Sign in':'Create an account instead';
+  document.getElementById('pwHint').style.display=isSignup?'block':'none';
+};
+
+window.handleAuth=function(){
+  const email=document.getElementById('authEmail').value.trim();
+  const pass=document.getElementById('authPassword').value;
+  if(!email||!pass)return window.showAlert('Enter your email and password.');
+  if(isSignup&&pass.length<6)return window.showAlert('Password must be at least 6 characters.');
+  const fn=isSignup?createUserWithEmailAndPassword:signInWithEmailAndPassword;
+  fn(auth,email,pass).then(()=>window.showAlert(isSignup?'Account created! Welcome.':'Signed in!','ok')).catch(e=>window.showAlert(ERRS[e.code]||e.message));
+};
+
+window.googleSignIn=function(){
+  signInWithPopup(auth,gp).then(()=>window.showAlert('Signed in!','ok')).catch(e=>{
+    if(['auth/popup-blocked','auth/popup-closed-by-user','auth/cancelled-popup-request'].includes(e.code))signInWithRedirect(auth,gp);
+    else window.showAlert(ERRS[e.code]||e.message);
+  });
+};
+
+window.resetPassword=function(){
+  const email=document.getElementById('authEmail').value.trim();
+  if(!email)return window.showAlert('Enter your email first.');
+  sendPasswordResetEmail(auth,email).then(()=>window.showAlert('Reset link sent to your email.','ok')).catch(e=>window.showAlert(e.message));
+};
+
+window.doLogout=function(){
+  if(draftListener){draftListener();draftListener=null;}
+  signOut(auth).then(()=>history.replaceState({},'',window.location.pathname));
+};
+
+// ── Dashboard ──
+window.switchDashTab=function(tab){
+  ['my','joined'].forEach(t=>{
+    document.getElementById(`dt-${t}`).classList.toggle('active',t===tab);
+    document.getElementById(`dpanel-${t}`).style.display=t===tab?'block':'none';
+  });
+};
+window.toggleCreateForm=function(){
+  const f=document.getElementById('create-form'),btn=document.getElementById('createToggleBtn');
+  const show=f.style.display==='none';
+  f.style.display=show?'block':'none';
+  btn.textContent=show?'✕ Cancel':'+ Create New';
+};
+
+function draftCardHTML(key,room,isOwner){
+  const del=isOwner?`<button class="btn btn-danger btn-sm" onclick="window.openDeleteModal('${key}','${(room.name||'Draft').replace(/'/g,"\\'")}')">🗑</button>`:'';
+  return`<div class="rc"><div class="rc-icon">🎯</div><div class="rc-info"><div class="rc-name">${room.name||'Draft Room'}</div><div class="rc-meta">${room.maxTeams||'?'} teams · ${room.picksPerTeam||room.playersPerTeam||'?'} picks · <span class="badge ${isOwner?'bg':'bb'}">${isOwner?'Admin':'Member'}</span></div></div><div class="rc-actions">${del}<button class="btn btn-outline btn-sm" onclick="window.location.search='?draft=${key}'">Enter →</button></div></div>`;
+}
+
+function loadDash(){
+  showInner('dash-view');
+  draftId=null;myTeamName='';isAdmin=false;
+  if(draftListener){draftListener();draftListener=null;}
+  onValue(ref(db,`users/${user.uid}/drafts`),snap=>{
+    const rooms=snap.val(),c=document.getElementById('myDraftsList');
+    if(!rooms){c.innerHTML='<div class="empty">No rooms yet — create one above.</div>';return;}
+    c.innerHTML='';
+    Object.entries(rooms).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0)).forEach(([k,r])=>c.innerHTML+=draftCardHTML(k,r,true));
+  });
+  onValue(ref(db,`users/${user.uid}/joinedDrafts`),snap=>{
+    const rooms=snap.val(),c=document.getElementById('joinedDraftsList');
+    if(!rooms){c.innerHTML='<div class="empty">No joined rooms yet.</div>';return;}
+    c.innerHTML='';
+    Object.entries(rooms).sort((a,b)=>(b[1].joinedAt||0)-(a[1].joinedAt||0)).forEach(([k,r])=>c.innerHTML+=draftCardHTML(k,r,false));
+  });
+}
+
+window.createDraftRoom=function(){
+  if(!user)return;
+  const name=document.getElementById('newDraftName').value.trim()||'My Draft League';
+  const maxTeams=parseInt(document.getElementById('newMaxTeams').value)||6;
+  const picksPerTeam=parseInt(document.getElementById('newPicksPerTeam').value)||15;
+  const nr=push(ref(db,'drafts'));
+  // Write meta to user node + draft config to drafts node
+  const upd={};
+  upd[`users/${user.uid}/drafts/${nr.key}`]={name,maxTeams,picksPerTeam,createdAt:Date.now()};
+  upd[`drafts/${nr.key}/config`]={roomName:name,maxTeams,picksPerTeam,adminUid:user.uid,createdAt:Date.now()};
+  update(ref(db),upd).then(()=>window.location.search=`?draft=${nr.key}`).catch(e=>window.showAlert(e.message));
+};
+
+// ── Delete ──
+window.openDeleteModal=function(key,name){roomToDelete=key;document.getElementById('deleteRoomNameLbl').textContent=`"${name}"`;document.getElementById('deleteModal').classList.add('open');};
+window.closeDeleteModal=function(){document.getElementById('deleteModal').classList.remove('open');roomToDelete='';};
+window.confirmDeleteRoom=function(){
+  if(!roomToDelete)return;const rid=roomToDelete;window.closeDeleteModal();
+  Promise.all([remove(ref(db,`users/${user.uid}/drafts/${rid}`)),remove(ref(db,`drafts/${rid}`))])
+    .then(()=>window.showAlert('Draft room deleted.','ok')).catch(e=>window.showAlert(e.message));
+};
+
+// ── Join ──
+window.initiateJoin=function(){
+  let val=document.getElementById('joinDraftCode').value.trim();
+  if(!val)return window.showAlert('Enter a room code or link.');
+  const match=val.match(/[?&]draft=([^&\s]+)/);
+  const rid=match?match[1]:val;
+  get(ref(db,`drafts/${rid}`)).then(snap=>{
+    if(!snap.exists())return window.showAlert('Room not found. Check the code.');
+    get(ref(db,`drafts/${rid}/members/${user.uid}`)).then(ms=>{
+      if(ms.exists()){window.location.search=`?draft=${rid}`;return;}
+      pendingJoinId=rid;
+      document.getElementById('modalTeamName').value='';
+      document.getElementById('teamNameModal').classList.add('open');
+    });
+  }).catch(()=>window.showAlert('Room not found.'));
+};
+
+window.closeTeamModal=function(){document.getElementById('teamNameModal').classList.remove('open');pendingJoinId='';};
+
+window.confirmTeamName=function(){
+  const tn=document.getElementById('modalTeamName').value.trim();
+  if(!tn)return window.showAlert('Enter a franchise name.');
+  if(tn.length>30)return window.showAlert('Name must be 30 characters or less.');
+  if(!pendingJoinId)return;
+  const rid=pendingJoinId;
+  get(ref(db,`drafts/${rid}`)).then(snap=>{
+    const data=snap.val();if(!data)return window.showAlert('Room not found.');
+    const maxTeams=data.config?.maxTeams||data.setup?.maxTeams||6;
+    const picksPerTeam=data.config?.picksPerTeam||data.setup?.picksPerTeam||15;
+    const roomName=data.config?.roomName||data.setup?.roomName||`Draft ${rid.substring(0,5).toUpperCase()}`;
+    const existingMembers=data.members?Object.values(data.members):[];
+    if(data.members?.[user.uid]){window.closeTeamModal();window.location.search=`?draft=${rid}`;return;}
+    if(existingMembers.length>=maxTeams)return window.showAlert(`Room is full — max ${maxTeams} franchises allowed.`);
+    if(data.setup?.isStarted)return window.showAlert('Draft has already started. You cannot join now.');
+    const taken=existingMembers.some(m=>m.teamName?.toLowerCase()===tn.toLowerCase());
+    if(taken)return window.showAlert('That franchise name is taken. Choose another.');
+    const upd={};
+    upd[`drafts/${rid}/members/${user.uid}`]={teamName:tn,email:user.email||'',uid:user.uid,joinedAt:Date.now()};
+    upd[`users/${user.uid}/joinedDrafts/${rid}`]={name:roomName,teamName:tn,maxTeams,picksPerTeam,joinedAt:Date.now()};
+    return update(ref(db),upd);
+  }).then(()=>{
+    if(!pendingJoinId)return;
+    window.closeTeamModal();
+    window.location.search=`?draft=${rid}`;
+  }).catch(e=>window.showAlert(e.message));
+};
+
+window.backToDash=function(){
+  if(draftListener){draftListener();draftListener=null;}
+  history.replaceState({},'',window.location.pathname);loadDash();
+};
+window.copyDraftLink=function(){
+  const url=`${location.origin}${location.pathname}?draft=${draftId}`;
+  navigator.clipboard.writeText(url).then(()=>window.showAlert('Invite link copied!','ok')).catch(()=>window.showAlert('Copy failed. Share: '+url,'info'));
+};
+
+// ── Load Draft Room ──
+function loadDraftRoom(rid){
+  showInner('draft-view');
+  draftId=rid;isAdmin=false;myTeamName='';
+
+  Promise.all([
+    get(ref(db,`users/${user.uid}/drafts/${rid}`)),
+    get(ref(db,`drafts/${rid}/members/${user.uid}`)),
+    get(ref(db,`drafts/${rid}/config`))
+  ]).then(([adminSnap,memberSnap,configSnap])=>{
+    isAdmin=adminSnap.exists();
+    if(memberSnap.exists())myTeamName=memberSnap.val().teamName||'';
+
+    document.getElementById('draftRoleBadge').textContent=isAdmin?'👑 Admin':'🤝 '+(myTeamName||'Member');
+    document.getElementById('draftRoleBadge').className=`badge ${isAdmin?'bg':'bb'}`;
+
+    // Show franchise badge
+    if(myTeamName){
+      document.getElementById('myFranchiseBadge').style.display='flex';
+      document.getElementById('myFranchiseName').textContent=myTeamName;
+    }
+
+    // Admin: populate setup info box
+    if(isAdmin&&configSnap.exists()){
+      const c=configSnap.val();
+      document.getElementById('setupInfoBox').innerHTML=
+        `Room: <strong style="color:var(--txt)">${c.roomName}</strong> &nbsp;·&nbsp; Max Teams: <strong style="color:var(--gold)">${c.maxTeams}</strong> &nbsp;·&nbsp; Picks/Team: <strong style="color:var(--gold)">${c.picksPerTeam}</strong>`;
+    }
+
+    if(!isAdmin){
+      document.getElementById('dbtn-setup').style.display='none';
+      document.getElementById('dtab-setup').style.display='none';
+      window.switchDraftTab('draft');
+      if(!memberSnap.exists()){
+        setTimeout(()=>{pendingJoinId=rid;document.getElementById('modalTeamName').value='';document.getElementById('teamNameModal').classList.add('open');},400);
+      }
+    }
+  });
+
+  if(draftListener){draftListener();draftListener=null;}
+
+  draftListener=onValue(ref(db,`drafts/${rid}`),snap=>{
+    const data=snap.val();if(!data)return;
+    draftState=data;
+
+    const cfg=data.config||{};
+    const setup=data.setup||{};
+    const roomName=setup.roomName||cfg.roomName||`Draft ${rid.substring(0,5).toUpperCase()}`;
+    document.getElementById('draftRoomTitle').textContent=roomName;
+
+    if(setup.isStarted){
+      document.getElementById('dbtn-setup').style.display='none';
+      document.getElementById('dtab-setup').style.display='none';
+      document.getElementById('draftStatsRow').style.display='flex';
+      if(document.getElementById('dbtn-setup').classList.contains('active'))window.switchDraftTab('draft');
+    }
+
+    // Members list & count
+    const members=data.members?Object.values(data.members):[];
+    const maxTeams=cfg.maxTeams||setup.maxTeams||6;
+    const badge=document.getElementById('teamsCountBadge');
+    if(badge)badge.textContent=`${members.length} / ${maxTeams}`;
+
+    if(isAdmin){
+      const ml=document.getElementById('setupMembersList');
+      if(ml){
+        if(members.length){
+          ml.innerHTML=members.map(m=>`<div class="member-row"><span class="member-team">🏏 ${m.teamName}</span><span class="member-email">${m.email||''}</span></div>`).join('');
+        } else {
+          ml.innerHTML='<div class="empty">No franchises yet. Share the invite link!</div>';
         }
-    
-        window.draftPlayer = async function() {
-            const playerId = document.getElementById('playerSelect').value;
-            if (!playerId) return;
-    
-            const player = players.find(p => p.id == playerId);
-            const currentTeamObj = draftOrder[currentPickIndex];
-            const actualTeam = fantasyTeams.find(t => t.name === currentTeamObj.name);
-    
-            if (player.isOverseas) {
-                const overseasCount = actualTeam.roster.filter(p => p.isOverseas).length;
-                if (overseasCount >= 8) {
-                    const alertEl = document.getElementById('draftAlert');
-                    alertEl.style.display = 'inline-block';
-                    alertEl.innerText = "⚠️ Invalid Pick! Maximum 8 overseas players limit reached.";
-                    return;
-                }
-            }
-    
-            player.draftedBy = actualTeam.name;
-            actualTeam.roster.push(player);
-            let nextIndex = currentPickIndex + 1;
-            
-            await update(draftRef, {
-                players: players,
-                fantasyTeams: fantasyTeams,
-                currentPickIndex: nextIndex
-            });
-        };
-    
-        function updateTeamsUI() {
-            const grid = document.getElementById('teamGrid');
-            let gridHtml = '';
-            
-            fantasyTeams.forEach(team => {
-                let osCount = team.roster.filter(p => p.isOverseas).length;
-                gridHtml += `<div class="team-card glass-panel">
-                    <h3 style="margin: 0 0 5px 0;">${team.name}</h3>
-                    <div style="display:flex; justify-content: space-between; font-size: 0.85em; color: var(--text-muted);">
-                        <span>Roster: ${team.roster.length}/${maxPlayersPerTeam}</span>
-                        <span style="color: ${osCount >= 8 ? 'var(--danger)' : 'inherit'}">OS: ${osCount}/8</span>
-                    </div>
-                    <ul>`;
-                team.roster.forEach(p => {
-                    gridHtml += `<li>
-                        <span style="font-weight: 600;">${p.name} <span style="font-weight:400; color:var(--text-muted); font-size:0.9em;">(${p.role})</span></span> 
-                        ${p.isOverseas ? '<span class="overseas-badge">✈️ OS</span>' : ''}
-                    </li>`;
-                });
-                gridHtml += `</ul></div>`;
-            });
-            
-            grid.innerHTML = gridHtml;
-        }
-    
-        function updateRosterUI() {
-            const tbody = document.querySelector('#globalRosterTable tbody');
-            let htmlBuffer = '';
-            
-            players.forEach(p => {
-                htmlBuffer += `<tr>
-                    <td style="font-weight: 600;">${p.name}</td>
-                    <td>${p.iplTeam}</td>
-                    <td>${p.role}</td>
-                    <td>${p.isOverseas ? '✈️ Overseas' : '🇮🇳 Indian'}</td>
-                    <td style="font-weight:700; color: ${p.draftedBy ? 'var(--cream)' : 'var(--text-muted)'}">${p.draftedBy || 'Undrafted'}</td>
-                </tr>`;
-            });
-            
-            tbody.innerHTML = htmlBuffer;
-        }
-    
-        window.exportCSV = function() {
-            let csvContent = "data:text/csv;charset=utf-8,Player Name,IPL Team,Role,Origin,Drafted By\n";
-            players.forEach(p => {
-                let row = `"${p.name}","${p.iplTeam}","${p.role}","${p.isOverseas ? 'Overseas' : 'Indian'}","${p.draftedBy || 'Undrafted'}"`;
-                csvContent += row + "\n";
-            });
-            
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "fantasy_draft_results.csv");
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        };
-    </script>
+      }
+      const btn=document.getElementById('startDraftBtn');
+      if(btn){
+        const started=setup.isStarted||false;
+        btn.disabled=started;
+        btn.textContent=started?'✅ Draft In Progress':members.length<2?'🚀 Start Draft (need 2+ teams)':'🚀 Start Snake Draft';
+      }
+    }
+
+    // Live franchises bar
+    if(members.length){
+      document.getElementById('liveFranchisesBar').style.display='block';
+      document.getElementById('liveFranchisesList').innerHTML=members.map(m=>{
+        const isMe=m.uid===user.uid;
+        return`<span class="badge ${isMe?'bpu':'bb'}" style="padding:5px 10px;">${isMe?'⭐ ':''}${m.teamName}</span>`;
+      }).join('');
+    }
+
+    // Players
+    if(data.players){
+      cachedPlayers=Array.isArray(data.players)?data.players:Object.values(data.players);
+      const rem=cachedPlayers.filter(p=>!p.draftedBy).length;
+      const drafted=cachedPlayers.filter(p=>p.draftedBy).length;
+      document.getElementById('st-rem').textContent=rem;
+      document.getElementById('st-drafted').textContent=drafted;
+      renderRosterTab();
+    }
+
+    // Teams tab
+    if(data.teams)renderTeamsTab(data);
+
+    // Draft tab
+    if(setup.isStarted&&data.draftOrder)renderDraftTab(data);
+  });
+}
+
+// ── Start Draft ──
+window.startDraft=function(){
+  if(!isAdmin||!draftId)return;
+  get(ref(db,`drafts/${draftId}`)).then(snap=>{
+    const data=snap.val();if(!data)return window.showAlert('Draft data not found.');
+    const cfg=data.config||{};
+    const members=data.members?Object.values(data.members):[];
+    if(members.length<2)return window.showAlert('Need at least 2 franchises to start.');
+    const maxTeams=cfg.maxTeams||6;
+    const picksPerTeam=cfg.picksPerTeam||15;
+    const roomName=cfg.roomName||`Draft ${draftId.substring(0,5).toUpperCase()}`;
+
+    // Build 250-player array
+    const players=RAW.map((p,i)=>({id:i,name:p.n,iplTeam:p.t,role:p.r,isOverseas:p.o,draftedBy:null}));
+
+    // Snake draft order — random first round, then alternating
+    const shuffled=[...members].sort(()=>Math.random()-.5);
+    const order=[];
+    for(let round=0;round<picksPerTeam;round++){
+      const ro=round%2===0?[...shuffled]:[...shuffled].reverse();
+      ro.forEach(m=>order.push({teamName:m.teamName,uid:m.uid,round:round+1}));
+    }
+
+    // Init team objects
+    const teams={};
+    members.forEach(m=>{teams[m.teamName]={name:m.teamName,roster:[],overseasCount:0};});
+
+    // Write — preserve config and members
+    const upd={};
+    upd[`drafts/${draftId}/setup`]={isStarted:true,maxTeams,picksPerTeam,roomName,startedAt:Date.now()};
+    upd[`drafts/${draftId}/players`]=players;
+    upd[`drafts/${draftId}/teams`]=teams;
+    upd[`drafts/${draftId}/draftOrder`]=order;
+    upd[`drafts/${draftId}/currentPickIndex`]=0;
+    return update(ref(db),upd);
+  }).then(()=>window.showAlert('🚀 Draft started! Round 1 begins now.','ok')).catch(e=>window.showAlert(e.message));
+};
+
+// ── Render Draft Tab ──
+function renderDraftTab(data){
+  const order=Array.isArray(data.draftOrder)?data.draftOrder:Object.values(data.draftOrder||[]);
+  const idx=data.currentPickIndex||0;
+  const members=data.members?Object.values(data.members):[];
+  const teamsCount=members.length;
+  const picksPerTeam=data.setup?.picksPerTeam||15;
+
+  // Stats
+  const round=Math.floor(idx/teamsCount)+1;
+  const pickInRound=(idx%teamsCount)+1;
+  document.getElementById('st-round').textContent=Math.min(round,picksPerTeam);
+  document.getElementById('st-pick').textContent=pickInRound;
+
+  const clock=document.getElementById('clockCard');
+  const pickBox=document.getElementById('pickBox');
+
+  if(idx>=order.length){
+    // Draft complete
+    clock.className='clock-card';
+    clock.innerHTML=`<div class="clock-round">Draft Complete</div><div class="clock-team" style="color:var(--ok)">🏁 All ${picksPerTeam} rounds finished!</div><div class="clock-sub">Check Rosters tab for final squads.</div>`;
+    pickBox.style.display='none';
+    document.getElementById('orderStrip').innerHTML='';
+    return;
+  }
+
+  const current=order[idx];
+  const isMyTurn=myTeamName&&current.teamName===myTeamName;
+
+  clock.className=`clock-card${isMyTurn?' your-turn':''}`;
+  document.getElementById('clockRound').textContent=`Round ${round} · Pick ${pickInRound} of ${teamsCount}`;
+  document.getElementById('clockTeam').textContent=current.teamName;
+  document.getElementById('clockSub').textContent=`Snake Draft · ${order.length-idx} picks remaining`;
+  const youEl=document.getElementById('clockYou');
+  youEl.style.display=isMyTurn?'block':'none';
+
+  // Pick controls only for the person on the clock
+  pickBox.style.display=isMyTurn?'block':'none';
+  if(isMyTurn)window.refreshDropdown();
+
+  // Order strip — next 12 picks
+  const strip=document.getElementById('orderStrip');
+  strip.innerHTML='';
+  for(let i=idx;i<Math.min(idx+12,order.length);i++){
+    const t=order[i];
+    const isCurrent=i===idx;
+    const isMine=myTeamName&&t.teamName===myTeamName;
+    const cls=isCurrent?'current':isMine?'mine':'';
+    const rnd=Math.floor(i/teamsCount)+1;
+    strip.innerHTML+=`<div class="order-pill ${cls}" title="Round ${rnd}">${t.teamName}</div>`;
+  }
+}
+
+// ── Refresh dropdown ──
+window.refreshDropdown=function(){
+  if(!cachedPlayers)return;
+  const q=(document.getElementById('filterName')?.value||'').toLowerCase();
+  const role=document.getElementById('filterRole')?.value||'All';
+  const ipl=document.getElementById('filterIPL')?.value||'All';
+  const origin=document.getElementById('filterOrigin')?.value||'All';
+  const sel=document.getElementById('playerPickSelect');
+  let rows=cachedPlayers.filter(p=>!p.draftedBy);
+  if(q)rows=rows.filter(p=>p.name.toLowerCase().includes(q)||p.iplTeam.toLowerCase().includes(q));
+  if(role!=='All')rows=rows.filter(p=>p.role===role);
+  if(ipl!=='All')rows=rows.filter(p=>p.iplTeam===ipl);
+  if(origin==='Indian')rows=rows.filter(p=>!p.isOverseas);
+  if(origin==='Overseas')rows=rows.filter(p=>p.isOverseas);
+  sel.innerHTML=rows.length
+    ?rows.map(p=>`<option value="${p.id}">${p.name} — ${p.iplTeam} | ${p.role}${p.isOverseas?' [✈️ OS]':''}</option>`).join('')
+    :'<option value="">No players match filters</option>';
+};
+
+// ── Lock in pick ──
+window.lockInPick=function(){
+  if(!draftState||!draftId)return;
+  const order=Array.isArray(draftState.draftOrder)?draftState.draftOrder:Object.values(draftState.draftOrder||[]);
+  const idx=draftState.currentPickIndex||0;
+  if(idx>=order.length)return window.showAlert('Draft is already complete.');
+  const current=order[idx];
+  if(!myTeamName||current.teamName!==myTeamName)return window.showAlert("It's not your turn to pick!");
+  const pid=document.getElementById('playerPickSelect').value;
+  if(pid===''||pid===null)return window.showAlert('Select a player first.');
+  const players=Array.isArray(draftState.players)?[...draftState.players.map(p=>({...p}))]:[...Object.values(draftState.players||{}).map(p=>({...p}))];
+  const player=players.find(p=>String(p.id)===String(pid));
+  if(!player)return window.showAlert('Player not found.');
+  if(player.draftedBy)return window.showAlert('That player is already drafted!');
+  // Overseas cap
+  if(player.isOverseas){
+    const team=draftState.teams?.[current.teamName];
+    if((team?.overseasCount||0)>=8)return window.showAlert('Max 8 overseas players per team!');
+  }
+  player.draftedBy=current.teamName;
+  const oldRoster=draftState.teams[current.teamName]?.roster;
+  const roster=Array.isArray(oldRoster)?[...oldRoster]:(oldRoster?Object.values(oldRoster):[]);
+  roster.push({id:player.id,name:player.name,iplTeam:player.iplTeam,role:player.role,isOverseas:player.isOverseas});
+  const upd={};
+  upd[`drafts/${draftId}/players`]=players;
+  upd[`drafts/${draftId}/teams/${current.teamName}/roster`]=roster;
+  if(player.isOverseas)upd[`drafts/${draftId}/teams/${current.teamName}/overseasCount`]=(draftState.teams[current.teamName]?.overseasCount||0)+1;
+  upd[`drafts/${draftId}/currentPickIndex`]=idx+1;
+  update(ref(db),upd).then(()=>window.showAlert(`${player.name} drafted by ${current.teamName}!`,'ok')).catch(e=>window.showAlert(e.message));
+};
+
+// ── Render teams tab ──
+function renderTeamsTab(data){
+  const teams=data.teams?Object.values(data.teams):[];
+  const ppt=data.setup?.picksPerTeam||15;
+  if(!teams.length){document.getElementById('teamRosterGrid').innerHTML='<div class="empty">Draft not started yet.</div>';return;}
+  document.getElementById('teamRosterGrid').innerHTML=teams.map(team=>{
+    const roster=Array.isArray(team.roster)?team.roster:(team.roster?Object.values(team.roster):[]);
+    const os=roster.filter(p=>p.isOverseas).length;
+    return`<div class="tcard">
+      <div class="tcard-hdr"><div class="tcard-name">${team.name}</div><div class="tcard-meta">${roster.length}/${ppt} picks &nbsp;·&nbsp; OS: ${os}/8</div></div>
+      ${roster.length?`<ul class="troster">${roster.map((p,i)=>`<li><div><div style="font-size:.82rem;color:var(--muted);display:inline;margin-right:6px;">#${i+1}</div><strong>${p.name}</strong> <span class="rrole">${p.role}</span></div>${p.isOverseas?'<span class="badge bb" style="font-size:.68rem;">✈️</span>':''}</li>`).join('')}</ul>`:'<div class="empty">No picks yet</div>'}
+    </div>`;
+  }).join('');
+}
+
+// ── Render roster tab ──
+function renderRosterTab(){
+  if(!cachedPlayers)return;
+  const q=(document.getElementById('rosterSearch')?.value||'').toLowerCase();
+  const roleF=document.getElementById('rosterFilterRole')?.value||'';
+  const statusF=document.getElementById('rosterFilterStatus')?.value||'';
+  let rows=[...cachedPlayers];
+  if(q)rows=rows.filter(p=>p.name.toLowerCase().includes(q)||p.iplTeam.toLowerCase().includes(q));
+  if(roleF)rows=rows.filter(p=>p.role===roleF);
+  if(statusF==='available')rows=rows.filter(p=>!p.draftedBy);
+  if(statusF==='drafted')rows=rows.filter(p=>!!p.draftedBy);
+  document.getElementById('rosterCountBadge').textContent=`${rows.length} shown`;
+  document.getElementById('rosterTbody').innerHTML=rows.map((p,i)=>`<tr>
+    <td style="color:var(--muted)">${i+1}</td>
+    <td style="font-weight:600">${p.name}</td>
+    <td><span class="badge bg">${p.iplTeam}</span></td>
+    <td>${p.role}</td>
+    <td style="font-size:.78rem;color:var(--muted2)">${p.isOverseas?'✈️ OS':'🇮🇳 IND'}</td>
+    <td>${p.draftedBy?`<span class="badge bs">Drafted</span>`:`<span class="badge bb">Available</span>`}</td>
+    <td style="color:var(--gold-l);font-weight:600">${p.draftedBy||'—'}</td>
+  </tr>`).join('');
+}
+window.filterRoster=function(){renderRosterTab();};
+
+// ── Export CSV ──
+window.exportCSV=function(){
+  if(!cachedPlayers)return window.showAlert('No data yet.');
+  const csv='#,Player,IPL Team,Role,Origin,Drafted By\n'+cachedPlayers.map((p,i)=>[i+1,`"${p.name}"`,p.iplTeam,p.role,p.isOverseas?'Overseas':'Indian',p.draftedBy||'Available'].join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download=`draft_${draftId?.substring(0,6)||'results'}.csv`;
+  a.click();
+  window.showAlert('CSV downloaded!','ok');
+};
+
+// ── Tab switching ──
+window.switchDraftTab=function(t){
+  ['setup','draft','teams','roster'].forEach(id=>{
+    const el=document.getElementById(`dtab-${id}`),btn=document.getElementById(`dbtn-${id}`);
+    if(!el||!btn)return;
+    el.style.display=id===t?'block':'none';
+    btn.classList.toggle('active',id===t);
+  });
+};
+</script>
 </body>
 </html>
