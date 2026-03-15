@@ -536,33 +536,35 @@ tr:hover td{background:var(--sur);}
           </div>
 
           <div class="ai-parse-box" style="margin:16px 20px 0;">
-            <div class="ai-parse-title">🤖 AI Scorecard Parser</div>
-            <div class="ai-parse-sub">Paste scorecard text or upload a screenshot — Claude will extract all batting, bowling and fielding data and fill the form automatically.</div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+              <div class="ai-parse-title">🤖 Gemini Scorecard Parser</div>
+              <span class="badge bb" style="font-size:.68rem;">Firebase AI Logic</span>
+            </div>
+            <div class="ai-parse-sub">Upload 1–4 scorecard screenshots. Gemini reads all images together and fills the form automatically.</div>
 
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;background:rgba(0,0,0,.2);border-radius:var(--r);padding:10px 12px;">
-              <span style="font-size:.75rem;color:var(--muted2);white-space:nowrap;flex-shrink:0;">🔑 Anthropic API Key</span>
-              <input type="password" id="aiApiKeyD" placeholder="sk-ant-..." style="flex:1;padding:7px 10px;font-size:.82rem;background:var(--sur);border:1px solid var(--bdr);border-radius:6px;color:var(--txt);font-family:var(--fb);outline:none;" oninput="localStorage.setItem('sc_api_key',this.value)">
-              <span style="font-size:.7rem;color:var(--muted);white-space:nowrap;">Stored locally</span>
+            <div id="scDropZoneD" onclick="document.getElementById('scFilesD').click()"
+              style="border:2px dashed rgba(99,102,241,.35);border-radius:var(--rl);padding:22px 16px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:12px;background:rgba(99,102,241,.04);"
+              ondragover="event.preventDefault();this.style.borderColor='rgba(99,102,241,.7)'"
+              ondragleave="this.style.borderColor='rgba(99,102,241,.35)'"
+              ondrop="event.preventDefault();this.style.borderColor='rgba(99,102,241,.35)';window.handleScFilesD(event.dataTransfer.files)">
+              <div style="font-size:2rem;margin-bottom:6px;">📸</div>
+              <div style="font-weight:600;color:#a5b4fc;font-size:.9rem;">Click or drag &amp; drop screenshots here</div>
+              <div id="scDropHintD" style="font-size:.75rem;color:var(--muted);margin-top:4px;">PNG · JPG · WEBP · up to 4 files</div>
             </div>
+            <input type="file" id="scFilesD" accept="image/*" multiple style="display:none" onchange="window.handleScFilesD(this.files)">
+            <div id="scThumbRowD" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;"></div>
 
-            <div style="display:flex;gap:8px;margin-bottom:12px;">
-              <button class="btn btn-sm" id="aiModeTextD" onclick="window.setAiModeD('text')" style="background:rgba(99,102,241,.2);color:#a5b4fc;border:1px solid rgba(99,102,241,.4);">📋 Paste Text</button>
-              <button class="btn btn-sm" id="aiModeImgD" onclick="window.setAiModeD('img')" style="background:var(--sur);color:var(--muted2);border:1px solid var(--bdr);">📷 Upload Image</button>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+              <input type="text" id="matchLabelD" placeholder="Match label (auto-filled)" style="flex:1;min-width:160px;padding:9px 12px;font-size:.85rem;">
+              <button id="geminiParseBtnD" onclick="window.parseWithGeminiD()" style="background:linear-gradient(135deg,#4f7fff,#a855f7);color:#fff;border:none;padding:10px 22px;border-radius:var(--r);font-family:var(--ff);font-size:15px;letter-spacing:.04em;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:opacity .2s;">✨ Parse with Gemini</button>
             </div>
-            <div id="aiTextInputD">
-              <textarea id="scTextareaD" class="sc-textarea" placeholder="Paste full scorecard text here…"></textarea>
-            </div>
-            <div id="aiImgInputD" style="display:none;">
-              <input type="file" id="scImageFileD" accept="image/*" onchange="window.handleScImageD(event)" style="display:none;">
-              <button class="btn btn-outline btn-sm" onclick="document.getElementById('scImageFileD').click()" style="width:auto;">📎 Choose Image / Screenshot</button>
-              <div style="font-size:.75rem;color:var(--muted);margin-top:6px;">PNG, JPG, WEBP — screenshots of Cricinfo, printed scorecards, etc.</div>
-              <img id="scImgPreviewD" class="img-preview">
-            </div>
-            <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap;">
-              <input type="text" id="matchLabelD" placeholder="e.g. MI vs CSK – Apr 5" style="flex:1;min-width:160px;padding:9px 12px;font-size:.85rem;">
-              <button class="btn btn-sm" id="aiParseBtnD" onclick="window.parseWithAID()" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;padding:10px 20px;white-space:nowrap;">✨ Parse with AI</button>
-            </div>
-            <div class="ai-status" id="aiStatusD"></div>
+            <div class="ai-status" id="aiStatusD" style="margin-top:8px;"></div>
+
+            <details style="margin-top:14px;">
+              <summary style="font-size:.78rem;color:var(--muted);cursor:pointer;user-select:none;">📋 Or paste JSON manually (fallback)</summary>
+              <textarea id="scJsonInputD" class="sc-textarea" style="min-height:100px;font-family:monospace;font-size:.76rem;margin-top:8px;" placeholder='{"matchLabel":"...","winner":"CSK","result":"normal","batting":[...],"bowling":[...],"fielding":[]}'></textarea>
+              <button onclick="window.importFromJsonD()" style="margin-top:6px;background:var(--sur);border:1px solid var(--bdr);color:var(--txt);border-radius:var(--r);padding:7px 14px;font-size:.8rem;cursor:pointer;font-family:var(--fb);">📥 Import JSON</button>
+            </details>
           </div>
 
           <div style="padding:12px 20px 0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:12px;">
@@ -641,12 +643,25 @@ tr:hover td{background:var(--sur);}
 </div><!-- /app-shell -->
 
 <script type="module">
-import{initializeApp}from"https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-import{getDatabase,ref,set,onValue,update,push,get,remove}from"https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
-import{getAuth,signInWithEmailAndPassword,createUserWithEmailAndPassword,sendPasswordResetEmail,onAuthStateChanged,signOut,GoogleAuthProvider,signInWithPopup,signInWithRedirect,getRedirectResult}from"https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+import{initializeApp}from"https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
+import{getDatabase,ref,set,onValue,update,push,get,remove}from"https://www.gstatic.com/firebasejs/12.3.0/firebase-database.js";
+import{getAI,getGenerativeModel,GoogleAIBackend}from"https://www.gstatic.com/firebasejs/12.3.0/firebase-ai.js";
+import{getAuth,signInWithEmailAndPassword,createUserWithEmailAndPassword,sendPasswordResetEmail,onAuthStateChanged,signOut,GoogleAuthProvider,signInWithPopup,signInWithRedirect,getRedirectResult}from"https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
 
 const cfg={apiKey:"AIzaSyBIHdz4Vu1kMlEjwXs-dcDwFeHGhjSSb3I",authDomain:"ipl-2026-draft.firebaseapp.com",databaseURL:"https://ipl-2026-draft-default-rtdb.firebaseio.com",projectId:"ipl-2026-draft",storageBucket:"ipl-2026-draft.firebasestorage.app",messagingSenderId:"5757407923",appId:"1:5757407923:web:6afc487aed6cf15fb516c6"};
 const app=initializeApp(cfg),db=getDatabase(app),auth=getAuth(app),gp=new GoogleAuthProvider();
+// Firebase AI Logic — lazy init so a missing console setup never blocks auth
+let _geminiModel=null;
+function getGeminiModel(){
+  if(_geminiModel) return _geminiModel;
+  try{
+    const ai=getAI(app,{backend:new GoogleAIBackend()});
+    _geminiModel=getGenerativeModel(ai,{model:"gemini-2.5-flash"});
+    return _geminiModel;
+  }catch(e){
+    throw new Error("Firebase AI Logic not set up yet. Enable it in your Firebase Console → Build → AI Logic, then reload.");
+  }
+}
 
 // Connection dot
 onValue(ref(db,'.info/connected'),s=>{
@@ -1685,110 +1700,99 @@ window.downloadPointsCSVDraft=function(){
 };
 
 // ═══════════════════════════════════════════════════════════════
-// AI SCORECARD PARSER — DRAFT APP
+// GEMINI SCORECARD PARSER — DRAFT APP (Firebase AI Logic)
 // ═══════════════════════════════════════════════════════════════
 
-let scImageBase64D=null;
-let scImageMimeD='image/png';
+let scImageFilesD=[];
 
-window.addEventListener('load',()=>{
-  const saved=localStorage.getItem('sc_api_key')||'';
-  ['aiApiKey','aiApiKeyD'].forEach(id=>{const el=document.getElementById(id);if(el&&saved)el.value=saved;});
-});
-
-window.setAiModeD=function(mode){
-  const active='background:rgba(99,102,241,.2);color:#a5b4fc;border:1px solid rgba(99,102,241,.4);';
-  const inactive='background:var(--sur);color:var(--muted2);border:1px solid var(--bdr);';
-  const textBtn=document.getElementById('aiModeTextD');
-  const imgBtn=document.getElementById('aiModeImgD');
-  const textDiv=document.getElementById('aiTextInputD');
-  const imgDiv=document.getElementById('aiImgInputD');
-  if(mode==='text'){
-    textDiv.style.display='block';imgDiv.style.display='none';
-    textBtn.style.cssText=active;imgBtn.style.cssText=inactive;
-  } else {
-    textDiv.style.display='none';imgDiv.style.display='block';
-    textBtn.style.cssText=inactive;imgBtn.style.cssText=active;
-  }
+window.handleScFilesD=function(files){
+  if(!files||!files.length) return;
+  scImageFilesD=[...scImageFilesD,...Array.from(files)].slice(0,4);
+  renderThumbsD();
 };
 
-window.handleScImageD=function(e){
-  const file=e.target.files[0];if(!file)return;
-  scImageMimeD=file.type||'image/png';
-  const reader=new FileReader();
-  reader.onload=ev=>{
-    const result=ev.target.result;
-    scImageBase64D=result.split(',')[1];
-    const preview=document.getElementById('scImgPreviewD');
-    preview.src=result;preview.style.display='block';
-  };
-  reader.readAsDataURL(file);
-};
-
-window.parseWithAID=function(){
-  const statusEl=document.getElementById('aiStatusD');
-  const parseBtn=document.getElementById('aiParseBtnD');
-  const isImgMode=document.getElementById('aiImgInputD').style.display!=='none';
-  const text=document.getElementById('scTextareaD')?.value?.trim()||'';
-  if(isImgMode&&!scImageBase64D){statusEl.className='ai-status fail';statusEl.textContent='⚠️ Please upload an image first.';return;}
-  if(!isImgMode&&!text){statusEl.className='ai-status fail';statusEl.textContent='⚠️ Please paste scorecard text first.';return;}
-  statusEl.className='ai-status parsing';statusEl.textContent='🤖 Claude is reading the scorecard…';
-  parseBtn.disabled=true;parseBtn.textContent='Parsing…';
-
-  const systemPrompt=`You are a cricket scorecard parser. Extract all batting, bowling, and fielding data from the provided scorecard and return ONLY a valid JSON object with NO extra text, no markdown, no explanation. Follow this exact structure:
-
-{
-  "matchLabel": "Team A vs Team B - Date",
-  "winner": "SHORT_TEAM_CODE e.g. MI, CSK, RCB",
-  "motm": "Full Player Name",
-  "result": "normal | noresult | superover",
-  "batting": [
-    {"name": "Player Name", "runs": 0, "balls": 0, "sixes": 0, "dismissal": "out|notout|duck"}
-  ],
-  "bowling": [
-    {"name": "Player Name", "overs": 0.0, "runs": 0, "wickets": 0, "dots": 0, "maidens": 0}
-  ],
-  "fielding": [
-    {"name": "Player Name", "catches": 0, "stumpings": 0, "runouts": 0}
-  ]
+function renderThumbsD(){
+  const row=document.getElementById('scThumbRowD');
+  if(!row) return;
+  row.innerHTML='';
+  scImageFilesD.forEach((file,i)=>{
+    const url=URL.createObjectURL(file);
+    const wrap=document.createElement('div');
+    wrap.style.cssText='position:relative;display:inline-block;';
+    const img=document.createElement('img');
+    img.src=url;img.style.cssText='height:72px;width:auto;border-radius:6px;border:1px solid var(--bdr);object-fit:cover;display:block;';
+    const del=document.createElement('button');
+    del.textContent='✕';
+    del.style.cssText='position:absolute;top:-6px;right:-6px;background:var(--err);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:.65rem;cursor:pointer;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;';
+    del.onclick=()=>{scImageFilesD.splice(i,1);renderThumbsD();};
+    wrap.appendChild(img);wrap.appendChild(del);
+    row.appendChild(wrap);
+  });
+  const hint=document.getElementById('scDropHintD');
+  if(hint) hint.textContent=scImageFilesD.length?`${scImageFilesD.length} file${scImageFilesD.length>1?'s':''} loaded — add more or parse`:'PNG · JPG · WEBP · up to 4 files';
 }
 
-Rules: Include ALL batters and bowlers from BOTH innings. Duck = runs===0 and out. notout = not out or retired. Extract fielders from catch/stumping/run-out descriptions. overs in decimal (3.4 = 3 overs 4 balls). winner = short code. Return ONLY JSON.`;
+const SCORECARD_PROMPT_D=`You are a cricket scorecard parser. Extract ALL batting, bowling and fielding data from ALL innings in the screenshots. Return ONLY a valid JSON object — no markdown, no explanation.
 
-  const userContent=isImgMode
-    ?[{type:'image',source:{type:'base64',media_type:scImageMimeD,data:scImageBase64D}},{type:'text',text:'Parse this cricket scorecard image and return the JSON.'}]
-    :[{type:'text',text:`Parse this cricket scorecard:\n\n${text}`}];
+Structure:
+{"matchLabel":"Team A vs Team B – Date","winner":"SHORT_CODE","motm":"Player or empty","result":"normal|noresult|superover","batting":[{"name":"","runs":0,"balls":0,"sixes":0,"dismissal":"out|notout|duck"}],"bowling":[{"name":"","overs":0.0,"runs":0,"wickets":0,"dots":0,"maidens":0}],"fielding":[{"name":"","catches":0,"stumpings":0,"runouts":0}]}
 
-  const apiKeyD=(document.getElementById('aiApiKeyD')?.value||document.getElementById('aiApiKey')?.value||localStorage.getItem('sc_api_key')||'').trim();
-  if(!apiKeyD){
+Rules: Include ALL players from BOTH innings. Duck=out for 0. Extract fielders from dismissal text. Return ONLY the JSON.`;
+
+window.parseWithGeminiD=async function(){
+  const statusEl=document.getElementById('aiStatusD');
+  const btn=document.getElementById('geminiParseBtnD');
+  if(!scImageFilesD.length){
     statusEl.className='ai-status fail';
-    statusEl.textContent='⚠️ Enter your Anthropic API key above first.';
-    parseBtn.disabled=false;parseBtn.textContent='✨ Parse with AI';
+    statusEl.textContent='⚠️ Upload at least one screenshot first.';
     return;
   }
-  fetch('https://api.anthropic.com/v1/messages',{
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'x-api-key':apiKeyD,
-      'anthropic-version':'2023-06-01',
-      'anthropic-dangerous-direct-browser-access':'true'
-    },
-    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:2000,system:systemPrompt,messages:[{role:'user',content:userContent}]})
-  })
-  .then(r=>{if(!r.ok)throw new Error(`API error ${r.status}`);return r.json();})
-  .then(data=>{
-    const raw=data.content?.find(b=>b.type==='text')?.text||'';
+  statusEl.className='ai-status parsing';
+  statusEl.textContent='🤖 Gemini is reading the scorecard…';
+  btn.disabled=true;btn.textContent='Parsing…';
+  try{
+    const imageParts=await Promise.all(scImageFilesD.map(file=>new Promise((res,rej)=>{
+      const reader=new FileReader();
+      reader.onload=e=>res({inlineData:{data:e.target.result.split(',')[1],mimeType:file.type||'image/png'}});
+      reader.onerror=rej;
+      reader.readAsDataURL(file);
+    })));
+    const result=await getGeminiModel().generateContent({
+      systemInstruction:SCORECARD_PROMPT_D,
+      contents:[{role:'user',parts:[...imageParts,{text:`Parse ${scImageFilesD.length>1?'these '+scImageFilesD.length+' screenshots':'this screenshot'} and return JSON.`}]}]
+    });
+    const raw=result.response.text();
     const clean=raw.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
-    let parsed;
-    try{parsed=JSON.parse(clean);}catch(e){throw new Error('Claude returned invalid JSON. Try again with more complete data.');}
+    const m=clean.match(/\{[\s\S]*\}/);
+    if(!m) throw new Error('No valid JSON returned. Try clearer screenshots.');
+    const parsed=JSON.parse(m[0]);
     populateDraftFormFromAI(parsed);
     statusEl.className='ai-status done';
-    statusEl.textContent=`✅ Extracted ${parsed.batting?.length||0} batters · ${parsed.bowling?.length||0} bowlers · ${parsed.fielding?.length||0} fielders. Review below and save.`;
-  })
-  .catch(err=>{statusEl.className='ai-status fail';statusEl.textContent=`❌ ${err.message}`;})
-  .finally(()=>{parseBtn.disabled=false;parseBtn.textContent='✨ Parse with AI';});
+    statusEl.textContent=`✅ Parsed: ${parsed.batting?.length||0} batters · ${parsed.bowling?.length||0} bowlers · ${parsed.fielding?.length||0} fielders. Review and save.`;
+    const lbl=document.getElementById('matchLabelD');
+    if(lbl&&!lbl.value&&parsed.matchLabel) lbl.value=parsed.matchLabel;
+    document.getElementById('matchFormBodyD').style.display='block';
+  }catch(e){
+    statusEl.className='ai-status fail';
+    statusEl.textContent=`❌ ${e.message}`;
+  }finally{
+    btn.disabled=false;btn.textContent='✨ Parse with Gemini';
+  }
 };
+
+// Fallback JSON import
+window.importFromJsonD=function(){
+  const statusEl=document.getElementById('aiStatusD');
+  const raw=(document.getElementById('scJsonInputD')?.value||'').trim();
+  if(!raw){statusEl.className='ai-status fail';statusEl.textContent='⚠️ Paste JSON first.';return;}
+  let parsed;
+  try{const m=raw.match(/\{[\s\S]*\}/);if(!m)throw new Error('No JSON');parsed=JSON.parse(m[0]);}
+  catch(e){statusEl.className='ai-status fail';statusEl.textContent='❌ Invalid JSON.';return;}
+  populateDraftFormFromAI(parsed);
+  statusEl.className='ai-status done';
+  statusEl.textContent=`✅ Imported: ${parsed.batting?.length||0} batters · ${parsed.bowling?.length||0} bowlers · ${parsed.fielding?.length||0} fielders.`;
+};
+
 
 function populateDraftFormFromAI(parsed){
   if(parsed.matchLabel) document.getElementById('matchLabelD').value=parsed.matchLabel;
