@@ -146,6 +146,25 @@ tr:hover td{background:var(--sur);}
 .search-bar input,.search-bar select{flex:1;min-width:120px;padding:9px 12px;font-size:.85rem;}
 .member-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--bdr);font-size:.85rem;}
 .member-row:last-child{border-bottom:none;}
+.pts-card{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--rl);overflow:hidden;margin-bottom:16px;}
+.pts-hdr{padding:14px 20px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+.pts-title{font-family:var(--ff);font-size:18px;color:var(--gold);letter-spacing:.04em;}
+.match-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;padding:16px 20px;border-bottom:1px solid var(--bdr);}
+.match-form .fld{margin-bottom:0;}
+.lb-row{display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--bdr);}
+.lb-row:last-child{border-bottom:none;}
+.lb-row:hover{background:var(--sur);}
+.lb-team{font-weight:700;font-size:.95rem;flex:1;}
+.lb-pts{font-family:var(--ff);font-size:26px;color:var(--gold);}
+.lb-meta{font-size:.75rem;color:var(--muted);}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;padding:16px;}
+.stat-card{background:var(--sur);border:1px solid var(--bdr);border-radius:var(--r);overflow:hidden;}
+.stat-card-hdr{padding:10px 14px;border-bottom:1px solid var(--bdr);font-family:var(--ff);font-size:15px;color:var(--gold);letter-spacing:.04em;}
+.stat-item{display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-bottom:1px solid var(--bdr);font-size:.83rem;}
+.stat-item:last-child{border-bottom:none;}
+.stat-val{font-weight:700;color:var(--gold-l);}
+.match-hist-btn{background:rgba(59,130,246,.1);color:#60a5fa;border:1px solid rgba(59,130,246,.2);border-radius:6px;padding:3px 9px;font-size:.72rem;font-weight:600;cursor:pointer;font-family:var(--fb);}
+.section-hdr{padding:12px 20px;background:rgba(0,0,0,.2);border-bottom:1px solid var(--bdr);font-size:.72rem;font-weight:600;color:var(--muted2);text-transform:uppercase;letter-spacing:.07em;}
 .member-team{font-weight:600;color:var(--gold);}
 .member-email{font-size:.78rem;color:var(--muted);}
 /* Join progress bar */
@@ -167,11 +186,52 @@ tr:hover td{background:var(--sur);}
 .conn-dot{width:9px;height:9px;border-radius:50%;display:inline-block;transition:all .3s;}
 .conn-dot.live{background:var(--ok);box-shadow:0 0 7px var(--ok);}
 .conn-dot.dead{background:var(--err);box-shadow:0 0 7px var(--err);}
+.rel-btn{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:#f87171;border-radius:6px;padding:3px 8px;font-size:.72rem;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all .15s;font-family:var(--fb);}
+.rel-btn:hover{background:rgba(239,68,68,.18);border-color:rgba(239,68,68,.4);}
+.rep-btn{background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);color:#60a5fa;border-radius:6px;padding:3px 8px;font-size:.72rem;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all .15s;font-family:var(--fb);}
+.rep-btn:hover{background:rgba(59,130,246,.18);border-color:rgba(59,130,246,.4);}
+.troster li{gap:6px;}
 </style>
 </head>
 <body>
 
 <div id="toast"><span class="tdot"></span><span id="tmsg"></span></div>
+
+<!-- Release Player Modal -->
+<div class="modal-bg" id="releaseModal">
+  <div class="modal">
+    <h3>🔄 Release Player</h3>
+    <p style="color:var(--muted);font-size:.87rem;margin-bottom:8px;">This returns the player to the available pool and frees their pick slot so it can be used again.</p>
+    <p style="color:var(--gold);font-weight:600;font-size:.9rem;margin-bottom:20px;" id="releasePlayerDesc"></p>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-success" onclick="window.confirmRelease()">✅ Confirm Release</button>
+      <button class="btn btn-ghost btn-sm" onclick="window.closeReleaseModal()" style="width:auto;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Replace Player Modal -->
+<div class="modal-bg" id="replaceModal">
+  <div class="modal">
+    <h3>🔀 Replace Player</h3>
+    <p style="color:var(--muted);font-size:.87rem;margin-bottom:14px;">Select a replacement from the available player pool. The original player returns to available.</p>
+    <p style="color:var(--gold);font-weight:600;font-size:.88rem;margin-bottom:12px;" id="replacePlayerDesc"></p>
+    <div class="fld" style="margin-bottom:10px;">
+      <label>Filter by Role</label>
+      <select id="replaceRoleFilter" onchange="window.refreshReplaceList()" style="margin-bottom:8px;">
+        <option value="All">All Roles</option><option>Batter</option><option>Bowler</option><option>All-Rounder</option><option>Wicketkeeper</option>
+      </select>
+    </div>
+    <div class="fld">
+      <label>Choose Replacement</label>
+      <select id="replacementSelect" style="max-height:200px;"></select>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <button class="btn btn-gold" onclick="window.confirmReplace()">🔀 Confirm Replace</button>
+      <button class="btn btn-ghost btn-sm" onclick="window.closeReplaceModal()" style="width:auto;">Cancel</button>
+    </div>
+  </div>
+</div>
 
 <!-- Franchise Name Modal -->
 <div class="modal-bg" id="teamNameModal">
@@ -312,6 +372,9 @@ tr:hover td{background:var(--sur);}
         <button class="anav-btn" id="btn-draft" onclick="window.switchTab('draft')">🎯 Draft Room</button>
         <button class="anav-btn" id="btn-teams" onclick="window.switchTab('teams')">📋 Rosters</button>
         <button class="anav-btn" id="btn-roster" onclick="window.switchTab('roster')">📊 Players</button>
+        <button class="anav-btn" id="btn-points" onclick="window.switchTab('points')">🏅 Points</button>
+        <button class="anav-btn" id="btn-leaderboard" onclick="window.switchTab('leaderboard')">🏆 Leaderboard</button>
+        <button class="anav-btn" id="btn-analytics" onclick="window.switchTab('analytics')">📈 Analytics</button>
       </div>
 
       <!-- SETUP TAB -->
@@ -452,6 +515,82 @@ tr:hover td{background:var(--sur);}
         </div>
       </div>
 
+      <!-- ════ POINTS TAB ════ -->
+      <div id="points-tab" style="display:none;">
+        <div class="pts-card" id="addMatchCardDraft" style="display:none;">
+          <div class="pts-hdr">
+            <span class="pts-title">📥 Enter Match Scorecard</span>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="text" id="matchLabelD" placeholder="e.g. MI vs CSK – Apr 5" style="width:200px;padding:9px 12px;font-size:.85rem;">
+              <button class="btn btn-ghost btn-sm" onclick="window.toggleMatchFormDraft()">▼ Expand</button>
+            </div>
+          </div>
+          <div id="matchFormBodyD" style="display:none;">
+            <div class="match-form">
+              <div class="fld"><label>Winning IPL Team</label><input type="text" id="mfWinnerD" placeholder="e.g. MI"></div>
+              <div class="fld"><label>Man of the Match</label><input type="text" id="mfMotmD" placeholder="Player name"></div>
+              <div class="fld"><label>Result</label>
+                <select id="mfResultD"><option value="normal">Normal Result</option><option value="noresult">No Result</option><option value="superover">Super Over</option></select>
+              </div>
+            </div>
+            <div class="section-hdr">BATTING</div>
+            <div id="battingRowsD"></div>
+            <div style="padding:10px 20px;border-bottom:1px solid var(--bdr);"><button class="btn btn-ghost btn-sm" onclick="window.addBattingRowD()">+ Add Batter</button></div>
+            <div class="section-hdr">BOWLING</div>
+            <div id="bowlingRowsD"></div>
+            <div style="padding:10px 20px;border-bottom:1px solid var(--bdr);"><button class="btn btn-ghost btn-sm" onclick="window.addBowlingRowD()">+ Add Bowler</button></div>
+            <div class="section-hdr">FIELDING</div>
+            <div id="fieldingRowsD"></div>
+            <div style="padding:10px 20px;border-bottom:1px solid var(--bdr);"><button class="btn btn-ghost btn-sm" onclick="window.addFieldingRowD()">+ Add Fielder</button></div>
+            <div style="padding:16px 20px;display:flex;gap:10px;">
+              <button class="btn btn-gold" onclick="window.submitMatchDraft(true)" style="max-width:220px;">💾 Calculate &amp; Save Points</button>
+              <button class="btn btn-ghost btn-sm" onclick="window.previewPointsDraft()">👁 Preview First</button>
+            </div>
+          </div>
+        </div>
+        <div id="previewBoxD" style="display:none;background:var(--bg2);border:1px solid var(--bdr-g);border-radius:var(--rl);padding:16px 20px;margin-bottom:14px;">
+          <div style="font-family:var(--ff);font-size:18px;color:var(--gold);margin-bottom:10px;">Points Preview</div>
+          <div id="previewContentD"></div>
+          <button class="btn btn-gold" onclick="window.submitMatchDraft(true)" style="max-width:180px;margin-top:12px;">✅ Confirm &amp; Save</button>
+        </div>
+        <div class="pts-card">
+          <div class="pts-hdr">
+            <span class="pts-title">🏅 Player Points</span>
+            <div style="display:flex;gap:8px;">
+              <select id="matchFilterD" onchange="window.renderPointsDraft()" style="padding:8px 12px;font-size:.83rem;width:180px;"><option value="all">All Matches (Total)</option></select>
+              <button class="btn btn-info btn-sm" onclick="window.downloadPointsCSVDraft()">⬇ CSV</button>
+            </div>
+          </div>
+          <div class="twrap">
+            <table>
+              <thead><tr><th>#</th><th>Player</th><th>IPL Team</th><th>Owned By</th><th>Role</th><th>Matches</th><th>Points</th></tr></thead>
+              <tbody id="pointsTbodyD"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ LEADERBOARD TAB ════ -->
+      <div id="leaderboard-tab" style="display:none;">
+        <div class="srow">
+          <div class="spill"><div class="sval" id="lbMatchesD">—</div><div class="slb">Matches</div></div>
+          <div class="spill"><div class="sval" id="lbScoredD">—</div><div class="slb">Players Scored</div></div>
+          <div class="spill"><div class="sval" id="lbTopD">—</div><div class="slb">Top Team Score</div></div>
+        </div>
+        <div class="pts-card">
+          <div class="pts-hdr"><span class="pts-title">🏆 Fantasy Leaderboard</span></div>
+          <div id="leaderboardBodyD"></div>
+        </div>
+      </div>
+
+      <!-- ════ ANALYTICS TAB ════ -->
+      <div id="analytics-tab" style="display:none;">
+        <div class="pts-card">
+          <div class="pts-hdr"><span class="pts-title">📈 Performance Analytics</span></div>
+          <div class="stat-grid" id="analyticsGridD"></div>
+        </div>
+      </div>
+
     </div><!-- /draft-view -->
   </div><!-- /content -->
 </div><!-- /app-shell -->
@@ -490,6 +629,8 @@ const ERRS={'auth/invalid-credential':'Invalid email or password.','auth/user-no
 let user=null,draftId=null,draftState=null,draftListener=null;
 let isAdmin=false,myTeamName='',isSignup=false,pendingJoinId='',roomToDelete='';
 let cachedPlayers=null;
+let releaseTeam='',releasePlayerName='',releaseWasOverseas=false;
+let replaceTeam='',replacePlayerName='',replaceWasOverseas=false;
 
 // ── Toast ──
 window.showAlert=function(msg,type='err'){
@@ -516,7 +657,7 @@ window.toggleCreateForm=function(){
   btn.textContent=show?'✕ Cancel':'+ Create New';
 };
 window.switchTab=function(t){
-  ['setup','draft','teams','roster'].forEach(id=>{
+  ['setup','draft','teams','roster','points','leaderboard','analytics'].forEach(id=>{
     const el=document.getElementById(`${id}-tab`),btn=document.getElementById(`btn-${id}`);
     if(!el||!btn)return;
     el.style.display=id===t?'block':'none';
@@ -714,6 +855,7 @@ function loadDraftRoom(rid){
 
     document.getElementById('draftRoleBadge').textContent=isAdmin?'👑 Admin':'🤝 '+(myTeamName||'Member');
     document.getElementById('draftRoleBadge').className=`badge ${isAdmin?'bg':'bb'}`;
+    document.getElementById('addMatchCardDraft').style.display=isAdmin?'block':'none';
 
     if(myTeamName){
       document.getElementById('myTeamBadge').style.display='flex';
@@ -859,6 +1001,9 @@ function loadDraftRoom(rid){
 
     // Teams tab
     if(data.teams)renderTeamsTab(data,picksPerTeam);
+    renderPointsDraft();
+    renderLeaderboardDraft(data);
+    renderAnalyticsDraft(data);
 
     // Draft tab
     if(setup.isStarted&&data.draftOrder)renderDraftTab(data,members.length,picksPerTeam);
@@ -1022,9 +1167,13 @@ function renderTeamsTab(data,ppt){
         <div><div class="tname">${team.name}</div><div class="tmeta">${roster.length}/${ppt||'?'} picks · OS: ${os}/8</div></div>
       </div>
       ${roster.length
-        ?`<ul class="troster">${roster.map((p,i)=>`<li>
-            <div><span style="font-size:.75rem;color:var(--muted);margin-right:6px;">#${i+1}</span><strong>${p.name}</strong> <span class="rrole">${p.role}</span></div>
-            ${p.isOverseas?'<span class="badge bb" style="font-size:.68rem;padding:2px 6px;">✈️ OS</span>':''}
+        ?`<ul class="troster">${roster.map((p,i)=>`<li style="gap:6px;">
+            <div style="flex:1;min-width:0;">
+              <div><span style="font-size:.75rem;color:var(--muted);margin-right:4px;">#${i+1}</span><strong>${p.name}</strong>${p.isOverseas?' <span class="badge bb" style="font-size:.65rem;padding:1px 5px;">OS</span>':''}</div>
+              <div class="rrole">${p.role}</div>
+            </div>
+            <button class="rel-btn" onclick="window.openReleaseModal('${team.name}','${(p.name||'').replace(/'/g,"\'")}',${!!p.isOverseas})">Release</button>
+            <button class="rep-btn" onclick="window.openReplaceModal('${team.name}','${(p.name||'').replace(/'/g,"\'")}',${!!p.isOverseas})">Replace</button>
           </li>`).join('')}</ul>`
         :'<div class="empty">No picks yet</div>'}
     </div>`;
@@ -1065,6 +1214,431 @@ window.exportCSV=function(){
   a.click();
   window.showAlert('CSV downloaded!','ok');
 };
+// ── Release Player (Draft) ──
+window.openReleaseModal=function(teamName,playerName,wasOverseas){
+  releaseTeam=teamName;
+  releasePlayerName=playerName;
+  releaseWasOverseas=!!wasOverseas;
+  document.getElementById('releasePlayerDesc').textContent=
+    `${playerName} will be removed from ${teamName}'s roster and returned to the available pool.`;
+  document.getElementById('releaseModal').classList.add('open');
+};
+window.closeReleaseModal=function(){
+  document.getElementById('releaseModal').classList.remove('open');
+  releaseTeam='';releasePlayerName='';releaseWasOverseas=false;
+};
+window.confirmRelease=function(){
+  if(!draftId||!releaseTeam||!releasePlayerName)return;
+  const targetName=releasePlayerName.toLowerCase().trim();
+
+  get(ref(db,`drafts/${draftId}`)).then(snap=>{
+    const data=snap.val();
+    if(!data)return window.showAlert('Draft data not found. Reload.');
+
+    const team=data.teams?.[releaseTeam];
+    if(!team)return window.showAlert(`Team "${releaseTeam}" not found.`);
+
+    // Normalise roster
+    const rawRoster=team.roster;
+    let roster=[];
+    if(Array.isArray(rawRoster)) roster=[...rawRoster];
+    else if(rawRoster&&typeof rawRoster==='object') roster=Object.values(rawRoster);
+
+    const matchIdx=roster.findIndex(p=>(p.name||'').toLowerCase().trim()===targetName);
+    if(matchIdx<0)return window.showAlert(`${releasePlayerName} not found in roster. Try reloading.`);
+
+    const releasedPlayer=roster[matchIdx];
+    const newRoster=roster.filter((_,i)=>i!==matchIdx);
+    const newOsCount=Math.max(0,(team.overseasCount||0)-(releasedPlayer.isOverseas?1:0));
+
+    // Find player in global players list and reset draftedBy
+    const allPlayers=Array.isArray(data.players)?data.players.map(p=>({...p})):Object.values(data.players||{}).map(p=>({...p}));
+    const dbPlayer=allPlayers.find(p=>(p.name||'').toLowerCase().trim()===targetName);
+
+    const rosterRef=ref(db,`drafts/${draftId}/teams/${releaseTeam}/roster`);
+    const rosterWrite=newRoster.length>0?set(rosterRef,newRoster):remove(rosterRef);
+
+    rosterWrite.then(()=>{
+      const upd={};
+      upd[`drafts/${draftId}/teams/${releaseTeam}/overseasCount`]=newOsCount;
+      if(dbPlayer!==undefined){
+        const pid=String(dbPlayer.id);
+        const updatedPlayers=allPlayers.map(p=>String(p.id)===pid?{...p,draftedBy:null}:p);
+        upd[`drafts/${draftId}/players`]=updatedPlayers;
+      }
+      return update(ref(db),upd);
+    }).then(()=>{
+      window.closeReleaseModal();
+      window.showAlert(`${releasePlayerName} released back to available pool.`,'ok');
+    }).catch(e=>window.showAlert('Release failed: '+e.message));
+  }).catch(e=>window.showAlert('Could not read draft: '+e.message));
+};
+
+// ── Replace Player (Draft) ──
+window.openReplaceModal=function(teamName,playerName,wasOverseas){
+  replaceTeam=teamName;
+  replacePlayerName=playerName;
+  replaceWasOverseas=!!wasOverseas;
+  document.getElementById('replacePlayerDesc').textContent=
+    `Replacing: ${playerName} from ${teamName}`;
+  document.getElementById('replaceModal').classList.add('open');
+  window.refreshReplaceList();
+};
+window.closeReplaceModal=function(){
+  document.getElementById('replaceModal').classList.remove('open');
+  replaceTeam='';replacePlayerName='';replaceWasOverseas=false;
+};
+window.refreshReplaceList=function(){
+  const role=document.getElementById('replaceRoleFilter')?.value||'All';
+  const players=cachedPlayers||[];
+  let avail=players.filter(p=>!p.draftedBy);
+  if(role!=='All') avail=avail.filter(p=>p.role===role);
+  const sel=document.getElementById('replacementSelect');
+  if(!sel)return;
+  sel.innerHTML=avail.length
+    ?avail.map(p=>`<option value="${p.id}">${p.name} — ${p.iplTeam} | ${p.role}${p.isOverseas?' [✈️ OS]':''}</option>`).join('')
+    :'<option value="">No available players match this filter</option>';
+};
+window.confirmReplace=function(){
+  if(!draftId||!replaceTeam||!replacePlayerName)return;
+  const newPid=document.getElementById('replacementSelect')?.value;
+  if(!newPid)return window.showAlert('Select a replacement player.','err');
+  const targetName=replacePlayerName.toLowerCase().trim();
+
+  get(ref(db,`drafts/${draftId}`)).then(snap=>{
+    const data=snap.val();
+    if(!data)return window.showAlert('Draft data not found. Reload.');
+
+    const team=data.teams?.[replaceTeam];
+    if(!team)return window.showAlert(`Team "${replaceTeam}" not found.`);
+
+    // Normalise roster
+    const rawRoster=team.roster;
+    let roster=[];
+    if(Array.isArray(rawRoster)) roster=[...rawRoster];
+    else if(rawRoster&&typeof rawRoster==='object') roster=Object.values(rawRoster);
+
+    const matchIdx=roster.findIndex(p=>(p.name||'').toLowerCase().trim()===targetName);
+    if(matchIdx<0)return window.showAlert(`${replacePlayerName} not found in roster. Try reloading.`);
+
+    // Get replacement player
+    const allPlayers=Array.isArray(data.players)?data.players.map(p=>({...p})):Object.values(data.players||{}).map(p=>({...p}));
+    const newPlayer=allPlayers.find(p=>String(p.id)===String(newPid));
+    if(!newPlayer)return window.showAlert('Replacement player not found.');
+    if(newPlayer.draftedBy)return window.showAlert(`${newPlayer.name} is already drafted!`);
+
+    const oldPlayer=roster[matchIdx];
+
+    // Overseas cap check for new player
+    const currentOs=team.overseasCount||0;
+    const losingOs=oldPlayer.isOverseas?1:0;
+    const gainingOs=newPlayer.isOverseas?1:0;
+    const newOsCount=currentOs-losingOs+gainingOs;
+    if(newOsCount>8)return window.showAlert(`This replacement would exceed the 8 overseas player cap for ${replaceTeam}.`,'err');
+
+    // Build new roster with replacement in the same slot
+    const newRoster=[...roster];
+    newRoster[matchIdx]={
+      id:newPlayer.id,
+      name:newPlayer.name,
+      iplTeam:newPlayer.iplTeam,
+      role:newPlayer.role,
+      isOverseas:newPlayer.isOverseas
+    };
+
+    // Update global players list: old → null, new → team
+    const updatedPlayers=allPlayers.map(p=>{
+      const pid=String(p.id);
+      if(pid===String(oldPlayer.id||allPlayers.find(x=>(x.name||'').toLowerCase()===targetName)?.id)) return {...p,draftedBy:null};
+      if(pid===String(newPid)) return {...p,draftedBy:replaceTeam};
+      return p;
+    });
+
+    const rosterRef=ref(db,`drafts/${draftId}/teams/${replaceTeam}/roster`);
+    set(rosterRef,newRoster).then(()=>{
+      const upd={};
+      upd[`drafts/${draftId}/teams/${replaceTeam}/overseasCount`]=newOsCount;
+      upd[`drafts/${draftId}/players`]=updatedPlayers;
+      return update(ref(db),upd);
+    }).then(()=>{
+      window.closeReplaceModal();
+      window.showAlert(`${oldPlayer.name} replaced with ${newPlayer.name} in ${replaceTeam}.`,'ok');
+    }).catch(e=>window.showAlert('Replace failed: '+e.message));
+  }).catch(e=>window.showAlert('Could not read draft: '+e.message));
+};
+
+// ═══════════════════════════════════════════════════════════
+// DRAFT POINTS ENGINE (same scoring rules, draft paths)
+// ═══════════════════════════════════════════════════════════
+function calcBattingPtsD(runs,balls,sixes,dismissal,isWin,isMot){
+  if(dismissal==='noresult') return 0;
+  let p=0;
+  p+=runs*1;p+=Math.floor(runs/25)*10;p+=sixes*2;
+  if(dismissal==='duck')p-=5;
+  if(balls>=5){const sr=(runs/balls)*100;if(sr<75)p-=15;else if(sr<100)p-=10;else if(sr<150)p+=5;else if(sr<200)p+=10;else p+=15;}
+  if(isWin)p+=5;if(isMot)p+=25;return p;
+}
+function calcBowlingPtsD(overs,runs,wkts,dots,maidens,isWin,isMot){
+  if(overs===0) return isWin?5:0;
+  let p=0;p+=wkts*25;if(wkts>=2)p+=10;if(wkts>2)p+=(wkts-2)*10;
+  p+=dots*1;p+=maidens*20;
+  const eco=runs/overs;
+  if(eco<=5)p+=15;else if(eco<=8)p+=10;else if(eco<=10)p+=5;else if(eco<=12)p-=10;else p-=15;
+  if(isWin)p+=5;if(isMot)p+=25;return p;
+}
+function calcFieldingPtsD(catches,stumpings,runouts,isWin,isMot){
+  let p=catches*10+stumpings*15+runouts*10;
+  if(isWin)p+=5;if(isMot)p+=25;return p;
+}
+
+let brD=0,bowD=0,fldD=0;
+window.toggleMatchFormDraft=function(){
+  const body=document.getElementById('matchFormBodyD');
+  const btn=event.target;
+  const showing=body.style.display!=='none';
+  body.style.display=showing?'none':'block';
+  btn.textContent=showing?'▼ Expand':'▲ Collapse';
+  if(!showing&&brD===0){window.addBattingRowD();window.addBowlingRowD();window.addFieldingRowD();}
+};
+
+function makeInputD(style=''){
+  return `style="padding:8px 10px;font-size:.83rem;background:var(--sur);border:1px solid var(--bdr);border-radius:var(--r);color:var(--txt);font-family:var(--fb);${style}"`;
+}
+function removeBtn(id){
+  return `<button onclick="document.getElementById('${id}').remove();" style="background:var(--red-dim);color:#f87171;border:1px solid rgba(239,68,68,.3);border-radius:var(--r);padding:6px 10px;cursor:pointer;font-size:.78rem;font-family:var(--fb);">✕</button>`;
+}
+
+window.addBattingRowD=function(){
+  const id=`brd${brD++}`;
+  const d=document.createElement('div');d.id=id;
+  d.style.cssText='display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr auto;gap:8px;padding:8px 20px;border-bottom:1px solid var(--bdr);align-items:center;';
+  d.innerHTML=`<input list="dlPlayersD" placeholder="Player name" id="${id}n" ${makeInputD()}>
+    <input type="number" placeholder="Runs" id="${id}r" min="0" ${makeInputD()}>
+    <input type="number" placeholder="Balls" id="${id}b" min="0" ${makeInputD()}>
+    <input type="number" placeholder="6s" id="${id}s" min="0" ${makeInputD()}>
+    <select id="${id}d" ${makeInputD()}><option value="out">Out</option><option value="notout">Not Out</option><option value="duck">Duck</option></select>
+    ${removeBtn(id)}`;
+  document.getElementById('battingRowsD').appendChild(d);
+  if(!document.getElementById('dlPlayersD')){
+    const names=(cachedPlayers||[]).map(p=>p.name).filter(Boolean);
+    const dl=document.createElement('datalist');dl.id='dlPlayersD';
+    names.forEach(n=>{const o=document.createElement('option');o.value=n;dl.appendChild(o);});
+    document.getElementById('battingRowsD').insertAdjacentElement('beforebegin',dl);
+  }
+};
+window.addBowlingRowD=function(){
+  const id=`bowd${bowD++}`;
+  const d=document.createElement('div');d.id=id;
+  d.style.cssText='display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr auto;gap:8px;padding:8px 20px;border-bottom:1px solid var(--bdr);align-items:center;';
+  d.innerHTML=`<input list="dlPlayersD" placeholder="Player name" id="${id}n" ${makeInputD()}>
+    <input type="number" placeholder="Ovs" id="${id}o" min="0" step="0.1" ${makeInputD()}>
+    <input type="number" placeholder="Runs" id="${id}r" min="0" ${makeInputD()}>
+    <input type="number" placeholder="Wkts" id="${id}w" min="0" ${makeInputD()}>
+    <input type="number" placeholder="Dots" id="${id}d" min="0" ${makeInputD()}>
+    <input type="number" placeholder="Maidens" id="${id}m" min="0" ${makeInputD()}>
+    ${removeBtn(id)}`;
+  document.getElementById('bowlingRowsD').appendChild(d);
+};
+window.addFieldingRowD=function(){
+  const id=`fldd${fldD++}`;
+  const d=document.createElement('div');d.id=id;
+  d.style.cssText='display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:8px;padding:8px 20px;border-bottom:1px solid var(--bdr);align-items:center;';
+  d.innerHTML=`<input list="dlPlayersD" placeholder="Player name" id="${id}n" ${makeInputD()}>
+    <input type="number" placeholder="Catches" id="${id}c" min="0" ${makeInputD()}>
+    <input type="number" placeholder="Stumpings" id="${id}st" min="0" ${makeInputD()}>
+    <input type="number" placeholder="Run-outs" id="${id}ro" min="0" ${makeInputD()}>
+    ${removeBtn(id)}`;
+  document.getElementById('fieldingRowsD').appendChild(d);
+};
+
+function collectMatchDraftData(){
+  const label=document.getElementById('matchLabelD').value.trim()||`Match ${Date.now()}`;
+  const winner=(document.getElementById('mfWinnerD').value||'').trim().toUpperCase();
+  const motm=(document.getElementById('mfMotmD').value||'').trim().toLowerCase();
+  const result=document.getElementById('mfResultD').value;
+  if(result==='noresult') return {label,result,playerPts:{}};
+  const playerPts={};
+  function addP(name,pts,src){
+    const key=name.trim().toLowerCase();if(!key)return;
+    if(!playerPts[key])playerPts[key]={name:name.trim(),pts:0,breakdown:[]};
+    playerPts[key].pts+=pts;playerPts[key].breakdown.push(`${src}: ${pts>=0?'+':''}${pts}`);
+  }
+  document.querySelectorAll('[id^="brd"][id$="n"]').forEach(inp=>{
+    const id=inp.id.slice(0,-1);const name=inp.value.trim();if(!name)return;
+    const runs=parseInt(document.getElementById(`${id}r`)?.value)||0;
+    const balls=parseInt(document.getElementById(`${id}b`)?.value)||0;
+    const sixes=parseInt(document.getElementById(`${id}s`)?.value)||0;
+    const dis=document.getElementById(`${id}d`)?.value||'out';
+    addP(name,calcBattingPtsD(runs,balls,sixes,dis,false,name.toLowerCase()===motm),`Bat(${runs}r ${balls}b)`);
+  });
+  document.querySelectorAll('[id^="bowd"][id$="n"]').forEach(inp=>{
+    const id=inp.id.slice(0,-1);const name=inp.value.trim();if(!name)return;
+    const ovs=parseFloat(document.getElementById(`${id}o`)?.value)||0;
+    const runs=parseInt(document.getElementById(`${id}r`)?.value)||0;
+    const wkts=parseInt(document.getElementById(`${id}w`)?.value)||0;
+    const dots=parseInt(document.getElementById(`${id}d`)?.value)||0;
+    const maidens=parseInt(document.getElementById(`${id}m`)?.value)||0;
+    addP(name,calcBowlingPtsD(ovs,runs,wkts,dots,maidens,false,name.toLowerCase()===motm),`Bowl(${wkts}w ${ovs}ov)`);
+  });
+  document.querySelectorAll('[id^="fldd"][id$="n"]').forEach(inp=>{
+    const id=inp.id.slice(0,-1);const name=inp.value.trim();if(!name)return;
+    const c=parseInt(document.getElementById(`${id}c`)?.value)||0;
+    const st=parseInt(document.getElementById(`${id}st`)?.value)||0;
+    const ro=parseInt(document.getElementById(`${id}ro`)?.value)||0;
+    if(c+st+ro===0)return;
+    addP(name,calcFieldingPtsD(c,st,ro,false,name.toLowerCase()===motm),`Field(${c}c ${st}st ${ro}ro)`);
+  });
+  // Winning team bonus
+  if(winner&&cachedPlayers){
+    cachedPlayers.forEach(p=>{
+      const key=(p.name||'').toLowerCase();
+      if((p.iplTeam||'').toUpperCase()===winner&&playerPts[key]){playerPts[key].pts+=5;playerPts[key].breakdown.push('Win: +5');}
+    });
+  }
+  return {label,result,winner,motm,playerPts};
+}
+
+window.previewPointsDraft=function(){
+  const data=collectMatchDraftData();
+  if(data.result==='noresult'){window.showAlert('No Result — no points awarded.','info');return;}
+  const entries=Object.values(data.playerPts).sort((a,b)=>b.pts-a.pts);
+  if(!entries.length){window.showAlert('No player data entered.','err');return;}
+  document.getElementById('previewContentD').innerHTML=`<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:.85rem;">
+    <thead><tr style="background:rgba(0,0,0,.3);"><th style="padding:8px 12px;text-align:left;color:var(--gold);">Player</th><th style="padding:8px 12px;text-align:right;color:var(--gold);">Pts</th><th style="padding:8px 12px;text-align:left;color:var(--gold);">Breakdown</th></tr></thead>
+    <tbody>${entries.map(e=>`<tr style="border-bottom:1px solid var(--bdr);"><td style="padding:8px 12px;font-weight:600;">${e.name}</td><td style="padding:8px 12px;text-align:right;font-family:var(--ff);font-size:1.1rem;color:${e.pts>=0?'var(--ok)':'var(--err)'};">${e.pts>=0?'+':''}${e.pts}</td><td style="padding:8px 12px;font-size:.78rem;color:var(--muted2);">${e.breakdown.join(' · ')}</td></tr>`).join('')}</tbody>
+  </table></div>`;
+  document.getElementById('previewBoxD').style.display='block';
+};
+
+window.submitMatchDraft=function(confirmed=false){
+  if(!isAdmin){window.showAlert('Only admin can submit match data.','err');return;}
+  if(!draftId){window.showAlert('Load a draft room first.','err');return;}
+  const data=collectMatchDraftData();
+  if(!confirmed){window.previewPointsDraft();return;}
+  const matchId=`m${Date.now()}`;
+  const rec={label:data.label,result:data.result,winner:data.winner||'',motm:data.motm||'',timestamp:Date.now(),players:{}};
+  Object.entries(data.playerPts).forEach(([k,v])=>{rec.players[k]={name:v.name,pts:v.pts,breakdown:v.breakdown.join(' | ')};});
+  set(ref(db,`drafts/${draftId}/matches/${matchId}`),rec).then(()=>{
+    window.showAlert(`✅ "${data.label}" saved!`,'ok');
+    document.getElementById('previewBoxD').style.display='none';
+    document.getElementById('matchFormBodyD').style.display='none';
+    document.getElementById('matchLabelD').value='';
+    document.getElementById('battingRowsD').innerHTML='';
+    document.getElementById('bowlingRowsD').innerHTML='';
+    document.getElementById('fieldingRowsD').innerHTML='';
+    brD=0;bowD=0;fldD=0;
+    updateMatchFilterDraft();
+  }).catch(e=>window.showAlert('Save failed: '+e.message));
+};
+
+function updateMatchFilterDraft(){
+  get(ref(db,`drafts/${draftId}/matches`)).then(snap=>{
+    const matches=snap.val()||{};
+    const sel=document.getElementById('matchFilterD');if(!sel)return;
+    const existing=new Set([...sel.options].map(o=>o.value));
+    Object.entries(matches).sort((a,b)=>a[1].timestamp-b[1].timestamp).forEach(([id,m])=>{
+      if(!existing.has(id)){const opt=document.createElement('option');opt.value=id;opt.textContent=m.label||id;sel.appendChild(opt);}
+    });
+  });
+}
+
+function getOwnerMapDraft(data){
+  const om={};
+  if(data.teams) Object.values(data.teams).forEach(team=>{
+    const roster=Array.isArray(team.roster)?team.roster:Object.values(team.roster||{});
+    roster.forEach(p=>{om[(p.name||'').toLowerCase()]=team.name;});
+  });
+  return om;
+}
+
+function aggregateMatchPts(matches,filterVal){
+  const all=Object.keys(matches||{});
+  const ids=filterVal==='all'?all:[filterVal];
+  const totals={};
+  ids.forEach(mid=>{
+    const m=(matches||{})[mid];if(!m?.players)return;
+    Object.values(m.players).forEach(p=>{
+      const key=(p.name||'').toLowerCase();
+      if(!totals[key])totals[key]={name:p.name,pts:0,matchCount:0};
+      totals[key].pts+=(p.pts||0);totals[key].matchCount++;
+    });
+  });
+  return totals;
+}
+
+function renderPointsDraft(){
+  if(!draftState)return;
+  updateMatchFilterDraft();
+  const matches=draftState.matches||{};
+  const filterVal=document.getElementById('matchFilterD')?.value||'all';
+  const totals=aggregateMatchPts(matches,filterVal);
+  const ownerMap=getOwnerMapDraft(draftState);
+  const roleMap={};const iplMap={};
+  if(cachedPlayers) cachedPlayers.forEach(p=>{roleMap[(p.name||'').toLowerCase()]=p.role||'';iplMap[(p.name||'').toLowerCase()]=p.iplTeam||'';});
+  const sorted=Object.values(totals).sort((a,b)=>b.pts-a.pts);
+  const tbody=document.getElementById('pointsTbodyD');if(!tbody)return;
+  if(!sorted.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted);">No match data yet. Admin can add scorecards above.</td></tr>';return;}
+  tbody.innerHTML=sorted.map((p,i)=>{
+    const key=p.name.toLowerCase();
+    return`<tr><td style="color:var(--muted)">${i+1}</td><td style="font-weight:600">${p.name}</td><td><span class="badge bg">${iplMap[key]||'—'}</span></td><td style="color:var(--gold-l)">${ownerMap[key]||'<span style="color:var(--muted)">Unowned</span>'}</td><td style="color:var(--muted2)">${roleMap[key]||'—'}</td><td style="text-align:center">${p.matchCount}</td><td style="font-family:var(--ff);font-size:1.1rem;color:${p.pts>=0?'var(--ok)':'var(--err)'};text-align:right">${p.pts>=0?'+':''}${p.pts}</td></tr>`;
+  }).join('');
+}
+window.renderPointsDraft=renderPointsDraft;
+
+function renderLeaderboardDraft(data){
+  const matches=data?.matches||{};
+  const playerTotal=aggregateMatchPts(matches,'all');
+  const teamPts={};
+  if(data?.teams) Object.values(data.teams).forEach(t=>{teamPts[t.name]={pts:0,topPlayer:'—',topPts:0,playerCount:0};});
+  if(data?.teams) Object.values(data.teams).forEach(team=>{
+    const roster=Array.isArray(team.roster)?team.roster:Object.values(team.roster||{});
+    roster.forEach(p=>{
+      const key=(p.name||'').toLowerCase();const pts=playerTotal[key]?.pts||0;
+      teamPts[team.name].pts+=pts;teamPts[team.name].playerCount++;
+      if(pts>teamPts[team.name].topPts){teamPts[team.name].topPts=pts;teamPts[team.name].topPlayer=p.name||'—';}
+    });
+  });
+  const sorted=Object.entries(teamPts).sort((a,b)=>b[1].pts-a[1].pts);
+  document.getElementById('lbMatchesD').textContent=Object.keys(matches).length;
+  document.getElementById('lbScoredD').textContent=Object.keys(playerTotal).length;
+  document.getElementById('lbTopD').textContent=sorted.length?sorted[0][1].pts:0;
+  const body=document.getElementById('leaderboardBodyD');if(!body)return;
+  if(!sorted.length){body.innerHTML='<div class="empty">No match data yet.</div>';return;}
+  const medals=['🥇','🥈','🥉'];
+  body.innerHTML=sorted.map(([name,info],i)=>{
+    const bar=sorted[0][1].pts>0?Math.round((info.pts/sorted[0][1].pts)*100):0;
+    return`<div class="lb-row"><span style="font-family:var(--ff);font-size:22px;min-width:36px;">${medals[i]||`${i+1}.`}</span>
+      <div style="flex:1;"><div class="lb-team">${name}</div><div class="lb-meta">Top: ${info.topPlayer} (${info.topPts>=0?'+':''}${info.topPts} pts) · ${info.playerCount} players</div>
+        <div style="height:4px;background:rgba(255,255,255,.06);border-radius:2px;margin-top:6px;overflow:hidden;"><div style="height:100%;width:${bar}%;background:linear-gradient(90deg,var(--gold),var(--gold-l));border-radius:2px;"></div></div>
+      </div><div class="lb-pts">${info.pts>=0?'+':''}${info.pts}</div></div>`;
+  }).join('');
+}
+
+function renderAnalyticsDraft(data){
+  const matches=data?.matches||{};
+  const playerTotal=aggregateMatchPts(matches,'all');
+  const meta={};if(cachedPlayers) cachedPlayers.forEach(p=>{meta[(p.name||'').toLowerCase()]={role:p.role||'',iplTeam:p.iplTeam||''};});
+  const ownerMap=getOwnerMapDraft(data);
+  const allPts=Object.values(playerTotal);
+  function top5(role){return allPts.filter(p=>(meta[p.name.toLowerCase()]?.role||'').toLowerCase().includes(role.toLowerCase())).sort((a,b)=>b.pts-a.pts).slice(0,5);}
+  function makeCard(title,players){
+    if(!players.length) return `<div class="stat-card"><div class="stat-card-hdr">${title}</div><div class="empty" style="padding:12px 14px;font-size:.8rem;">No data yet</div></div>`;
+    return`<div class="stat-card"><div class="stat-card-hdr">${title}</div>${players.map((p,i)=>`<div class="stat-item"><div><div style="font-weight:600">${i+1}. ${p.name}</div><div style="font-size:.72rem;color:var(--muted)">${ownerMap[p.name.toLowerCase()]||'Unowned'} · ${p.matchCount} match${p.matchCount===1?'':'es'}</div></div><div class="stat-val">${p.pts>=0?'+':''}${p.pts} pts</div></div>`).join('')}</div>`;
+  }
+  const grid=document.getElementById('analyticsGridD');if(!grid)return;
+  grid.innerHTML=makeCard('🏏 Top Batters',top5('batter'))+makeCard('🎳 Top Bowlers',top5('bowler'))+makeCard('⚡ Top All-Rounders',top5('all'))+makeCard('🧤 Top Wicketkeepers',top5('wicketkeeper'))+makeCard('🌟 Overall Top Scorers',allPts.sort((a,b)=>b.pts-a.pts).slice(0,5));
+}
+
+window.downloadPointsCSVDraft=function(){
+  if(!draftState?.matches){window.showAlert('No match data yet.','err');return;}
+  const totals=aggregateMatchPts(draftState.matches,'all');
+  const ownerMap=getOwnerMapDraft(draftState);
+  const rows=Object.values(totals).sort((a,b)=>b.pts-a.pts).map((p,i)=>[i+1,`"${p.name}"`,ownerMap[p.name.toLowerCase()]||'Unowned',p.matchCount,p.pts]);
+  const csv=['#,Player,Owner,Matches,Points',...rows.map(r=>r.join(','))].join('\n');
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download=`draft_points.csv`;a.click();window.showAlert('CSV downloaded!','ok');
+};
+
 </script>
 </body>
 </html>
