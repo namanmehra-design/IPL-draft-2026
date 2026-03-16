@@ -176,6 +176,28 @@ tr:hover td{background:var(--sur);}
 .stat-item:last-child{border-bottom:none;}
 .stat-val{font-weight:700;color:var(--gold-l);}
 .match-hist-btn{background:rgba(59,130,246,.1);color:#60a5fa;border:1px solid rgba(59,130,246,.2);border-radius:6px;padding:3px 9px;font-size:.72rem;font-weight:600;cursor:pointer;font-family:var(--fb);}
+.match-block{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--rl);overflow:hidden;margin-bottom:14px;transition:border-color .2s;}
+.match-block:hover{border-color:var(--bdr-hi);}
+.match-block-hdr{padding:14px 20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;gap:10px;flex-wrap:wrap;}
+.match-block-hdr:hover{background:rgba(255,255,255,.02);}
+.match-label{font-family:var(--ff);font-size:19px;color:var(--gold);letter-spacing:.04em;}
+.match-meta{font-size:.78rem;color:var(--muted);margin-top:2px;}
+.match-body{display:none;border-top:1px solid var(--bdr);}
+.match-body.open{display:block;}
+.sc-table{width:100%;border-collapse:collapse;font-size:.83rem;}
+.sc-table th{padding:8px 12px;text-align:left;color:var(--gold);font-size:.72rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;border-bottom:1px solid var(--bdr);background:rgba(0,0,0,.25);white-space:nowrap;}
+.sc-table td{padding:7px 12px;border-bottom:1px solid var(--bdr);vertical-align:middle;}
+.sc-table tr:last-child td{border-bottom:none;}
+.sc-table tr:hover td{background:var(--sur);}
+.edit-input{background:transparent;border:none;border-bottom:1px dashed var(--bdr-hi);color:var(--txt);font-family:var(--fb);font-size:.83rem;width:100%;outline:none;padding:2px 4px;min-width:40px;}
+.edit-input:focus{border-bottom-color:var(--gold);background:rgba(212,168,71,.05);}
+.pts-chip{font-family:var(--ff);font-size:15px;padding:2px 8px;border-radius:4px;}
+.pts-chip.pos{color:var(--ok);}
+.pts-chip.neg{color:var(--err);}
+.add-row-btn{background:rgba(16,185,129,.07);border:1px dashed rgba(16,185,129,.25);color:var(--ok);border-radius:6px;padding:5px 12px;font-size:.78rem;font-weight:600;cursor:pointer;font-family:var(--fb);transition:all .15s;width:100%;}
+.add-row-btn:hover{background:rgba(16,185,129,.14);}
+.del-row-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9rem;padding:2px 6px;border-radius:4px;line-height:1;}
+.del-row-btn:hover{color:var(--err);background:var(--red-dim);}
 .section-hdr{padding:12px 20px;background:rgba(0,0,0,.2);border-bottom:1px solid var(--bdr);font-size:.72rem;font-weight:600;color:var(--muted2);text-transform:uppercase;letter-spacing:.07em;}
 .member-team{font-weight:600;color:var(--gold);}
 .member-email{font-size:.78rem;color:var(--muted);}
@@ -387,6 +409,7 @@ tr:hover td{background:var(--sur);}
         <button class="anav-btn" id="btn-points" onclick="window.switchTab('points')">🏅 Points</button>
         <button class="anav-btn" id="btn-leaderboard" onclick="window.switchTab('leaderboard')">🏆 Leaderboard</button>
         <button class="anav-btn" id="btn-analytics" onclick="window.switchTab('analytics')">📈 Analytics</button>
+        <button class="anav-btn" id="btn-matches" onclick="window.switchTab('matches')">📋 Match Data</button>
       </div>
 
       <!-- SETUP TAB -->
@@ -638,6 +661,19 @@ tr:hover td{background:var(--sur);}
         </div>
       </div>
 
+      <!-- ════ MATCH DATA TAB ════ -->
+      <div id="matches-tab" style="display:none;">
+        <div class="pts-card" style="margin-bottom:14px;">
+          <div class="pts-hdr">
+            <span class="pts-title">📋 Match Data</span>
+            <span style="font-size:.78rem;color:var(--muted);" id="matchDataAdminNoteD"></span>
+          </div>
+          <div style="padding:0;" id="matchDataListD">
+            <div class="empty">No matches recorded yet.</div>
+          </div>
+        </div>
+      </div>
+
     </div><!-- /draft-view -->
   </div><!-- /content -->
 </div><!-- /app-shell -->
@@ -717,7 +753,7 @@ window.toggleCreateForm=function(){
   btn.textContent=show?'✕ Cancel':'+ Create New';
 };
 window.switchTab=function(t){
-  ['setup','draft','teams','roster','points','leaderboard','analytics'].forEach(id=>{
+  ['setup','draft','teams','roster','points','leaderboard','analytics','matches'].forEach(id=>{
     const el=document.getElementById(`${id}-tab`),btn=document.getElementById(`btn-${id}`);
     if(!el||!btn)return;
     el.style.display=id===t?'block':'none';
@@ -916,6 +952,8 @@ function loadDraftRoom(rid){
     document.getElementById('draftRoleBadge').textContent=isAdmin?'👑 Admin':'🤝 '+(myTeamName||'Member');
     document.getElementById('draftRoleBadge').className=`badge ${isAdmin?'bg':'bb'}`;
     document.getElementById('addMatchCardDraft').style.display=isAdmin?'block':'none';
+    const mdNoteD=document.getElementById('matchDataAdminNoteD');
+    if(mdNoteD) mdNoteD.textContent=isAdmin?'Admin — click any field to edit':'View only';
 
     if(myTeamName){
       document.getElementById('myTeamBadge').style.display='flex';
@@ -1064,6 +1102,7 @@ function loadDraftRoom(rid){
     renderPointsDraft();
     renderLeaderboardDraft(data);
     renderAnalyticsDraft(data);
+    renderMatchDataDraft(data);
 
     // Draft tab
     if(setup.isStarted&&data.draftOrder)renderDraftTab(data,members.length,picksPerTeam);
@@ -1435,7 +1474,7 @@ function calcBattingPtsD(runs,balls,sixes,dismissal,isWin,isMot){
   let p=0;
   p+=runs*1;p+=Math.floor(runs/25)*10;p+=sixes*2;
   if(dismissal==='duck')p-=5;
-  if(balls>=5){const sr=(runs/balls)*100;if(sr<75)p-=15;else if(sr<100)p-=10;else if(sr<150)p+=5;else if(sr<200)p+=10;else p+=15;}
+  if(balls>=10||runs>=10){const sr=(runs/balls)*100;if(sr<75)p-=15;else if(sr<100)p-=10;else if(sr<150)p+=5;else if(sr<200)p+=10;else p+=15;}
   if(isWin)p+=5;if(isMot)p+=25;return p;
 }
 function calcBowlingPtsD(overs,runs,wkts,dots,maidens,isWin,isMot){
@@ -1494,7 +1533,7 @@ window.addBowlingRowD=function(){
     <input type="number" placeholder="Ovs" id="${id}o" min="0" step="0.1" ${makeInputD()}>
     <input type="number" placeholder="Runs" id="${id}r" min="0" ${makeInputD()}>
     <input type="number" placeholder="Wkts" id="${id}w" min="0" ${makeInputD()}>
-    <input type="number" placeholder="Dots" id="${id}d" min="0" ${makeInputD()}>
+    <input type="number" placeholder="0s / dot balls" id="${id}d" min="0" ${makeInputD()}>
     <input type="number" placeholder="Maidens" id="${id}m" min="0" ${makeInputD()}>
     ${removeBtn(id)}`;
   document.getElementById('bowlingRowsD').appendChild(d);
@@ -1735,7 +1774,7 @@ function renderThumbsD(){
 const SCORECARD_PROMPT_D=`You are a cricket scorecard parser. Extract ALL batting, bowling and fielding data from ALL innings in the screenshots. Return ONLY a valid JSON object — no markdown, no explanation.
 
 Structure:
-{"matchLabel":"Team A vs Team B – Date","winner":"SHORT_CODE","motm":"Player or empty","result":"normal|noresult|superover","batting":[{"name":"","runs":0,"balls":0,"sixes":0,"dismissal":"out|notout|duck"}],"bowling":[{"name":"","overs":0.0,"runs":0,"wickets":0,"dots":0,"maidens":0}],"fielding":[{"name":"","catches":0,"stumpings":0,"runouts":0}]}
+{"matchLabel":"Team A vs Team B – Date","winner":"SHORT_CODE","motm":"Player or empty","result":"normal|noresult|superover","batting":[{"name":"","runs":0,"balls":0,"sixes":0,"dismissal":"out|notout|duck"}],"bowling":[{"name":"","overs":0.0,"runs":0,"wickets":0,"dots":0,"maidens":0}]  // dots = 0-run balls (dot balls / 0s),"fielding":[{"name":"","catches":0,"stumpings":0,"runouts":0}]}
 
 Rules: Include ALL players from BOTH innings. Duck=out for 0. Extract fielders from dismissal text. Return ONLY the JSON.`;
 
@@ -1839,6 +1878,163 @@ function populateDraftFormFromAI(parsed){
     document.getElementById(`${id}ro`).value=f.runouts||'';
   });
 }
+
+// ═══════════════════════════════════════════════════════════════
+// MATCH DATA TAB — DRAFT (view + edit + delete)
+// ═══════════════════════════════════════════════════════════════
+
+const expandedMatchesDraft=new Set();
+
+function renderMatchDataDraft(data){
+  const container=document.getElementById('matchDataListD');
+  if(!container) return;
+  const matches=data?.matches||{};
+  const matchIds=Object.keys(matches).sort((a,b)=>(matches[b].timestamp||0)-(matches[a].timestamp||0));
+
+  if(!matchIds.length){
+    container.innerHTML='<div class="empty">No matches recorded yet. Use the Points tab to add match data.</div>';
+    return;
+  }
+
+  container.innerHTML=matchIds.map(mid=>{
+    const m=matches[mid];
+    const players=m.players?Object.values(m.players):[];
+    const totalPts=players.reduce((s,p)=>s+(p.pts||0),0);
+    const resultLabel=m.result==='noresult'?'No Result':m.result==='superover'?'Super Over':'Completed';
+    const isOpen=expandedMatchesDraft.has(mid);
+    const sorted=[...players].sort((a,b)=>(b.pts||0)-(a.pts||0));
+
+    return`<div class="match-block" id="mbd2_${mid}">
+      <div class="match-block-hdr" onclick="window.toggleMatchBlockD('${mid}')">
+        <div>
+          <div class="match-label">${m.label||mid}</div>
+          <div class="match-meta">
+            ${m.winner?`Winner: <strong style="color:var(--gold)">${m.winner}</strong> &nbsp;·&nbsp;`:''}
+            ${m.motm?`MOTM: <strong style="color:var(--txt)">${m.motm}</strong> &nbsp;·&nbsp;`:''}
+            ${resultLabel} &nbsp;·&nbsp; ${players.length} players &nbsp;·&nbsp; Total pts: <strong style="color:var(--ok)">${totalPts}</strong>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;">
+          ${isAdmin?`<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();window.deleteMatchD('${mid}','${(m.label||mid).replace(/'/g,"\\'")}')">🗑 Delete</button>`:''}
+          <span style="color:var(--muted);font-size:1.1rem;">${isOpen?'▲':'▼'}</span>
+        </div>
+      </div>
+
+      <div class="match-body${isOpen?' open':''}" id="mbbd_${mid}">
+        ${isAdmin?`<div style="padding:12px 16px;border-bottom:1px solid var(--bdr);display:flex;gap:12px;flex-wrap:wrap;align-items:center;background:rgba(0,0,0,.15);">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:.72rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.05em;">Label</span>
+            <input class="edit-input" style="min-width:180px;" value="${m.label||''}" onblur="window.saveMatchMetaD('${mid}','label',this.value)">
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:.72rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.05em;">Winner</span>
+            <input class="edit-input" style="min-width:60px;" value="${m.winner||''}" onblur="window.saveMatchMetaD('${mid}','winner',this.value.toUpperCase())">
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:.72rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.05em;">MOTM</span>
+            <input class="edit-input" style="min-width:140px;" value="${m.motm||''}" onblur="window.saveMatchMetaD('${mid}','motm',this.value)">
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:.72rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.05em;">Result</span>
+            <select class="edit-input" style="min-width:110px;" onchange="window.saveMatchMetaD('${mid}','result',this.value)">
+              <option value="normal"${m.result==='normal'?' selected':''}>Normal</option>
+              <option value="noresult"${m.result==='noresult'?' selected':''}>No Result</option>
+              <option value="superover"${m.result==='superover'?' selected':''}>Super Over</option>
+            </select>
+          </div>
+        </div>`:''}
+
+        <div style="overflow-x:auto;">
+          <table class="sc-table">
+            <thead>
+              <tr>
+                <th>#</th><th>Player</th>
+                <th style="text-align:right;">Points</th>
+                <th>Breakdown</th>
+                ${isAdmin?'<th></th>':''}
+              </tr>
+            </thead>
+            <tbody>
+              ${sorted.map((p,i)=>{
+                const pkey=(p.name||'').toLowerCase().replace(/[^a-z0-9]/g,'_');
+                const ptsClass=(p.pts||0)>=0?'pos':'neg';
+                const bdText=p.breakdown||'';
+                return`<tr>
+                  <td style="color:var(--muted)">${i+1}</td>
+                  <td style="font-weight:600;">${isAdmin
+                    ?`<input class="edit-input" value="${(p.name||'').replace(/"/g,'&quot;')}" style="min-width:130px;" onblur="window.savePlayerStatD('${mid}','${pkey}','name',this.value)">`
+                    :p.name||'—'}</td>
+                  <td style="text-align:right;">
+                    <span class="pts-chip ${ptsClass}">${(p.pts||0)>=0?'+':''}${p.pts||0}</span>
+                    ${isAdmin?`<input class="edit-input" type="number" value="${p.pts||0}" style="width:55px;text-align:right;margin-left:6px;" onblur="window.savePlayerStatD('${mid}','${pkey}','pts',+this.value)">`:''}
+                  </td>
+                  <td style="color:var(--muted2);font-size:.76rem;">${isAdmin
+                    ?`<input class="edit-input" value="${bdText.replace(/"/g,'&quot;')}" style="min-width:200px;" onblur="window.savePlayerStatD('${mid}','${pkey}','breakdown',this.value)">`
+                    :bdText}</td>
+                  ${isAdmin?`<td><button class="del-row-btn" onclick="window.removePlayerFromMatchD('${mid}','${pkey}')">✕</button></td>`:''}
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        ${isAdmin?`<div style="padding:10px 16px;border-top:1px solid var(--bdr);">
+          <button class="add-row-btn" onclick="window.addPlayerToMatchD('${mid}')">+ Add Player Row</button>
+        </div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.toggleMatchBlockD=function(mid){
+  if(expandedMatchesDraft.has(mid)) expandedMatchesDraft.delete(mid);
+  else expandedMatchesDraft.add(mid);
+  const body=document.getElementById(`mbbd_${mid}`);
+  if(body) body.classList.toggle('open',expandedMatchesDraft.has(mid));
+  const hdr=document.querySelector(`#mbd2_${mid} .match-block-hdr span:last-child`);
+  if(hdr) hdr.textContent=expandedMatchesDraft.has(mid)?'▲':'▼';
+};
+
+window.saveMatchMetaD=function(mid,field,value){
+  if(!isAdmin||!draftId) return;
+  update(ref(db,`drafts/${draftId}/matches/${mid}`),{[field]:value.trim()})
+    .then(()=>window.showAlert(`✅ ${field} updated.`,'ok'))
+    .catch(e=>window.showAlert(e.message));
+};
+
+window.savePlayerStatD=function(mid,pkey,field,value){
+  if(!isAdmin||!draftId) return;
+  update(ref(db,`drafts/${draftId}/matches/${mid}/players/${pkey}`),{[field]:value})
+    .then(()=>window.showAlert('✅ Saved.','ok'))
+    .catch(e=>window.showAlert(e.message));
+};
+
+window.removePlayerFromMatchD=function(mid,pkey){
+  if(!isAdmin||!draftId) return;
+  if(!confirm('Remove this player from the match?')) return;
+  remove(ref(db,`drafts/${draftId}/matches/${mid}/players/${pkey}`))
+    .then(()=>window.showAlert('Player removed.','ok'))
+    .catch(e=>window.showAlert(e.message));
+};
+
+window.addPlayerToMatchD=function(mid){
+  if(!isAdmin||!draftId) return;
+  const name=prompt('Player name:');
+  if(!name||!name.trim()) return;
+  const pkey=name.trim().toLowerCase().replace(/[^a-z0-9]/g,'_')+'_'+Date.now();
+  set(ref(db,`drafts/${draftId}/matches/${mid}/players/${pkey}`),{
+    name:name.trim(),pts:0,breakdown:'Manually added'
+  }).then(()=>window.showAlert(`${name} added.`,'ok'))
+    .catch(e=>window.showAlert(e.message));
+};
+
+window.deleteMatchD=function(mid,label){
+  if(!isAdmin||!draftId) return;
+  if(!confirm(`Permanently delete match "${label}"? This removes all points for this match.`)) return;
+  remove(ref(db,`drafts/${draftId}/matches/${mid}`))
+    .then(()=>{ expandedMatchesDraft.delete(mid); window.showAlert(`Match "${label}" deleted.`,'ok'); })
+    .catch(e=>window.showAlert(e.message));
+};
 
 </script>
 </body>
