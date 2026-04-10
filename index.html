@@ -1,0 +1,1382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>IPL 2026 Fantasy Draft</title>
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    (function () {
+      if (!localStorage.getItem('ipl-theme')) localStorage.setItem('ipl-theme', 'dark');
+      if (localStorage.getItem('ipl-theme') === 'light') document.body.classList.add('light');
+    })();
+  </script>
+</head>
+<body>
+
+<!-- Aurora Background -->
+<div class="aurora" id="aurora">
+  <div class="aurora-blob ab1"></div>
+  <div class="aurora-blob ab2"></div>
+  <div class="aurora-blob ab3"></div>
+  <div class="aurora-blob ab4"></div>
+  <div class="aurora-blob ab5"></div>
+  <div class="aurora-blob ab6"></div>
+  <div class="aurora-blob ab7"></div>
+  <div class="aurora-blob ab8"></div>
+  <div class="aurora-blob ab9"></div>
+  <div class="aurora-blob ab10"></div>
+  <div class="aurora-team-wash" id="auroraTeamWash"></div>
+</div>
+
+<!-- Hamburger Button -->
+<button class="hamburger" id="hamburger" onclick="window.openSidebar()" aria-label="Open menu">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <line x1="3" y1="6" x2="21" y2="6"/>
+    <line x1="3" y1="12" x2="21" y2="12"/>
+    <line x1="3" y1="18" x2="21" y2="18"/>
+  </svg>
+</button>
+
+<!-- Theme Toggle -->
+<button class="theme-toggle" id="darkToggle" onclick="window.toggleDark()" title="Toggle theme">
+  <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+  </svg>
+  <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="display:none;">
+    <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+  </svg>
+</button>
+
+<!-- Sidebar -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="window.closeSidebar()"></div>
+<nav class="sidebar" id="sidebar">
+  <div class="sidebar-nav" id="sidebarNav">
+    <!-- Dashboard links -->
+    <div id="sidebarDash">
+      <div class="sidebar-section-label">Rooms</div>
+      <button class="sidebar-link" onclick="window.scrollToDashSection('created');window.closeSidebar();">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        My Rooms
+      </button>
+      <button class="sidebar-link" onclick="window.scrollToDashSection('joined');window.closeSidebar();">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Join a Room
+      </button>
+      <button class="sidebar-link" onclick="window.scrollToDashSection('scorecards');window.closeSidebar();" id="sbScorecardsBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Scorecards
+      </button>
+    </div>
+
+    <!-- Draft room links -->
+    <div id="sidebarRoom" style="display:none;">
+      <div class="sidebar-section-label" id="sidebarRoomLabel">Draft Room</div>
+      <button class="sidebar-link" onclick="window.switchTab('setup');window.closeSidebar();" id="sb-setup">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M12 2v2M12 20v2M20 12h2M2 12h2"/></svg>
+        Setup
+      </button>
+      <button class="sidebar-link" onclick="window.switchTab('draft');window.closeSidebar();" id="sb-draft">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+        Draft
+        <span class="anav-live-dot" id="navLiveDot"></span>
+      </button>
+      <button class="sidebar-link" onclick="window.switchTab('teams');window.closeSidebar();" id="sb-teams">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        Teams
+      </button>
+      <button class="sidebar-link" onclick="window.switchTab('roster');window.closeSidebar();" id="sb-roster">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/></svg>
+        Ledger
+      </button>
+      <button class="sidebar-link" onclick="window.switchTab('points');window.closeSidebar();" id="sb-points">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        Points
+      </button>
+      <button class="sidebar-link" onclick="window.switchTab('myteam');window.closeSidebar();" id="sb-myteam">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        My Team
+      </button>
+      <button class="sidebar-link" onclick="window.switchTab('leaderboard');window.closeSidebar();" id="sb-leaderboard">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Leaderboard
+      </button>
+      <button class="sidebar-link" onclick="window.switchTab('players-season');window.closeSidebar();" id="sb-players-season">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>
+        Players
+      </button>
+      <button class="sidebar-link" onclick="window.switchTab('analytics');window.closeSidebar();" id="sb-analytics">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Analytics
+      </button>
+      <button class="sidebar-link" onclick="window.switchTab('matches');window.closeSidebar();" id="sb-matches">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Matches
+      </button>
+      <button class="sidebar-link" onclick="window.switchTab('schedule');window.closeSidebar();" id="sb-schedule">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Schedule
+      </button>
+      <button class="sidebar-link" onclick="window.switchTab('trades');window.closeSidebar();" id="sb-trades">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/></svg>
+        Trades
+      </button>
+      <button class="sidebar-link" onclick="window.loadDash&&window.loadDash();window.closeSidebar();">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        Back to Dashboard
+      </button>
+    </div>
+  </div>
+  <div class="sidebar-footer" id="sidebarFooter">
+    <div class="sidebar-live-pill" id="sidebarLivePill" style="display:none;">
+      <span class="sidebar-live-dot"></span>
+      <span id="sidebarLiveCount">0 live</span>
+    </div>
+    <div id="sidebarStats"></div>
+  </div>
+</nav>
+
+<!-- Draft Pick Flash Overlay -->
+<div class="sold-flash" id="soldFlash">
+  <div class="sold-flash-label">PICKED</div>
+  <div class="sold-flash-team" id="soldFlashTeam"></div>
+  <div class="sold-flash-price" id="soldFlashPrice"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     TOAST
+     ══════════════════════════════════════════════════════════════ -->
+<div id="toast">
+  <span class="tdot"></span>
+  <span id="tmsg"></span>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     RELEASE PLAYER MODAL
+     ══════════════════════════════════════════════════════════════ -->
+<div class="modal-bg" id="releaseModal">
+  <div class="modal">
+    <h3>Release Player</h3>
+    <p class="modal-desc">This returns the player to the available pool and frees their pick slot so it can be used again.</p>
+    <p class="modal-desc" id="releasePlayerDesc"></p>
+    <div class="modal-actions">
+      <button class="btn btn-success" onclick="window.confirmRelease()">Confirm Release</button>
+      <button class="btn btn-ghost btn-sm" onclick="window.closeReleaseModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     REPLACE PLAYER MODAL
+     ══════════════════════════════════════════════════════════════ -->
+<div class="modal-bg" id="replaceModal">
+  <div class="modal">
+    <h3>Replace Player</h3>
+    <p class="modal-desc">Select a replacement from the available player pool. The original player returns to available.</p>
+    <p class="modal-desc" id="replacePlayerDesc"></p>
+    <div class="fld">
+      <label>Filter by Role</label>
+      <select id="replaceRoleFilter" onchange="window.refreshReplaceList()">
+        <option value="All">All Roles</option>
+        <option>Batter</option>
+        <option>Bowler</option>
+        <option>All-Rounder</option>
+        <option>Wicketkeeper</option>
+      </select>
+    </div>
+    <div class="fld">
+      <label>Choose Replacement</label>
+      <select id="replacementSelect"></select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cta" onclick="window.confirmReplace()">Confirm Replace</button>
+      <button class="btn btn-ghost btn-sm" onclick="window.closeReplaceModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     FRANCHISE NAME MODAL
+     ══════════════════════════════════════════════════════════════ -->
+<div class="modal-bg" id="teamNameModal">
+  <div class="modal">
+    <h3>Register Your Franchise</h3>
+    <p class="modal-desc">Enter the franchise name you'll draft under. This cannot be changed after confirming.</p>
+    <div class="fld">
+      <label>Franchise Name</label>
+      <input type="text" id="modalTeamName" placeholder="e.g. Naman's Eleven" maxlength="30"
+             onkeydown="if(event.key==='Enter')window.confirmTeamName()">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cta" onclick="window.confirmTeamName()">Register &amp; Enter</button>
+      <button class="btn btn-ghost btn-sm" onclick="window.closeTeamModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     DELETE ROOM MODAL
+     ══════════════════════════════════════════════════════════════ -->
+<div class="modal-bg" id="deleteModal">
+  <div class="modal">
+    <h3>Delete Draft Room</h3>
+    <p class="modal-desc">This permanently deletes the room and all draft data. Cannot be undone.</p>
+    <p class="modal-desc modal-desc--danger" id="deleteRoomName"></p>
+    <div class="modal-actions">
+      <button class="btn btn-danger" onclick="window.confirmDeleteRoom()">Delete Permanently</button>
+      <button class="btn btn-ghost btn-sm" onclick="window.closeDeleteModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     PLAYER PERFORMANCE MODAL
+     ══════════════════════════════════════════════════════════════ -->
+<div class="modal-bg" id="playerModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div>
+        <h3 id="pmPlayerName"></h3>
+        <div class="modal-desc" id="pmPlayerMeta"></div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('playerModal').classList.remove('active')">Close</button>
+    </div>
+    <div id="pmPlayerBody"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     AUTH VIEW
+     ══════════════════════════════════════════════════════════════ -->
+<div id="auth-view" class="view active">
+
+  <div class="auth-card">
+    <div class="auth-hdr">
+      <div class="auth-logo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+          <rect x="9" y="3" width="6" height="4" rx="1"/>
+          <path d="m9 12 2 2 4-4"/>
+        </svg>
+      </div>
+      <div class="auth-brand">IPL Fantasy</div>
+      <div class="auth-tag">Fantasy Snake Draft Platform</div>
+    </div>
+
+    <div class="auth-bdy">
+      <div class="auth-lbl" id="authLabel">Sign in to continue</div>
+
+      <div class="fld">
+        <label>Email</label>
+        <input type="email" id="authEmail" placeholder="you@example.com">
+      </div>
+      <div class="fld">
+        <label>Password</label>
+        <input type="password" id="authPassword" placeholder="••••••••" minlength="6"
+               onkeydown="if(event.key==='Enter')window.handleAuth()">
+        <div class="pw-hint" id="pwHint">Minimum 6 characters required</div>
+      </div>
+
+      <button class="btn btn-cta" id="authBtn" onclick="window.handleAuth()">Sign In</button>
+
+      <div class="divider">or</div>
+
+      <button class="btn btn-white" onclick="window.signInWithGoogle()">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" width="18" height="18" alt="G">
+        Continue with Google
+      </button>
+
+      <div class="auth-footer">
+        <button class="tbtn" id="authToggleBtn" onclick="window.toggleAuthMode()">Create an account instead</button>
+        <button class="tbtn" onclick="window.resetPassword()">Forgot password?</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     APP SHELL
+     ══════════════════════════════════════════════════════════════ -->
+<div id="app-shell" class="view">
+
+  <!-- ── Content Area ────────────────────────────────────────── -->
+  <div class="content">
+
+    <!-- ══════════════════════════════════════════════════════════
+         DASHBOARD VIEW
+         ══════════════════════════════════════════════════════════ -->
+    <div id="dashboard-view" class="view">
+
+      <!-- Dashboard tabs -->
+      <div class="dtabs">
+        <button class="dtab" id="dt-scorecards" onclick="switchDashTab('scorecards')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10 9 9 9 8 9"/>
+          </svg>
+          Scorecards
+        </button>
+        <button class="dtab active" id="dt-created" onclick="switchDashTab('created')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+          My Rooms
+        </button>
+        <button class="dtab" id="dt-joined" onclick="switchDashTab('joined')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          Joined Rooms
+        </button>
+        <button class="dtab dtab--admin" id="dt-superadmin" onclick="switchDashTab('superadmin')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          Super Admin
+        </button>
+        <button class="dtab" onclick="window.logoutUser()" style="margin-left:auto;color:var(--err,#e74c3c);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Log Out
+        </button>
+      </div>
+
+      <!-- ── Scorecards Tab ──────────────────────────────────── -->
+      <div id="tab-scorecards" class="dash-section" style="display:none;">
+        <div class="dash-section-title">Match Scorecards</div>
+
+        <!-- Global scorecard entry card -->
+        <div class="card" id="globalScorecardCard">
+          <div class="card-hdr">
+            <span class="card-title">Global Scorecard Entry</span>
+            <span class="badge bb">Pushes to ALL your rooms</span>
+          </div>
+          <div class="card-bdy">
+            <p class="modal-desc">
+              Enter a match scorecard here once and it will be saved to
+              <strong>every room you own</strong> &mdash; both auction and draft &mdash; simultaneously.
+              All your leagues update in one go.
+            </p>
+
+            <!-- Gemini parser (global) -->
+            <div class="ai-parse-box">
+              <div class="parse-controls">
+                <div class="ai-parse-title">Gemini Scorecard Parser</div>
+                <span class="badge bb">Firebase AI Logic</span>
+              </div>
+              <div class="ai-parse-sub">Upload 1-4 scorecard screenshots. Gemini reads them and fills the form below.</div>
+
+              <div class="drop-zone" id="gscDropZone"
+                   onclick="document.getElementById('gscFiles').click()"
+                   ondragover="event.preventDefault();this.classList.add('drop-zone--active')"
+                   ondragleave="this.classList.remove('drop-zone--active')"
+                   ondrop="event.preventDefault();this.classList.remove('drop-zone--active');window.handleGscFiles(event.dataTransfer.files)">
+                <div class="drop-zone-icon"></div>
+                <div class="drop-zone-text">Click or drag &amp; drop screenshots</div>
+                <div class="drop-zone-hint" id="gscDropHint">PNG / JPG / WEBP / up to 4 files</div>
+              </div>
+              <input type="file" id="gscFiles" accept="image/*" multiple hidden onchange="window.handleGscFiles(this.files)">
+              <div class="thumb-row" id="gscThumbRow"></div>
+
+              <div class="parse-controls">
+                <input type="text" id="gscMatchLabel" class="parse-input" placeholder="Match label e.g. CSK vs MI - Apr 6 (auto-filled)">
+                <button class="btn-ai" id="gscParseBtn" onclick="window.parseGlobalScorecard()">Parse with Gemini</button>
+              </div>
+              <div class="ai-status" id="gscParseStatus"></div>
+            </div>
+
+            <!-- Match meta form (global) -->
+            <div id="gscFormBody" style="display:none;">
+              <div class="match-form">
+                <div class="fld">
+                  <label>Winning IPL Team</label>
+                  <input type="text" id="gscWinner" placeholder="e.g. CSK">
+                </div>
+                <div class="fld">
+                  <label>Man of the Match</label>
+                  <input type="text" id="gscMotm" placeholder="Player name">
+                </div>
+                <div class="fld">
+                  <label>Result</label>
+                  <select id="gscResult">
+                    <option value="normal">Normal Result</option>
+                    <option value="noresult">No Result</option>
+                    <option value="superover">Super Over</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="section-hdr">BATTING</div>
+              <div id="gscBattingRows"></div>
+              <div class="section-action">
+                <button class="btn btn-ghost btn-sm" onclick="window.addGscBattingRow()">+ Add Batter</button>
+              </div>
+
+              <div class="section-hdr">BOWLING</div>
+              <div id="gscBowlingRows"></div>
+              <div class="section-action">
+                <button class="btn btn-ghost btn-sm" onclick="window.addGscBowlingRow()">+ Add Bowler</button>
+              </div>
+
+              <div class="section-hdr">FIELDING</div>
+              <div id="gscFieldingRows"></div>
+              <div class="section-action">
+                <button class="btn btn-ghost btn-sm" onclick="window.addGscFieldingRow()">+ Add Fielder</button>
+              </div>
+
+              <!-- Preview & save -->
+              <div class="preview-box" id="gscPreviewBox" style="display:none;">
+                <div class="preview-title">Points Preview</div>
+                <div id="gscPreviewContent"></div>
+              </div>
+              <div class="form-actions">
+                <button class="btn btn-ghost btn-sm" onclick="window.previewGlobalPoints()">Preview Points</button>
+                <button class="btn btn-cta" onclick="window.saveGlobalScorecard()">Save &amp; Push to All My Rooms</button>
+              </div>
+              <div class="ai-status" id="gscSaveStatus"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Match history -->
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Saved Matches</span>
+          </div>
+          <div id="gscHistoryList">
+            <div class="empty">No matches saved yet.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── My Rooms Tab (Created) ─────────────────────────── -->
+      <div id="tab-created" class="dash-section">
+        <div class="dash-section-title">My Draft Rooms</div>
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">My Draft Rooms</span>
+            <button class="btn btn-cta btn-sm" id="createToggleBtn" onclick="toggleCreateForm()">+ Create New</button>
+          </div>
+          <div class="card-bdy">
+            <div id="create-form" class="create-form-section">
+              <div class="slbl">New Room Details</div>
+              <div class="g2">
+                <div class="fld">
+                  <label>Room Name</label>
+                  <input type="text" id="newRoomName" placeholder="e.g. Office Draft 2026">
+                </div>
+                <div class="fld">
+                  <label>Max Teams (2-10)</label>
+                  <input type="number" id="newMaxTeams" value="6" min="2" max="10">
+                </div>
+                <div class="fld">
+                  <label>Picks per Team (5-25)</label>
+                  <input type="number" id="newPicksPerTeam" value="15" min="5" max="25">
+                </div>
+                <div class="fld">
+                  <label>Max Overseas / Team (4-8)</label>
+                  <input type="number" id="newMaxOverseas" value="8" min="4" max="8">
+                </div>
+              </div>
+              <button class="btn btn-cta" onclick="window.createDraftRoom()">Generate Room</button>
+            </div>
+            <div id="myDraftsList">
+              <div class="empty">No rooms yet &mdash; create one above.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Joined Rooms Tab ────────────────────────────────── -->
+      <div id="tab-joined" class="dash-section" style="display:none;">
+        <div class="dash-section-title">Join a Room</div>
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Join a Draft Room</span>
+          </div>
+          <div class="card-bdy">
+            <div class="slbl">Paste invite link or room ID</div>
+            <div class="join-row">
+              <input type="text" id="joinRoomCode" placeholder="https://...?draft=abc or -abc123"
+                     onkeydown="if(event.key==='Enter')window.initiateJoin()">
+              <button class="btn btn-cta btn-sm" onclick="window.initiateJoin()">Join</button>
+            </div>
+            <div class="slbl">Previously Joined</div>
+            <div id="joinedDraftsList">
+              <div class="empty">No joined rooms yet.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Super Admin Tab ─────────────────────────────────── -->
+      <div id="tab-superadmin" class="dash-section" style="display:none;">
+        <div class="dash-section-title">Super Admin</div>
+
+        <!-- Platform stats -->
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title card-title--danger">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+              Super Admin Panel
+            </span>
+            <span class="badge badge--admin">admin</span>
+          </div>
+          <div class="card-bdy">
+            <div class="srow" id="saStatsRow">
+              <div class="spill">
+                <div class="sval" id="sa-total-users">&mdash;</div>
+                <div class="slb">Total Users</div>
+              </div>
+              <div class="spill">
+                <div class="sval" id="sa-total-auctions">&mdash;</div>
+                <div class="slb">Auction Rooms</div>
+              </div>
+              <div class="spill">
+                <div class="sval" id="sa-total-drafts">&mdash;</div>
+                <div class="slb">Draft Rooms</div>
+              </div>
+              <div class="spill">
+                <div class="sval" id="sa-total-matches">&mdash;</div>
+                <div class="slb">Global Scorecards</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Global scorecard push -->
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Push Scorecard to ALL Rooms</span>
+            <span class="hdr-hint">Pushes to every auction &amp; draft room on the platform</span>
+          </div>
+          <div class="card-bdy">
+            <p class="modal-desc">
+              Select a previously saved global scorecard and push it to
+              <strong class="txt-danger">every room on the entire platform</strong> &mdash; regardless of who created it.
+            </p>
+            <div class="inline-form">
+              <select id="saScorecardSelect" onchange="window.saOnScorecardSelect()" class="fld--grow">
+                <option value="">&mdash; Select a saved scorecard &mdash;</option>
+              </select>
+            </div>
+            <div class="sa-match-info" id="saMatchInfo">
+              <span id="saMatchInfoText"></span>
+            </div>
+            <div class="btn-group">
+              <button class="btn btn-cta" onclick="window.saPushToAll()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                </svg>
+                Push to All Rooms
+              </button>
+              <button class="btn btn-ghost btn-sm btn--danger-text" onclick="window.saDeleteAndRepush()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="23 4 23 10 17 10"/>
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                </svg>
+                Delete &amp; Re-push
+              </button>
+              <button class="btn btn-danger btn-sm" onclick="window.saDeleteMatchFromAll()">Delete from All Rooms</button>
+            </div>
+            <div class="ai-status" id="saPushStatus"></div>
+          </div>
+        </div>
+
+        <!-- Overseas Limit Tweaker -->
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title card-title--danger">Overseas Player Limit</span>
+            <span class="hdr-hint">Adjust per room &mdash; affects bidding rules live</span>
+          </div>
+          <div class="card-bdy">
+            <p class="modal-desc">Select a room and set the maximum number of overseas players each team can hold. Changes take effect immediately.</p>
+            <div class="inline-form">
+              <div class="fld fld--grow">
+                <label>Select Room</label>
+                <select id="saOsRoomSelect">
+                  <option value="">&mdash; Select a room &mdash;</option>
+                </select>
+              </div>
+              <div class="fld fld--sm">
+                <label>Max Overseas (per team)</label>
+                <input type="number" id="saOsLimit" min="1" max="15" value="8">
+              </div>
+              <button class="btn btn-sm btn--admin" onclick="window.saSetOverseasLimit()">Apply Limit</button>
+            </div>
+            <div class="ai-status" id="saOsStatus"></div>
+          </div>
+        </div>
+
+        <!-- XI Multiplier Tool -->
+        <div class="card card--purple">
+          <div class="card-hdr">
+            <span class="card-title card-title--purple">XI Multiplier</span>
+            <span class="hdr-hint">Playing XI players get multiplied points on the leaderboard</span>
+          </div>
+          <div class="card-bdy">
+            <p class="modal-desc">Set the multiplier for Playing XI players. Bench always gets 1x. Reserves get 0. Applied retroactively to all matches at leaderboard render time.</p>
+            <div class="inline-form">
+              <div class="fld fld--grow">
+                <button class="btn btn-ghost btn-sm" onclick="window.saPopulateMultRooms()">Load Rooms</button>
+                <select id="saMultRoomSelect">
+                  <option value="">&mdash; Click Load Rooms first &mdash;</option>
+                </select>
+              </div>
+              <div class="fld fld--sm">
+                <label>XI Multiplier</label>
+                <input type="number" id="saXiMultValue" value="1" min="0.5" max="5" step="0.1">
+              </div>
+              <button class="btn btn-cta btn-sm" onclick="window.saSetXiMultiplier()">Apply</button>
+            </div>
+            <div class="ai-status" id="saMultStatus"></div>
+          </div>
+        </div>
+
+        <!-- Cricbuzz Live Import (Super Admin Only) -->
+        <div class="card card--danger">
+          <div class="card-hdr">
+            <span class="card-title card-title--danger">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
+              Live Cricbuzz Scorecard Import
+            </span>
+            <span class="hdr-hint">Super Admin / Cricbuzz API</span>
+          </div>
+          <div class="card-bdy">
+            <p class="modal-desc">Fetch live / recent IPL match scorecards directly from Cricbuzz and auto-populate the scorecard form.</p>
+
+            <!-- Step 1 -->
+            <div class="cbz-section">
+              <div class="cbz-section-title">Step 1 &mdash; Select Match</div>
+              <div class="btn-group">
+                <button class="btn btn-sm btn-info" onclick="window.cbzDFetchLive()">Live Matches</button>
+                <button class="btn btn-sm btn-outline" onclick="window.cbzDFetchRecent()">Recent Matches</button>
+                <button class="btn btn-sm btn-outline" onclick="window.cbzDFetchUpcoming()">Upcoming</button>
+              </div>
+              <div class="cbz-status" id="cbzDMatchStatus">Click a button to load matches.</div>
+              <div class="match-pick-grid" id="cbzDMatchList"></div>
+            </div>
+
+            <!-- Step 2 -->
+            <div class="cbz-section" id="cbzDStep2">
+              <div class="cbz-section-title">Step 2 &mdash; Load Scorecard</div>
+              <div class="inline-form">
+                <div class="fld--grow">
+                  <div class="cbz-match-label" id="cbzDSelectedMatchLabel">&mdash;</div>
+                  <div class="cbz-match-meta" id="cbzDSelectedMatchMeta"></div>
+                </div>
+                <button class="btn btn-sm btn--admin" onclick="window.cbzDFetchScorecard()">Fetch Scorecard</button>
+              </div>
+              <div class="cbz-status" id="cbzDScorecardStatus"></div>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="cbz-section" id="cbzDStep3">
+              <div class="cbz-section-title">Step 3 &mdash; Preview Innings</div>
+              <div id="cbzDInningsButtons"></div>
+              <div id="cbzDPreview"></div>
+            </div>
+
+            <!-- Step 4 -->
+            <div class="cbz-section" id="cbzDStep4">
+              <div class="cbz-section-title">Step 4 &mdash; Send to Scorecards Tab</div>
+              <p class="modal-desc">
+                Sends <strong>both innings combined</strong> to the Scorecards tab &mdash; all batsmen,
+                bowlers and fielders in one go. Add dot balls there, then click <em>Save &amp; Push to All My Rooms</em>.
+              </p>
+              <button class="btn btn-cta" onclick="window.cbzDPushToForm()">Send to Scorecards Tab</button>
+              <div class="cbz-status" id="cbzDPushStatus"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- All rooms list -->
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">All Rooms on Platform</span>
+            <button class="btn btn-ghost btn-sm" onclick="renderSuperAdminPanel()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="23 4 23 10 17 10"/>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+              </svg>
+              Refresh
+            </button>
+          </div>
+          <div id="saRoomsList">
+            <div class="empty">Loading...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         DRAFT ROOM VIEW
+         ══════════════════════════════════════════════════════════ -->
+    <div id="draft-view" class="view">
+
+      <!-- Action top bar -->
+      <div class="at">
+        <div class="at-left">
+          <button class="btn btn-ghost btn-sm" onclick="window.backToDash()">← Dashboard</button>
+          <span class="at-title" id="draftTitleDisplay">Loading...</span>
+          <span class="badge" id="draftRoleBadge"></span>
+        </div>
+        <div class="hdr-actions">
+          <button class="btn btn-outline btn-sm" onclick="window.copyInviteLink()">Copy Invite</button>
+        </div>
+      </div>
+
+      <!-- Stats strip -->
+      <div class="srow" id="statsRow">
+        <div class="spill">
+          <div class="sval" id="st-round">&mdash;</div>
+          <div class="slb">Round</div>
+        </div>
+        <div class="spill">
+          <div class="sval" id="st-pick">&mdash;</div>
+          <div class="slb">Pick #</div>
+        </div>
+        <div class="spill">
+          <div class="sval" id="st-avail">&mdash;</div>
+          <div class="slb">Available</div>
+        </div>
+        <div class="spill">
+          <div class="sval" id="st-drafted">&mdash;</div>
+          <div class="slb">Drafted</div>
+        </div>
+        <div class="spill">
+          <div class="sval" id="st-teams">&mdash;</div>
+          <div class="slb">Teams</div>
+        </div>
+      </div>
+
+      <!-- Room tab nav -->
+      
+      <!-- ══ Live Score Ticker ══ -->
+      <div class="live-ticker-wrap" id="liveTickerWrap">
+        <span class="live-ticker-label">🏏 LIVE</span>
+        <div class="live-ticker-scroll"><div id="liveTickerBar"><span class="ticker-no-live">Loading scores…</span></div></div>
+      </div>
+<div class="anav">
+        <button class="anav-btn active" id="btn-setup" onclick="window.switchTab('setup')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M12 2v2M12 20v2M20 12h2M2 12h2M19.07 19.07l-1.41-1.41M4.93 19.07l1.41-1.41"/>
+          </svg>
+          Setup
+        </button>
+        <button class="anav-btn" id="btn-draft" onclick="window.switchTab('draft')"><span class="anav-live-dot" id="navLiveDot"></span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+            <rect x="9" y="3" width="6" height="4" rx="1"/>
+            <path d="m9 12 2 2 4-4"/>
+          </svg>
+          Draft Room
+        </button>
+        <button class="anav-btn" id="btn-teams" onclick="window.switchTab('teams')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          Rosters
+        </button>
+        <button class="anav-btn" id="btn-roster" onclick="window.switchTab('roster')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="2" y1="12" x2="22" y2="12"/>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          </svg>
+          Ledger
+        </button>
+        <button class="anav-btn" id="btn-points" onclick="window.switchTab('points')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          </svg>
+          Points
+        </button>
+        <button class="anav-btn" id="btn-myteam" onclick="window.switchTab('myteam')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <line x1="23" y1="21" x2="23" y2="19"/>
+            <line x1="19" y1="21" x2="19" y2="19"/>
+            <line x1="21" y1="17" x2="21" y2="23"/>
+          </svg>
+          My Team
+        </button>
+        <button class="anav-btn" id="btn-leaderboard" onclick="window.switchTab('leaderboard')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+          Leaderboard
+        </button>
+        <button class="anav-btn" id="btn-players-season" onclick="window.switchTab('players-season')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          Players
+        </button>
+        <button class="anav-btn" id="btn-analytics" onclick="window.switchTab('analytics')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"/>
+            <line x1="12" y1="20" x2="12" y2="4"/>
+            <line x1="6" y1="20" x2="6" y2="14"/>
+          </svg>
+          Analytics
+        </button>
+        <button class="anav-btn" id="btn-matches" onclick="window.switchTab('matches')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+          Match Data
+        </button>
+        <button class="anav-btn" id="btn-schedule" onclick="window.switchTab('schedule')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+          Schedule
+        </button>
+        <button class="anav-btn" id="btn-trades" onclick="window.switchTab('trades')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/>
+          </svg>
+          Trades
+        </button>
+      </div>
+
+      <!-- ── SETUP TAB ───────────────────────────────────────── -->
+      <div id="setup-tab" class="card">
+        <div class="card-hdr">
+          <span class="card-title">Draft Setup</span>
+          <span class="badge br">Admin Only</span>
+        </div>
+        <div class="card-bdy card-bdy--flush">
+          <!-- Room config summary -->
+          <div class="setup-config-box" id="setupConfigBox"></div>
+
+          <!-- Join progress -->
+          <div class="setup-section">
+            <div class="setup-section__row">
+              <span class="setup-section__label">Franchises Joined</span>
+              <span class="setup-section__value" id="jpCount">0 / 0</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-bar__fill" id="jpBarFill"></div>
+            </div>
+            <div class="setup-section__hint" id="jpStatus">Waiting for franchises to join...</div>
+          </div>
+
+          <!-- Registered franchises list -->
+          <div class="setup-section">
+            <div class="slbl">Registered Franchises</div>
+            <div id="membersList">
+              <div class="empty">No franchises yet. Share the invite link!</div>
+            </div>
+          </div>
+
+          <!-- Admin franchise registration prompt -->
+          <div class="setup-section" id="adminRegBanner">
+            <div class="setup-section__row">
+              <div>
+                <div class="setup-section__cta">Register your franchise to participate</div>
+                <div class="setup-section__hint">As admin, you can also draft players &mdash; register your franchise name below.</div>
+              </div>
+              <button class="btn btn-info btn-sm" onclick="window.adminRegisterFranchise()">Register Franchise</button>
+            </div>
+          </div>
+
+          <!-- Start button -->
+          <div class="setup-section">
+            <button class="btn btn-cta" id="startDraftBtn" onclick="window.startDraft()" disabled>Start Snake Draft</button>
+            <p class="setup-section__hint setup-section__hint--center" id="startHint">
+              Button unlocks once all <strong id="startHintMax">?</strong> franchises have joined.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── DRAFT TAB ───────────────────────────────────────── -->
+      <div id="draft-tab" class="card draft-tab-card" style="display:none;">
+        <div class="card-bdy card-bdy--flush">
+
+          <!-- Live members bar -->
+          <div class="live-members-bar" id="liveMembersBar">
+            <div class="order-section-lbl">Franchises in Draft</div>
+            <div class="live-members-list" id="liveMembersList"></div>
+          </div>
+
+          <!-- My franchise badge -->
+          <div class="my-team-badge" id="myTeamBadge">
+            Drafting as: <strong id="myTeamName">&mdash;</strong>
+          </div>
+
+          <div class="draft-content">
+            <!-- On-the-clock card -->
+            <div class="clock-card" id="clockCard">
+              <div class="clock-round" id="clockRound">Waiting to start...</div>
+              <div class="clock-name" id="clockName">&mdash;</div>
+              <div class="clock-sub" id="clockSub"></div>
+              <div class="clock-you" id="clockYou">Your pick &mdash; choose wisely</div>
+            </div>
+
+            <!-- Pick controls -->
+            <div class="pick-box" id="pickBox">
+              <div class="order-section-lbl">Make your pick</div>
+              <div class="filters">
+                <input type="text" id="filterName" placeholder="Search player..." oninput="window.refreshDropdown()">
+                <select id="filterRole" onchange="window.refreshDropdown()">
+                  <option value="All">All Roles</option>
+                  <option>Batter</option>
+                  <option>Bowler</option>
+                  <option>All-Rounder</option>
+                  <option>Wicketkeeper</option>
+                </select>
+                <select id="filterIPL" onchange="window.refreshDropdown()">
+                  <option value="All">All IPL Teams</option>
+                  <option>CSK</option><option>MI</option><option>KKR</option>
+                  <option>RCB</option><option>PBKS</option><option>GT</option>
+                  <option>RR</option><option>SRH</option><option>LSG</option><option>DC</option>
+                </select>
+                <select id="filterOrigin" onchange="window.refreshDropdown()">
+                  <option value="All">All Origin</option>
+                  <option value="Indian">Indian</option>
+                  <option value="Overseas">Overseas</option>
+                </select>
+              </div>
+              <div class="inline-form">
+                <div class="fld fld--grow">
+                  <label>Select your pick</label>
+                  <select id="playerPickSelect"></select>
+                </div>
+                <button class="btn btn-cta btn-sm" onclick="window.lockInPick()">Lock In Pick</button>
+              </div>
+            </div>
+
+            <!-- Upcoming draft order -->
+            <div class="order-wrap">
+              <div class="order-section-lbl">Upcoming draft order</div>
+              <div class="order-pills" id="orderPills"></div>
+            </div>
+
+            <!-- Fix quota box -->
+            <div class="fix-quota-box" id="fixQuotaBox">
+              <div class="fix-quota-inner">
+                <div>
+                  <div class="fix-quota-title">Roster quota imbalance</div>
+                  <div class="fix-quota-desc" id="fixQuotaDesc"></div>
+                </div>
+                <button class="btn btn-sm btn--warn" onclick="window.fixTeamQuota()">Add Compensatory Picks</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── TEAMS / ROSTERS TAB ─────────────────────────────── -->
+      <div id="teams-tab" style="display:none;">
+        <div class="tgrid" id="teamRosterGrid">
+          <div class="empty">Draft not started yet.</div>
+        </div>
+      </div>
+
+      <!-- ── LEDGER TAB ──────────────────────────────────────── -->
+      <div id="roster-tab" class="card tab-panel">
+        <div class="card-hdr">
+          <span class="card-title">Ledger</span>
+          <div class="hdr-actions">
+            <span id="rosterCount" class="badge bb"></span>
+            <button class="btn btn-info btn-sm" onclick="window.exportCSV()">Download CSV</button>
+          </div>
+        </div>
+        <div class="search-bar">
+          <input type="text" id="rosterSearch" placeholder="Search player or IPL team..." oninput="window.filterRoster()">
+          <select id="rosterFilterRole" onchange="window.filterRoster()">
+            <option value="">All Roles</option>
+            <option>Batter</option>
+            <option>Bowler</option>
+            <option>All-Rounder</option>
+            <option>Wicketkeeper</option>
+          </select>
+          <select id="rosterFilterTeam" onchange="window.filterRoster()">
+            <option value="">All Teams</option>
+            <option>CSK</option><option>MI</option><option>KKR</option>
+            <option>RCB</option><option>PBKS</option><option>GT</option>
+            <option>RR</option><option>SRH</option><option>LSG</option><option>DC</option>
+          </select>
+          <select id="rosterFilterStatus" onchange="window.filterRoster()">
+            <option value="">All Status</option>
+            <option value="available">Available</option>
+            <option value="drafted">Drafted</option>
+          </select>
+          <select id="rosterFilterOrigin" onchange="window.filterRoster()">
+            <option value="">All Origin</option>
+            <option value="Indian">Indian</option>
+            <option value="Overseas">Overseas</option>
+          </select>
+        </div>
+        <div class="twrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Player</th>
+                <th>IPL Team</th>
+                <th>Role</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Drafted By</th>
+              </tr>
+            </thead>
+            <tbody id="rosterTbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── POINTS TAB ──────────────────────────────────────── -->
+      <div id="points-tab" style="display:none;">
+        <div class="preview-box" id="previewBoxD" style="display:none;">
+          <div class="preview-title">Points Preview</div>
+          <div id="previewContentD"></div>
+          <button class="btn btn-cta" onclick="window.submitMatchDraft(true)">Confirm &amp; Save</button>
+        </div>
+        <div class="pts-card">
+          <div class="pts-hdr">
+            <span class="pts-title">Player Points</span>
+            <div class="hdr-actions">
+              <select id="matchFilterD" onchange="window.renderPointsDraft()">
+                <option value="all">All Matches (Total)</option>
+              </select>
+              <button class="btn btn-info btn-sm" onclick="window.downloadPointsCSVDraft()">CSV</button>
+            </div>
+          </div>
+          <div class="twrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Player</th>
+                  <th>IPL Team</th>
+                  <th>Owned By</th>
+                  <th>Role</th>
+                  <th>Matches</th>
+                  <th>Points</th>
+                </tr>
+              </thead>
+              <tbody id="pointsTbodyD"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── MY TEAM TAB ─────────────────────────────────────── -->
+      <div id="myteam-tab" style="display:none;">
+        <div class="pts-card">
+          <div class="pts-hdr">
+            <span class="pts-title">My Team</span>
+            <div class="hdr-actions">
+              <button class="btn btn-ghost btn-sm" id="mt_undo_D" onclick="window.mt_undo_D()">Undo</button>
+              <button class="btn btn-cta btn-sm" onclick="window.mt_save_D()">Save Squad</button>
+              <button class="btn btn-ghost btn-sm" id="mt_lock_btn_D" onclick="window.toggleSquadLock_D()">Lock Changes</button>
+            </div>
+          </div>
+          <div class="squad-pills">
+            <span class="squad-pill squad-pill--xi" id="mt_xi_D">XI: 0/11</span>
+            <span class="squad-pill squad-pill--bench" id="mt_bench_D">Bench: 0/5</span>
+            <span class="squad-pill squad-pill--res" id="mt_res_D">Reserves: 0</span>
+            <span class="squad-pill-hint">XI + Bench score / Reserves earn 0</span>
+          </div>
+          <div class="mt-validation" id="mt_val_D"></div>
+          <div id="mt_body_D">
+            <div class="empty">Loading...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── LEADERBOARD TAB ─────────────────────────────────── -->
+      <div id="leaderboard-tab" style="display:none;">
+        <div class="srow">
+          <div class="spill">
+            <div class="sval" id="lbMatchesD">&mdash;</div>
+            <div class="slb">Matches</div>
+          </div>
+          <div class="spill">
+            <div class="sval" id="lbScoredD">&mdash;</div>
+            <div class="slb">Players Scored</div>
+          </div>
+          <div class="spill">
+            <div class="sval" id="lbTopD">&mdash;</div>
+            <div class="slb">Top Team Score</div>
+          </div>
+        </div>
+        <div class="pts-card">
+          <div class="pts-hdr">
+            <span class="pts-title">Fantasy Leaderboard</span>
+            <button class="btn btn-ghost btn-sm" onclick="window.recalcLeaderboardD()" title="Recalculate totals from all match data">Recalculate</button>
+          </div>
+          <div id="lbPodiumWrap" class="lb-podium-wrap" style="display:none;"></div><div id="leaderboardBodyD"></div>
+        </div>
+        <div id="allSquadsSectionD" class="all-squads-section">
+          <div class="pts-card">
+            <div class="pts-hdr">
+              <span class="pts-title">All Team Squads</span>
+              <button class="btn btn-ghost btn-sm" onclick="window.renderAllSquads()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="23 4 23 10 17 10"/>
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                </svg>
+                Refresh
+              </button>
+            </div>
+            <div id="allSquadsBodyD"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PLAYERS (SEASON) TAB ────────────────────────────── -->
+      <div id="players-season-tab" class="card tab-panel">
+        <div class="card-hdr">
+          <span class="card-title">Player Season Points</span>
+          <span class="hdr-hint">Points per match, per player, grouped by team</span>
+        </div>
+        <div class="card-bdy card-bdy--flush">
+          <div id="playerSeasonGridD">
+            <div class="pst-no-data">Loading...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ANALYTICS TAB ───────────────────────────────────── -->
+      <div id="analytics-tab" style="display:none;">
+        <div class="an-layout">
+          <nav class="an-sidebar" id="anSidebarD"></nav>
+          <div class="an-main">
+            <div class="an-topbar">
+              <h3 class="an-title" id="anTitleD">Performance Analytics</h3>
+              <div class="an-search-wrap"><input class="an-search" id="anSearchD" type="text" placeholder="Search players…"></div>
+            </div>
+            <div id="analyticsGridD" class="an-content"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── MATCH DATA TAB ──────────────────────────────────── -->
+      <div id="matches-tab" style="display:none;">
+
+        <!-- Enter match scorecard (admin) -->
+        <div class="pts-card" id="addMatchCardDraft" style="display:none;">
+          <div class="pts-hdr">
+            <span class="pts-title">Enter Match Scorecard</span>
+            <span class="badge bb">Admin Only</span>
+          </div>
+
+          <!-- Gemini parser -->
+          <div class="ai-parse-box">
+            <div class="parse-controls">
+              <div class="ai-parse-title">Gemini Scorecard Parser</div>
+              <span class="badge bb">Firebase AI Logic</span>
+            </div>
+            <div class="ai-parse-sub">Upload 1-4 scorecard screenshots. Gemini reads all images together and fills the form automatically.</div>
+
+            <div class="drop-zone" id="scDropZoneD"
+                 onclick="document.getElementById('scFilesD').click()"
+                 ondragover="event.preventDefault();this.classList.add('drop-zone--active')"
+                 ondragleave="this.classList.remove('drop-zone--active')"
+                 ondrop="event.preventDefault();this.classList.remove('drop-zone--active');window.handleScFilesD(event.dataTransfer.files)">
+              <div class="drop-zone-icon"></div>
+              <div class="drop-zone-text">Click or drag &amp; drop screenshots here</div>
+              <div class="drop-zone-hint" id="scDropHintD">PNG / JPG / WEBP / up to 4 files</div>
+            </div>
+            <input type="file" id="scFilesD" accept="image/*" multiple hidden onchange="window.handleScFilesD(this.files)">
+            <div class="thumb-row" id="scThumbRowD"></div>
+
+            <div class="parse-controls">
+              <input type="text" id="matchLabelD" class="parse-input" placeholder="Match label (auto-filled)">
+              <button class="btn-ai" id="geminiParseBtnD" onclick="window.parseWithGeminiD()">Parse with Gemini</button>
+            </div>
+            <div class="ai-status" id="aiStatusD"></div>
+
+            <details class="json-fallback">
+              <summary>Or paste JSON manually (fallback)</summary>
+              <textarea id="scJsonInputD" class="sc-textarea" placeholder='{"matchLabel":"...","winner":"CSK","result":"normal","batting":[...],"bowling":[...],"fielding":[]}'></textarea>
+              <button class="btn btn-ghost btn-sm" onclick="window.importFromJsonD()">Import JSON</button>
+            </details>
+          </div>
+
+          <div class="form-toggle-bar">
+            <span class="hdr-hint">Review and edit data below before saving.</span>
+            <button class="btn btn-ghost btn-sm" onclick="window.toggleMatchFormDraft()">Expand / Collapse form</button>
+          </div>
+
+          <!-- Match form body -->
+          <div id="matchFormBodyD" style="display:none;">
+            <div class="match-form">
+              <div class="fld">
+                <label>Winning IPL Team</label>
+                <input type="text" id="mfWinnerD" placeholder="e.g. MI">
+              </div>
+              <div class="fld">
+                <label>Man of the Match</label>
+                <input type="text" id="mfMotmD" placeholder="Player name">
+              </div>
+              <div class="fld">
+                <label>Result</label>
+                <select id="mfResultD">
+                  <option value="normal">Normal Result</option>
+                  <option value="noresult">No Result</option>
+                  <option value="superover">Super Over</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="section-hdr">BATTING</div>
+            <div id="battingRowsD"></div>
+            <div class="section-action">
+              <button class="btn btn-ghost btn-sm" onclick="window.addBattingRowD()">+ Add Batter</button>
+            </div>
+
+            <div class="section-hdr">BOWLING</div>
+            <div id="bowlingRowsD"></div>
+            <div class="section-action">
+              <button class="btn btn-ghost btn-sm" onclick="window.addBowlingRowD()">+ Add Bowler</button>
+            </div>
+
+            <div class="section-hdr">FIELDING</div>
+            <div id="fieldingRowsD"></div>
+            <div class="section-action">
+              <button class="btn btn-ghost btn-sm" onclick="window.addFieldingRowD()">+ Add Fielder</button>
+            </div>
+
+            <div class="form-actions">
+              <button class="btn btn-cta" onclick="window.submitMatchDraft(true)">Calculate &amp; Save Points</button>
+              <button class="btn btn-ghost btn-sm" onclick="window.previewPointsDraft()">Preview First</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Match data list -->
+        <div class="pts-card">
+          <div class="pts-hdr">
+            <span class="pts-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              Match Data
+            </span>
+            <span class="hdr-hint" id="matchDataAdminNoteD"></span>
+          </div>
+          <div id="matchDataListD">
+            <div class="empty">No matches recorded yet.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── SCHEDULE TAB ────────────────────────────────────── -->
+      <div id="schedule-tab" style="display:none;">
+        <div class="pts-card">
+          <div class="pts-hdr">
+            <span class="pts-title">IPL 2026 Schedule</span>
+            <span class="hdr-hint">20 Matches</span>
+          </div>
+          <div class="schedule-body" id="scheduleBody"></div>
+        </div>
+      </div>
+
+      <!-- ── TRADES TAB ──────────────────────────────────────── -->
+      <div id="trades-tab" style="display:none;">
+        <div class="pts-card">
+          <div class="pts-hdr">
+            <span class="pts-title">Trade Center</span>
+            <span class="hdr-hint">Propose and manage multi-player trades</span>
+          </div>
+
+          <!-- Propose Trade Form -->
+          <div class="trade-section">
+            <div class="trade-title">Propose a Trade</div>
+            <div class="trade-grid">
+
+              <!-- Your side -->
+              <div class="trade-side">
+                <div class="trade-side__label">You Send</div>
+                <div class="trade-player-list" id="tradeSendList"></div>
+                <select id="tradeSendSelect">
+                  <option value="">-- Select player to send --</option>
+                </select>
+                <button class="btn btn-ghost btn-sm" onclick="window.addTradePlayer('send')">+ Add</button>
+              </div>
+
+              <!-- Arrow -->
+              <div class="trade-arrow">&#8596;</div>
+
+              <!-- Their side -->
+              <div class="trade-side">
+                <div class="trade-side__label">You Receive</div>
+                <select id="tradePartnerSelect" onchange="window.loadPartnerPlayers()">
+                  <option value="">-- Select trade partner --</option>
+                </select>
+                <div class="trade-player-list" id="tradeReceiveList"></div>
+                <select id="tradeReceiveSelect">
+                  <option value="">-- Select player to receive --</option>
+                </select>
+                <button class="btn btn-ghost btn-sm" onclick="window.addTradePlayer('receive')">+ Add</button>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button class="btn btn-cta" onclick="window.proposeTrade()">Propose Trade</button>
+              <button class="btn btn-ghost btn-sm" onclick="window.clearTradeForm()">Clear</button>
+            </div>
+          </div>
+
+          <!-- Pending Trades -->
+          <div class="trade-section section-divider">
+            <div class="trade-title">Pending Trades</div>
+            <div id="pendingTradesList">
+              <div class="empty">No pending trades.</div>
+            </div>
+          </div>
+
+          <!-- Trade History -->
+          <div class="trade-section section-divider">
+            <div class="trade-title">Trade History</div>
+            <div id="tradeHistoryList">
+              <div class="empty">No completed trades yet.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /draft-view -->
+  </div><!-- /content -->
+</div><!-- /app-shell -->
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
