@@ -857,6 +857,21 @@ function renderDraftTab(data,teamsCount,picksPerTeam){
  }
 
  const current=order[idx];
+
+ // Auto-skip picks for teams that are already at quota
+ var _maxPicks=data.setup&&data.setup.picksPerTeam||data.config&&data.config.picksPerTeam||picksPerTeam||21;
+ if(data.teams&&data.teams[current.teamName]){
+  var _tr=data.teams[current.teamName].roster;
+  var _trArr=Array.isArray(_tr)?_tr:(_tr?Object.values(_tr):[]);
+  if(_trArr.length>=_maxPicks&&isAdmin&&!window._autoSkipping){
+   window._autoSkipping=true;
+   update(ref(db),{['drafts/'+draftId+'/currentPickIndex']:idx+1}).then(function(){
+    window._autoSkipping=false;
+   }).catch(function(){window._autoSkipping=false;});
+   return;
+  }
+ }
+
  const isMyTurn=myTeamName&&current.teamName===myTeamName;
 
  clock.className=`clock-card${isMyTurn?' your-turn':''}`;
@@ -1052,9 +1067,20 @@ window.lockInPick=function(){
  const player=players.find(p=>String(p.id)===String(pid));
  if(!player)return window.showAlert('Player not found.');
  if(player.draftedBy)return window.showAlert('That player is already drafted!');
+ // Quota check: prevent picking beyond the per-team limit
+ const _maxPicks=draftState?.setup?.picksPerTeam||draftState?.config?.picksPerTeam||21;
+ const _curRoster=draftState.teams[current.teamName]?.roster;
+ const _curRosterArr=Array.isArray(_curRoster)?_curRoster:(_curRoster?Object.values(_curRoster):[]);
+ if(_curRosterArr.length>=_maxPicks){
+  // Auto-skip this pick and advance to next
+  update(ref(db),{['drafts/'+draftId+'/currentPickIndex']:idx+1}).then(function(){
+   window.showAlert(current.teamName+' already has '+_maxPicks+' players. Pick skipped.','info');
+  });
+  return;
+ }
  if(player.isOverseas){
  const team=draftState.teams?.[current.teamName];
- const _osMax=draftState?.config?.maxOverseas||8;
+ const _osMax=draftState?.config?.maxOverseas||draftState?.setup?.maxOverseas||8;
 if((team?.overseasCount||0)>=_osMax)return window.showAlert(`Max ${_osMax} overseas players per team!`);
  }
  player.draftedBy=current.teamName;
