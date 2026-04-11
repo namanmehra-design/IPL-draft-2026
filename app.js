@@ -906,17 +906,9 @@ function renderDraftTab(data,teamsCount,picksPerTeam){
    document.getElementById('fixQuotaDesc').textContent=shortTeams.map(function(t){return t.name+': '+t.has+'/'+targetPicks+' ('+t.pending+' pending, needs '+t.needs+' more)';}).join(' \u00b7 ');
   } else { quotaBox.style.display='none'; }
 
-  // Show trim button if any team has MORE pending picks than they need
+  // Always show trim button for admin when draft is active
   var trimBox=document.getElementById('trimPicksBox');
-  if(trimBox){
-   var hasExcess=false;
-   Object.values(data.teams).forEach(function(t){
-    var r=Array.isArray(t.roster)?t.roster:(t.roster?Object.values(t.roster):[]);
-    var pending=_pendingMap[t.name]||0;
-    if(pending>(targetPicks-r.length)) hasExcess=true;
-   });
-   trimBox.style.display=(isAdmin&&hasExcess)?'block':'none';
-  }
+  if(trimBox) trimBox.style.display=isAdmin?'block':'none';
  }
 }
 
