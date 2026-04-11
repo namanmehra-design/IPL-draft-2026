@@ -886,14 +886,24 @@ function renderDraftTab(data,teamsCount,picksPerTeam){
  var quotaBox=document.getElementById('fixQuotaBox');
  if(quotaBox&&isAdmin&&data.teams){
   var targetPicks=data.setup&&data.setup.picksPerTeam||data.config&&data.config.picksPerTeam||picksPerTeam||15;
+  var _curIdx=data.currentPickIndex||0;
+  var _draftOrd=Array.isArray(data.draftOrder)?data.draftOrder:Object.values(data.draftOrder||[]);
+  // Count pending picks per team
+  var _pendingMap={};
+  for(var _pi=_curIdx;_pi<_draftOrd.length;_pi++){
+   var _ptn=_draftOrd[_pi].teamName;
+   _pendingMap[_ptn]=(_pendingMap[_ptn]||0)+1;
+  }
   var shortTeams=[];
   Object.values(data.teams).forEach(function(t){
    var r=Array.isArray(t.roster)?t.roster:(t.roster?Object.values(t.roster):[]);
-   if(r.length<targetPicks) shortTeams.push({name:t.name,has:r.length,needs:targetPicks-r.length});
+   var pending=_pendingMap[t.name]||0;
+   var actualNeed=targetPicks-r.length-pending;
+   if(actualNeed>0) shortTeams.push({name:t.name,has:r.length,pending:pending,needs:actualNeed});
   });
   if(shortTeams.length>0){
    quotaBox.style.display='block';
-   document.getElementById('fixQuotaDesc').textContent=shortTeams.map(function(t){return t.name+': '+t.has+'/'+targetPicks+' (needs '+t.needs+' more)';}).join(' \u00b7 ');
+   document.getElementById('fixQuotaDesc').textContent=shortTeams.map(function(t){return t.name+': '+t.has+'/'+targetPicks+' ('+t.pending+' pending, needs '+t.needs+' more)';}).join(' \u00b7 ');
   } else { quotaBox.style.display='none'; }
  }
 }
@@ -906,20 +916,83 @@ window.fixTeamQuota=function(){
  var members=data.members?Object.values(data.members):[];
  var teams=data.teams||{};
  var draftOrder=Array.isArray(data.draftOrder)?data.draftOrder.slice():Object.values(data.draftOrder||[]);
+ var currentIdx=data.currentPickIndex||0;
+
+ // Count PENDING (undrafted) picks per team already in the order
+ var pendingPicks={};
+ for(var pi=currentIdx;pi<draftOrder.length;pi++){
+  var tn=draftOrder[pi].teamName;
+  pendingPicks[tn]=(pendingPicks[tn]||0)+1;
+ }
+
  var shortTeams=[],added=0;
  Object.values(teams).forEach(function(t){
   var r=Array.isArray(t.roster)?t.roster:(t.roster?Object.values(t.roster):[]);
-  var deficit=targetPicks-r.length;
+  var alreadyPending=pendingPicks[t.name]||0;
+  // Actual deficit = target - roster - pending picks already in order
+  var deficit=targetPicks-r.length-alreadyPending;
   if(deficit>0){
    var member=members.find(function(m){return m.teamName===t.name;});
    for(var i=0;i<deficit;i++){draftOrder.push({teamName:t.name,uid:member?member.uid:'',round:'comp'});added++;}
    shortTeams.push(t.name+' +'+deficit);
   }
  });
- if(!added)return window.showAlert('All teams at full quota.','ok');
+ if(!added)return window.showAlert('All teams at full quota (including pending picks).','ok');
  if(!confirm('Add '+added+' compensatory picks?\n'+shortTeams.join(', ')))return;
  update(ref(db),{['drafts/'+draftId+'/draftOrder']:draftOrder}).then(function(){
   window.showAlert('Added '+added+' compensatory picks.','ok');
+ }).catch(function(e){window.showAlert('Failed: '+e.message);});
+ });
+};
+
+// -- Trim excess draft picks: removes duplicate comp picks so each team has exactly enough to reach quota --
+window.trimDraftOrder=function(){
+ if(!isAdmin||!draftId)return;
+ get(ref(db,'drafts/'+draftId)).then(function(snap){
+ var data=snap.val();if(!data)return window.showAlert('Draft data not found.');
+ var targetPicks=data.setup&&data.setup.picksPerTeam||data.config&&data.config.picksPerTeam||15;
+ var teams=data.teams||{};
+ var draftOrder=Array.isArray(data.draftOrder)?data.draftOrder.slice():Object.values(data.draftOrder||[]);
+ var currentIdx=data.currentPickIndex||0;
+
+ // Keep all already-drafted picks (before currentIdx) untouched
+ var kept=draftOrder.slice(0,currentIdx);
+ var remaining=draftOrder.slice(currentIdx);
+
+ // Calculate how many MORE picks each team actually needs
+ var needed={};
+ Object.values(teams).forEach(function(t){
+  var r=Array.isArray(t.roster)?t.roster:(t.roster?Object.values(t.roster):[]);
+  needed[t.name]=Math.max(0,targetPicks-r.length);
+ });
+
+ // Go through remaining picks, keep only up to what's needed per team
+ var given={};
+ var trimmed=[];
+ remaining.forEach(function(pick){
+  var tn=pick.teamName;
+  given[tn]=(given[tn]||0);
+  var maxNeeded=needed[tn]||0;
+  if(given[tn]<maxNeeded){
+   trimmed.push(pick);
+   given[tn]++;
+  }
+ });
+
+ var removed=remaining.length-trimmed.length;
+ if(removed===0)return window.showAlert('Draft order is already correct. No excess picks found.','ok');
+
+ var newOrder=kept.concat(trimmed);
+ var details=[];
+ Object.keys(needed).forEach(function(tn){
+  var had=remaining.filter(function(p){return p.teamName===tn;}).length;
+  var now=(given[tn]||0);
+  if(had!==now) details.push(tn+': '+had+' \u2192 '+now);
+ });
+
+ if(!confirm('Remove '+removed+' excess picks?\n'+details.join('\n')))return;
+ update(ref(db),{['drafts/'+draftId+'/draftOrder']:newOrder}).then(function(){
+  window.showAlert('Trimmed '+removed+' excess picks. Draft order is now correct.','ok');
  }).catch(function(e){window.showAlert('Failed: '+e.message);});
  });
 };
