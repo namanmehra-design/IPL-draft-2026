@@ -951,13 +951,16 @@ window.fixTeamQuota=function(){
 
 // -- Trim excess draft picks: removes duplicate comp picks so each team has exactly enough to reach quota --
 window.trimDraftOrder=function(){
- if(!isAdmin||!draftId)return;
+ if(!(isAdmin||isSuperAdminEmail(user?.email))){return window.showAlert('Only admin or super admin can trim picks.','error');}
+ if(!draftId){return window.showAlert('No draft loaded.','error');}
  get(ref(db,'drafts/'+draftId)).then(function(snap){
  var data=snap.val();if(!data)return window.showAlert('Draft data not found.');
  var targetPicks=data.setup&&data.setup.picksPerTeam||data.config&&data.config.picksPerTeam||15;
  var teams=data.teams||{};
  var draftOrder=Array.isArray(data.draftOrder)?data.draftOrder.slice():Object.values(data.draftOrder||[]);
  var currentIdx=data.currentPickIndex||0;
+
+ window.showAlert('Scanning... Target: '+targetPicks+' picks/team. Current index: '+currentIdx+'. Total order: '+draftOrder.length,'info');
 
  // Keep all already-drafted picks (before currentIdx) untouched
  var kept=draftOrder.slice(0,currentIdx);
@@ -991,10 +994,10 @@ window.trimDraftOrder=function(){
  Object.keys(needed).forEach(function(tn){
   var had=remaining.filter(function(p){return p.teamName===tn;}).length;
   var now=(given[tn]||0);
-  if(had!==now) details.push(tn+': '+had+' \u2192 '+now);
+  if(had!==now) details.push(tn+': '+had+' → '+now);
  });
 
- if(!confirm('Remove '+removed+' excess picks?\n'+details.join('\n')))return;
+ if(!confirm('Remove '+removed+' excess picks?\n\n'+details.join('\n')+'\n\nThis will fix the draft order.'))return;
  update(ref(db),{['drafts/'+draftId+'/draftOrder']:newOrder}).then(function(){
   window.showAlert('Trimmed '+removed+' excess picks. Draft order is now correct.','ok');
  }).catch(function(e){window.showAlert('Failed: '+e.message);});
