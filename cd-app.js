@@ -161,7 +161,8 @@
     cbzMatches: [],         // live ticker data
     editingSquad: false,    // My Team — edit mode on/off
     squadDraft: null,       // { xi: [names], bench: [names], reserves: [names] }
-    squadSaving: false      // Save-in-flight flag
+    squadSaving: false,     // Save-in-flight flag
+    adminSub: 'scorecards'  // Super Admin sub-tab
   };
   window.addEventListener('resize', () => {
     const wasMobile = CD.state.isMobile;
@@ -298,6 +299,7 @@
               <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--electric),var(--pink));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:12px;">${esc((u.email[0] || '?').toUpperCase())}</div>
               <div style="font-size:12px;font-weight:600;">${esc(u.email.split('@')[0])}</div>
             </div>` : ''}
+            ${isSuperAdmin ? `<button onclick="CD.openAdmin()" style="padding:8px 14px;border-radius:9999px;background:linear-gradient(180deg,rgba(255,200,61,0.2),rgba(255,200,61,0.1));color:#FFD97D;border:1px solid rgba(255,200,61,0.5);font-family:var(--sans);font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;letter-spacing:0.04em;text-transform:uppercase;">★ Admin Console</button>` : ''}
             <button onclick="if(confirm('Log out?'))window.logoutUser()" style="padding:8px 14px;border-radius:9999px;background:rgba(255,59,59,0.15);color:#FF8080;border:1px solid rgba(255,59,59,0.35);font-family:var(--sans);font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">${I('logout',14)} Log out</button>
           </div>
         </header>
@@ -334,20 +336,288 @@
             </div>
           </section>
 
-          ${isSuperAdmin ? `
-          <section>
-            <div style="font-size:11px;color:var(--gold);letter-spacing:0.18em;text-transform:uppercase;font-weight:700;margin-bottom:14px;">Super Admin</div>
-            <div class="cd-glass" style="padding:24px;border-radius:14px;background:var(--glass);border:1px solid var(--line-2);">
-              <div style="font-family:var(--serif);font-size:24px;font-weight:800;margin-bottom:8px;">Global Scorecard Push</div>
-              <p style="font-size:13px;color:var(--ink-2);margin-bottom:16px;">Push match scorecards to all rooms in one click. Use the classic super-admin panel for now.</p>
-              <button onclick="alert('Super Admin tools available in classic view. Contact admin to migrate.');" style="padding:10px 18px;border-radius:9999px;background:rgba(255,200,61,0.16);border:1px solid rgba(255,200,61,0.4);color:#FFD97D;font-size:13px;font-weight:600;cursor:pointer;">Open Super Admin</button>
-            </div>
-          </section>
-          ` : ''}
         </main>
         <input id="cdJoinRoomHidden" type="hidden" />
       </div>`;
   };
+
+  // ── ADMIN CONSOLE (Super Admin) ────────────────────────────────
+  CD.openAdmin = () => {
+    CD.state.view = 'admin';
+    CD.state.adminSub = CD.state.adminSub || 'scorecards';
+    CD.render();
+    setTimeout(() => {
+      try { if(typeof window.renderSuperAdminPanel === 'function') window.renderSuperAdminPanel(); } catch(e){}
+      try { if(typeof window.refreshGlobalScorecardList === 'function') window.refreshGlobalScorecardList(); } catch(e){}
+      try { if(typeof window.populateScorecardSelect === 'function') window.populateScorecardSelect(); } catch(e){}
+    }, 60);
+  };
+  CD.closeAdmin = () => { CD.state.view = 'dashboard'; CD.render(); };
+  CD.setAdminSub = (sub) => {
+    CD.state.adminSub = sub;
+    CD.render();
+    setTimeout(() => {
+      try {
+        if(sub === 'rooms'   && typeof window.renderSuperAdminPanel === 'function') window.renderSuperAdminPanel();
+        if(sub === 'push'    && typeof window.populateScorecardSelect === 'function') window.populateScorecardSelect();
+        if(sub === 'scorecards' && typeof window.refreshGlobalScorecardList === 'function') window.refreshGlobalScorecardList();
+      } catch(e){}
+    }, 40);
+  };
+
+  CD.renderAdmin = () => {
+    const sub = CD.state.adminSub || 'scorecards';
+    const subs = [
+      { id:'scorecards', label:'Scorecards',      hint:'Paste · parse · save'       },
+      { id:'push',       label:'Push & Fan-out',  hint:'Send to every room'         },
+      { id:'cricbuzz',   label:'Cricbuzz',        hint:'Live import'                },
+      { id:'tools',      label:'Room Tools',      hint:'Overseas · XI multiplier'   },
+      { id:'rooms',      label:'All Rooms',       hint:'View · delete'              }
+    ];
+    const tabBtn = (s) => {
+      const active = s.id === sub;
+      return `<button onclick="CD.setAdminSub('${s.id}')" style="padding:10px 18px;border-radius:9999px;border:1px solid ${active?'rgba(255,200,61,0.55)':'var(--line-2)'};background:${active?'linear-gradient(180deg,rgba(255,200,61,0.22),rgba(255,200,61,0.08))':'var(--glass)'};color:${active?'#FFE49A':'var(--ink-2)'};font-family:var(--sans);font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;letter-spacing:0.04em;min-width:150px;">
+        <span style="text-transform:uppercase;font-size:11px;">${s.label}</span>
+        <span style="font-size:10px;font-weight:500;color:${active?'rgba(255,228,154,0.85)':'var(--mute)'};letter-spacing:0.02em;text-transform:none;">${s.hint}</span>
+      </button>`;
+    };
+    let body = '';
+    if(sub === 'scorecards') body = CD._renderAdminScorecards();
+    else if(sub === 'push')  body = CD._renderAdminPush();
+    else if(sub === 'cricbuzz') body = CD._renderAdminCricbuzz();
+    else if(sub === 'tools') body = CD._renderAdminTools();
+    else if(sub === 'rooms') body = CD._renderAdminRooms();
+
+    return `
+      <div style="position:relative;min-height:100vh;display:flex;flex-direction:column;">
+        ${CD.renderTicker()}
+        <header style="display:flex;align-items:center;justify-content:space-between;padding:20px 32px;border-bottom:1px solid var(--line);">
+          <div style="display:flex;align-items:center;gap:14px;">
+            <button onclick="CD.closeAdmin()" style="padding:8px 14px;border-radius:9999px;background:var(--glass);color:var(--ink-2);border:1px solid var(--line-2);font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">← Dashboard</button>
+            ${CD.Brand(28)}
+            <div>
+              <div class="ed" style="font-size:22px;line-height:0.95;">Admin <span class="ed-i" style="color:var(--gold);">console</span></div>
+              <div style="font-size:10px;color:var(--gold);letter-spacing:0.18em;text-transform:uppercase;font-weight:700;">Super admin · platform wide</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <span style="font-size:10px;color:var(--mute);letter-spacing:0.14em;text-transform:uppercase;font-weight:700;">${esc(window.user?.email||'')}</span>
+          </div>
+        </header>
+        <div style="padding:20px 32px 0;max-width:1400px;margin:0 auto;width:100%;">
+          <div id="saStatsRow" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:18px;">
+            ${CD.Stat({val: '<span id="sa-total-users">—</span>', lbl:'Total Users',        accent:'var(--electric)'})}
+            ${CD.Stat({val: '<span id="sa-total-auctions">—</span>', lbl:'Auction Rooms',   accent:'var(--pink)'})}
+            ${CD.Stat({val: '<span id="sa-total-drafts">—</span>', lbl:'Draft Rooms',       accent:'var(--lime)'})}
+            ${CD.Stat({val: '<span id="sa-total-matches">—</span>', lbl:'Global Scorecards',accent:'var(--gold)'})}
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:22px;padding:14px;border-radius:16px;background:var(--glass-2,rgba(22,24,38,0.72));backdrop-filter:blur(28px);border:1px solid var(--line-2);">
+            ${subs.map(tabBtn).join('')}
+          </div>
+        </div>
+        <main style="padding:0 32px 48px;max-width:1400px;margin:0 auto;width:100%;">
+          ${body}
+        </main>
+      </div>
+      <style>
+        #cd-root .adm-card{padding:24px;border-radius:18px;background:var(--glass-2,rgba(22,24,38,0.72));backdrop-filter:blur(32px) saturate(1.5);-webkit-backdrop-filter:blur(32px) saturate(1.5);border:1px solid var(--line-2);box-shadow:var(--sh-1);margin-bottom:18px;}
+        #cd-root .adm-card h3{font-family:var(--serif);font-weight:800;font-size:22px;margin:0 0 2px;letter-spacing:-0.01em;}
+        #cd-root .adm-card .adm-sub{font-size:11px;color:var(--mute);letter-spacing:0.14em;text-transform:uppercase;font-weight:700;margin-bottom:14px;}
+        #cd-root .adm-lbl{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--mute);margin-bottom:6px;}
+        #cd-root .adm-inp, #cd-root .adm-sel, #cd-root .adm-ta{width:100%;padding:11px 14px;font-size:13px;color:var(--ink);background:var(--glass);border:1px solid var(--line-2);border-radius:10px;outline:none;font-family:var(--sans);box-sizing:border-box;}
+        #cd-root .adm-ta{font-family:var(--mono);resize:vertical;min-height:120px;}
+        #cd-root .adm-inp:focus, #cd-root .adm-sel:focus, #cd-root .adm-ta:focus{border-color:rgba(255,200,61,0.6);box-shadow:0 0 0 3px rgba(255,200,61,0.15);}
+        #cd-root .adm-btn{padding:10px 18px;border-radius:9999px;font-family:var(--sans);font-size:12px;font-weight:700;cursor:pointer;border:none;letter-spacing:0.04em;display:inline-flex;align-items:center;gap:6px;}
+        #cd-root .adm-btn-cta{background:linear-gradient(180deg,var(--electric-2),var(--electric));color:#fff;box-shadow:0 4px 16px rgba(46,91,255,0.35);}
+        #cd-root .adm-btn-gold{background:linear-gradient(180deg,rgba(255,200,61,0.25),rgba(255,200,61,0.12));color:#FFE49A;border:1px solid rgba(255,200,61,0.5);}
+        #cd-root .adm-btn-danger{background:rgba(255,59,59,0.18);color:#FF8B8B;border:1px solid rgba(255,59,59,0.45);}
+        #cd-root .adm-btn-ghost{background:var(--glass);color:var(--ink-2);border:1px solid var(--line-2);}
+        #cd-root .adm-btn-ai{background:linear-gradient(180deg,var(--pink-2),var(--pink));color:#fff;box-shadow:0 4px 16px rgba(255,45,135,0.35);}
+        #cd-root .adm-row{display:flex;gap:10px;flex-wrap:wrap;align-items:end;}
+        #cd-root .adm-row>*{flex:1 1 auto;}
+        #cd-root .adm-row>.adm-sm{flex:0 0 140px;}
+        #cd-root .adm-status{margin-top:10px;font-size:12px;color:var(--ink-2);min-height:18px;}
+        #cd-root .adm-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+        #cd-root .adm-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+        @media (max-width:780px){#cd-root .adm-grid-2,#cd-root .adm-grid-3{grid-template-columns:1fr;}}
+        #cd-root .adm-drop{border:2px dashed var(--line-2);border-radius:14px;padding:28px;text-align:center;cursor:pointer;background:var(--glass);transition:border-color .15s,background .15s;}
+        #cd-root .adm-drop:hover{border-color:rgba(255,200,61,0.55);background:rgba(255,200,61,0.05);}
+        #cd-root .adm-drop.drag{border-color:var(--electric);background:rgba(46,91,255,0.08);}
+        #cd-root .thumb-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+        #cd-root .thumb-row>*{width:72px;height:72px;border-radius:10px;overflow:hidden;border:1px solid var(--line-2);}
+        #cd-root .thumb-row img{width:100%;height:100%;object-fit:cover;}
+        #cd-root .preview-box{margin-top:14px;padding:14px;border-radius:12px;background:rgba(46,91,255,0.06);border:1px solid rgba(46,91,255,0.25);}
+        #cd-root table.adm-tbl{width:100%;border-collapse:collapse;font-size:13px;}
+        #cd-root table.adm-tbl th{padding:10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--mute);border-bottom:1px solid var(--line-2);}
+        #cd-root table.adm-tbl td{padding:10px;border-bottom:1px solid var(--line);}
+        #cd-root .match-pick-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;margin-top:10px;}
+        #cd-root .adm-info{padding:10px 14px;border-radius:10px;background:rgba(46,91,255,0.08);border:1px solid rgba(46,91,255,0.3);font-size:12px;color:var(--ink-2);margin:10px 0;}
+        #cd-root .adm-warn{padding:10px 14px;border-radius:10px;background:rgba(255,59,59,0.10);border:1px solid rgba(255,59,59,0.35);font-size:12px;color:#FFB0B0;margin:10px 0;}
+        #cd-root .adm-ok{color:var(--lime);} #cd-root .adm-err{color:#FF8B8B;}
+      </style>
+    `;
+  };
+
+  CD._renderAdminScorecards = () => `
+    <div class="adm-card">
+      <h3>Global Scorecard Entry</h3>
+      <div class="adm-sub">Paste screenshots or text · Gemini parses · save & fan-out</div>
+      <div class="drop-zone adm-drop" id="gscDropZone" onclick="document.getElementById('gscFiles').click()"
+           ondragover="event.preventDefault();this.classList.add('drag');"
+           ondragleave="this.classList.remove('drag');"
+           ondrop="event.preventDefault();this.classList.remove('drag');window.handleGscFiles&&window.handleGscFiles(event.dataTransfer.files);">
+        <div style="font-family:var(--display);font-weight:800;font-size:14px;letter-spacing:0.04em;text-transform:uppercase;color:var(--ink-2);">Drop scorecard images or click to upload</div>
+        <div class="drop-zone-hint" id="gscDropHint" style="font-size:11px;color:var(--mute);margin-top:4px;">PNG · JPG · WEBP · up to 4 files</div>
+      </div>
+      <input type="file" id="gscFiles" accept="image/*" multiple style="display:none" onchange="window.handleGscFiles&&window.handleGscFiles(this.files)">
+      <div id="gscThumbRow" class="thumb-row"></div>
+      <div class="adm-row" style="margin-top:14px;">
+        <div style="flex:1;">
+          <label class="adm-lbl">Match label</label>
+          <input type="text" id="gscMatchLabel" class="adm-inp parse-input" placeholder="e.g. CSK vs MI – Apr 6 (auto-filled)">
+        </div>
+        <button id="gscParseBtn" class="adm-btn adm-btn-ai" onclick="window.parseGlobalScorecard && window.parseGlobalScorecard()">★ Parse with Gemini</button>
+      </div>
+      <div class="adm-status ai-status" id="gscParseStatus"></div>
+      <div id="gscFormBody" style="display:none;margin-top:18px;">
+        <div class="adm-grid-3">
+          <div><label class="adm-lbl">Winning IPL Team</label><input type="text" id="gscWinner" class="adm-inp" placeholder="e.g. CSK"></div>
+          <div><label class="adm-lbl">Man of the Match</label><input type="text" id="gscMotm" class="adm-inp" placeholder="Player name"></div>
+          <div><label class="adm-lbl">Result</label>
+            <select id="gscResult" class="adm-sel">
+              <option value="normal">Normal Result</option>
+              <option value="noresult">No Result</option>
+              <option value="superover">Super Over</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-top:18px;"><div class="adm-lbl" style="color:var(--electric);margin-bottom:8px;">Batting</div><div id="gscBattingRows"></div></div>
+        <div style="margin-top:18px;"><div class="adm-lbl" style="color:var(--pink);margin-bottom:8px;">Bowling</div><div id="gscBowlingRows"></div></div>
+        <div style="margin-top:18px;"><div class="adm-lbl" style="color:var(--lime);margin-bottom:8px;">Fielding</div><div id="gscFieldingRows"></div></div>
+        <div id="gscPreviewBox" class="preview-box" style="display:none;">
+          <div class="adm-lbl" style="color:var(--electric);">Preview</div>
+          <div id="gscPreviewContent"></div>
+        </div>
+        <div class="adm-row" style="margin-top:14px;">
+          <button class="adm-btn adm-btn-ghost" onclick="window.previewGlobalScorecard && window.previewGlobalScorecard()">Preview</button>
+          <button class="adm-btn adm-btn-cta" onclick="window.saveGlobalScorecard && window.saveGlobalScorecard()">Save &amp; push to all rooms</button>
+          <button class="adm-btn adm-btn-ghost" onclick="window.resetGlobalScorecardForm && window.resetGlobalScorecardForm()">Clear</button>
+        </div>
+        <div class="adm-status ai-status" id="gscSaveStatus"></div>
+      </div>
+    </div>
+    <div class="adm-card">
+      <h3>Saved scorecards</h3>
+      <div class="adm-sub">History · re-push or delete</div>
+      <div id="gscHistoryList"><div style="padding:20px;text-align:center;color:var(--mute);font-size:12px;">No matches saved yet.</div></div>
+    </div>
+  `;
+
+  CD._renderAdminPush = () => `
+    <div class="adm-card">
+      <h3>Push Scorecard to <span style="color:var(--pink);font-style:italic;">every</span> room</h3>
+      <div class="adm-sub">Affects all auctions and drafts on the platform</div>
+      <div class="adm-warn">⚠ Pushes to <strong>every room on the entire platform</strong>. Use carefully.</div>
+      <div style="margin-bottom:14px;">
+        <label class="adm-lbl">Select a saved scorecard</label>
+        <select id="saScorecardSelect" class="adm-sel" onchange="window.saOnScorecardSelect && window.saOnScorecardSelect()">
+          <option value="">— Select a saved scorecard —</option>
+        </select>
+      </div>
+      <div id="saMatchInfo" class="adm-info" style="display:none;"><span id="saMatchInfoText"></span></div>
+      <div class="adm-row" style="margin-top:14px;">
+        <button class="adm-btn adm-btn-cta" onclick="window.saPushToAll && window.saPushToAll()">Push to all rooms</button>
+        <button class="adm-btn adm-btn-gold" onclick="window.saDeleteAndRepush && window.saDeleteAndRepush()">Delete &amp; re-push</button>
+        <button class="adm-btn adm-btn-danger" onclick="window.saDeleteMatchFromAll && window.saDeleteMatchFromAll()">Delete from all rooms</button>
+      </div>
+      <div class="adm-status ai-status" id="saPushStatus"></div>
+    </div>
+  `;
+
+  CD._renderAdminCricbuzz = () => `
+    <div class="adm-card">
+      <h3>Live Cricbuzz <span style="color:var(--pink);font-style:italic;">import</span></h3>
+      <div class="adm-sub">Fetch live/recent IPL scorecards from Cricbuzz API</div>
+      <div style="padding:16px;border-radius:12px;background:var(--glass);border:1px solid var(--line);margin-bottom:14px;">
+        <div class="adm-lbl" style="color:var(--electric);margin-bottom:10px;">Step 1 — Select Match</div>
+        <div class="adm-row">
+          <button class="adm-btn adm-btn-cta" onclick="window.cbzFetchLive && window.cbzFetchLive()">⚡ Live</button>
+          <button class="adm-btn adm-btn-ghost" onclick="window.cbzFetchRecent && window.cbzFetchRecent()">🕐 Recent</button>
+          <button class="adm-btn adm-btn-ghost" onclick="window.cbzFetchUpcoming && window.cbzFetchUpcoming()">📅 Upcoming</button>
+        </div>
+        <div class="adm-status cbz-status" id="cbzMatchStatus">Click a button to load matches.</div>
+        <div class="match-pick-grid" id="cbzMatchList"></div>
+      </div>
+      <div id="cbzStep2" style="display:none;padding:16px;border-radius:12px;background:var(--glass);border:1px solid var(--line);margin-bottom:14px;">
+        <div class="adm-lbl" style="color:var(--pink);margin-bottom:10px;">Step 2 — Load Scorecard</div>
+        <div class="adm-row">
+          <div style="flex:1;">
+            <div id="cbzSelectedMatchLabel" style="font-family:var(--display);font-weight:800;font-size:16px;">—</div>
+            <div id="cbzSelectedMatchMeta" style="font-size:11px;color:var(--mute);margin-top:2px;"></div>
+          </div>
+          <button class="adm-btn adm-btn-gold" onclick="window.cbzFetchScorecard && window.cbzFetchScorecard()">Fetch Scorecard</button>
+        </div>
+        <div class="adm-status cbz-status" id="cbzScorecardStatus"></div>
+      </div>
+      <div id="cbzStep3" style="display:none;padding:16px;border-radius:12px;background:var(--glass);border:1px solid var(--line);margin-bottom:14px;">
+        <div class="adm-lbl" style="color:var(--lime);margin-bottom:10px;">Step 3 — Preview Innings</div>
+        <div id="cbzInningsButtons" style="display:none;margin-bottom:10px;"></div>
+        <div id="cbzPreview" style="overflow-x:auto;"></div>
+      </div>
+      <div id="cbzStep4" style="display:none;padding:16px;border-radius:12px;background:var(--glass);border:1px solid var(--line);">
+        <div class="adm-lbl" style="color:var(--gold);margin-bottom:10px;">Step 4 — Send to Scorecards Tab</div>
+        <div style="font-size:12px;color:var(--ink-2);margin-bottom:12px;">Sends <strong style="color:var(--ink);">both innings combined</strong> to the Scorecards tab, ready for save &amp; fan-out.</div>
+        <button class="adm-btn adm-btn-cta" onclick="window.cbzPushToRoom && window.cbzPushToRoom()">Send to Scorecards Tab →</button>
+        <div class="adm-status cbz-status" id="cbzPushStatus"></div>
+      </div>
+    </div>
+  `;
+
+  CD._renderAdminTools = () => `
+    <div class="adm-card">
+      <h3>Overseas Player <span style="color:var(--electric);font-style:italic;">limit</span></h3>
+      <div class="adm-sub">Per-room · live rules</div>
+      <div class="adm-row" style="margin-bottom:10px;">
+        <div style="flex:1;">
+          <label class="adm-lbl">Select Room</label>
+          <select id="saOsRoomSelect" class="adm-sel"><option value="">— Click Load Rooms first —</option></select>
+        </div>
+        <div class="adm-sm"><label class="adm-lbl">Max Overseas</label><input type="number" id="saOsLimit" class="adm-inp" min="1" max="15" value="8"></div>
+      </div>
+      <div class="adm-row">
+        <button class="adm-btn adm-btn-ghost" onclick="window.saPopulateOsRooms && window.saPopulateOsRooms()">Load rooms</button>
+        <button class="adm-btn adm-btn-cta" onclick="window.saSetOverseasLimit && window.saSetOverseasLimit()">Apply limit</button>
+      </div>
+      <div class="adm-status ai-status" id="saOsStatus"></div>
+    </div>
+    <div class="adm-card">
+      <h3>XI Points <span style="color:var(--gold);font-style:italic;">multiplier</span></h3>
+      <div class="adm-sub">Playing XI earns multiplied points · Bench = 1× · Reserves = 0</div>
+      <div class="adm-row" style="margin-bottom:10px;">
+        <div style="flex:1;">
+          <label class="adm-lbl">Select Room</label>
+          <select id="saMultRoomSelect" class="adm-sel"><option value="">— Click Load Rooms first —</option></select>
+        </div>
+        <div class="adm-sm"><label class="adm-lbl">XI Multiplier</label><input type="number" id="saMultValue" class="adm-inp" min="0.5" max="5" step="0.1" value="1"></div>
+      </div>
+      <div class="adm-row">
+        <button class="adm-btn adm-btn-ghost" onclick="window.saPopulateMultRooms && window.saPopulateMultRooms()">Load rooms</button>
+        <button class="adm-btn adm-btn-gold" onclick="window.saSetXIMultiplier && window.saSetXIMultiplier()">Apply multiplier</button>
+      </div>
+      <div class="adm-status ai-status" id="saMultStatus"></div>
+    </div>
+  `;
+
+  CD._renderAdminRooms = () => `
+    <div class="adm-card">
+      <h3>All rooms on <span style="color:var(--pink);font-style:italic;">platform</span></h3>
+      <div class="adm-sub">View · delete · monitor</div>
+      <div class="adm-row" style="margin-bottom:14px;">
+        <button class="adm-btn adm-btn-ghost" onclick="window.renderSuperAdminPanel && window.renderSuperAdminPanel()">↻ Refresh</button>
+      </div>
+      <div id="saRoomsList"><div style="padding:20px;text-align:center;color:var(--mute);font-size:12px;">Loading…</div></div>
+    </div>
+  `;
 
   CD.renderCreateRoomCard = () => `
     <div class="cd-glass-2" style="padding:24px;margin-bottom:24px;border-radius:22px;background:var(--glass-2);backdrop-filter:blur(40px) saturate(1.6);border:1px solid var(--line-2);">
@@ -357,7 +627,6 @@
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
         <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--mute);margin-bottom:6px;">Room name</div><input id="cdNewRoomName" placeholder="Office League" style="width:100%;padding:10px 14px;font-size:13px;color:var(--ink);background:var(--glass);border:1px solid var(--line-2);border-radius:8px;outline:none;font-family:var(--sans);" /></div>
-        <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--mute);margin-bottom:6px;">Budget (cr)</div><input id="cdNewRoomBudget" type="number" value="100" style="width:100%;padding:10px 14px;font-size:13px;color:var(--ink);background:var(--glass);border:1px solid var(--line-2);border-radius:8px;outline:none;font-family:var(--sans);" /></div>
         <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--mute);margin-bottom:6px;">Max teams</div><input id="cdNewRoomMaxTeams" type="number" value="7" style="width:100%;padding:10px 14px;font-size:13px;color:var(--ink);background:var(--glass);border:1px solid var(--line-2);border-radius:8px;outline:none;font-family:var(--sans);" /></div>
         <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--mute);margin-bottom:6px;">Players / team</div><input id="cdNewRoomMaxPlayers" type="number" value="21" style="width:100%;padding:10px 14px;font-size:13px;color:var(--ink);background:var(--glass);border:1px solid var(--line-2);border-radius:8px;outline:none;font-family:var(--sans);" /></div>
         <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--mute);margin-bottom:6px;">Max overseas</div><input id="cdNewRoomMaxOverseas" type="number" value="8" style="width:100%;padding:10px 14px;font-size:13px;color:var(--ink);background:var(--glass);border:1px solid var(--line-2);border-radius:8px;outline:none;font-family:var(--sans);" /></div>
@@ -403,9 +672,9 @@
         </div>
         ${myT ? `
         <div class="cd-glass" style="margin-top:24px;padding:14px;border-radius:14px;background:var(--glass);border:1px solid var(--line-2);">
-          <div style="font-size:9px;color:var(--mute);letter-spacing:0.18em;text-transform:uppercase;font-weight:700;margin-bottom:8px;">My Purse</div>
-          <div style="font-family:var(--display);font-size:26px;font-weight:800;color:var(--lime);">₹${(myT.budget||0).toFixed(1)}<span style="font-size:14px;color:var(--mute);">cr</span></div>
-          <div style="font-size:11px;color:var(--mute);margin-top:4px;">${(Array.isArray(myT.roster)?myT.roster.length:Object.keys(myT.roster||{}).length)} / ${rs.maxPlayers || rs.setup?.maxPlayers || 21} players</div>
+          <div style="font-size:9px;color:var(--mute);letter-spacing:0.18em;text-transform:uppercase;font-weight:700;margin-bottom:8px;">My Squad</div>
+          <div style="font-family:var(--display);font-size:26px;font-weight:800;color:var(--lime);">${(Array.isArray(myT.roster)?myT.roster.length:Object.keys(myT.roster||{}).length)}<span style="font-size:14px;color:var(--mute);"> / ${rs.maxPlayers || rs.setup?.maxPlayers || 21}</span></div>
+          <div style="font-size:11px;color:var(--mute);margin-top:4px;">players picked</div>
         </div>
         ` : ''}
         <button onclick="if(confirm('Log out?'))window.logoutUser()" style="margin-top:16px;width:100%;padding:10px 12px;border-radius:8px;background:rgba(255,59,59,0.1);color:#FF8080;border:1px solid rgba(255,59,59,0.25);font-family:var(--sans);font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;justify-content:center;">${I('logout',14)} Log out</button>
@@ -513,7 +782,6 @@
     const maxTeams = rs.maxTeams || setup.maxTeams || 7;
     const maxPlayers = rs.maxPlayers || setup.maxPlayers || 21;
     const maxOverseas = rs.maxOverseas || setup.maxOverseas || 8;
-    const budget = rs.budget || setup.budget || 100;
     const xiMult = parseFloat(rs.xiMultiplier) || 1;
     const releaseLocked = !!rs.releaseLocked;
     const squadLocked = !!rs.squadLocked;
@@ -524,7 +792,6 @@
     return `
       <!-- Stats banner -->
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px;">
-        ${CD.Stat({val: '₹' + budget, lbl: 'Budget (cr)', accent: 'var(--electric)'})}
         ${CD.Stat({val: maxTeams, lbl: 'Max Teams', accent: 'var(--pink)'})}
         ${CD.Stat({val: maxPlayers, lbl: 'Players / Team', accent: 'var(--lime)'})}
         ${CD.Stat({val: maxOverseas, lbl: 'Max Overseas', accent: 'var(--gold)'})}
@@ -534,7 +801,7 @@
       <!-- Status banner -->
       <div style="padding:20px 24px;border-radius:18px;background:${isStarted ? 'linear-gradient(135deg,rgba(182,255,60,0.12),rgba(46,91,255,0.08))' : 'var(--glass)'};border:1px solid ${isStarted?'rgba(182,255,60,0.3)':'var(--line-2)'};margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;">
         <div>
-          <div style="font-size:10px;color:var(--mute);letter-spacing:0.18em;text-transform:uppercase;font-weight:700;">Auction status</div>
+          <div style="font-size:10px;color:var(--mute);letter-spacing:0.18em;text-transform:uppercase;font-weight:700;">Draft status</div>
           <div class="ed" style="font-size:26px;margin-top:3px;">${isStarted ? '<span style="color:var(--lime);">Live</span>' : 'Not <span class="ed-i" style="color:var(--mute);">started</span>'}</div>
           ${isStarted ? `<div style="font-size:11px;color:var(--ink-2);margin-top:3px;">Draft is underway. Head to the Draft tab.</div>` : isAdmin ? `<div style="font-size:11px;color:var(--ink-2);margin-top:3px;">You're the admin. Click Start Draft when ${maxTeams} teams have joined.</div>` : `<div style="font-size:11px;color:var(--ink-2);margin-top:3px;">Waiting for the admin to start the draft.</div>`}
         </div>
@@ -563,17 +830,24 @@
               ${CD.Avatar({name: window.myTeamName, size:40})}
               <div>
                 <div class="ed" style="font-size:20px;line-height:1;">${esc(window.myTeamName)}</div>
-                <div style="font-size:11px;color:var(--mute);margin-top:2px;">Registered · ₹${(teams[window.myTeamName]?.budget || budget).toFixed(1)}cr purse</div>
+                <div style="font-size:11px;color:var(--mute);margin-top:2px;">Registered · ready to draft</div>
               </div>
             </div>
-            ${isSuper ? `<button onclick="window.toggleReleaseLock_D && window.toggleReleaseLock_D()" style="padding:8px 14px;border-radius:9999px;background:${releaseLocked?'rgba(255,59,59,0.18)':'var(--glass-2)'};border:1px solid ${releaseLocked?'rgba(255,59,59,0.4)':'var(--line-2)'};color:${releaseLocked?'var(--red)':'var(--ink-2)'};font-size:11px;font-weight:600;cursor:pointer;margin-right:6px;">${releaseLocked?'Unlock releases':'Lock releases'}</button>` : ''}
-            ${isAdmin ? `<button onclick="window.toggleSquadLock_D && window.toggleSquadLock_D()" style="padding:8px 14px;border-radius:9999px;background:${squadLocked?'rgba(255,45,135,0.18)':'var(--glass-2)'};border:1px solid ${squadLocked?'rgba(255,45,135,0.4)':'var(--line-2)'};color:${squadLocked?'var(--pink)':'var(--ink-2)'};font-size:11px;font-weight:600;cursor:pointer;">${squadLocked?'Unlock squads':'Lock squads'}</button>` : ''}
           ` : `
-            <div style="font-size:13px;color:var(--ink-2);margin-bottom:10px;">You haven't registered a team yet. Pick a name to start bidding.</div>
+            <div style="font-size:13px;color:var(--ink-2);margin-bottom:10px;">You haven't registered a team yet. Pick a name to start drafting.</div>
             <button onclick="document.getElementById('teamNameModal')?.classList.add('open')" style="padding:10px 18px;border-radius:9999px;background:linear-gradient(180deg,var(--pink-2),var(--pink));color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;">Register my team</button>
           `}
         </div>
       </div>
+
+      ${(isSuper || isAdmin) ? `
+      <!-- Admin controls (always visible to admin/super, regardless of registration) -->
+      <div style="padding:16px 20px;border-radius:14px;background:var(--glass);border:1px solid var(--line-2);margin-bottom:18px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <div style="font-size:10px;color:var(--gold);letter-spacing:0.18em;text-transform:uppercase;font-weight:700;margin-right:6px;">Admin controls</div>
+        ${isSuper ? `<button onclick="window.toggleReleaseLock_D && window.toggleReleaseLock_D()" style="padding:8px 14px;border-radius:9999px;background:${releaseLocked?'rgba(255,59,59,0.18)':'var(--glass-2)'};border:1px solid ${releaseLocked?'rgba(255,59,59,0.4)':'var(--line-2)'};color:${releaseLocked?'var(--red)':'var(--ink-2)'};font-size:11px;font-weight:600;cursor:pointer;">${releaseLocked?'Unlock releases (allow)':'Lock releases (disallow)'}</button>` : ''}
+        ${isAdmin ? `<button onclick="window.toggleSquadLock_D && window.toggleSquadLock_D()" style="padding:8px 14px;border-radius:9999px;background:${squadLocked?'rgba(255,45,135,0.18)':'var(--glass-2)'};border:1px solid ${squadLocked?'rgba(255,45,135,0.4)':'var(--line-2)'};color:${squadLocked?'var(--pink)':'var(--ink-2)'};font-size:11px;font-weight:600;cursor:pointer;">${squadLocked?'Unlock squads':'Lock squads'}</button>` : ''}
+      </div>
+      ` : ''}
 
       <!-- Members list -->
       <div style="padding:20px 24px;border-radius:18px;background:var(--glass-2,rgba(22,24,38,0.72));backdrop-filter:blur(32px);border:1px solid var(--line-2);">
@@ -976,7 +1250,6 @@
     if(!t) return `<div style="padding:40px;border-radius:18px;background:var(--glass);border:1px solid var(--line);color:var(--mute);text-align:center;backdrop-filter:blur(20px);"><div class="ed" style="font-size:22px;margin-bottom:6px;">No team <span class="ed-i" style="color:var(--pink);">registered</span></div><div style="font-size:13px;">Register a team to start building your squad.</div></div>`;
 
     const roster = Array.isArray(t.roster) ? t.roster : (t.roster ? Object.values(t.roster) : []);
-    const spent = roster.reduce((s,p) => s + (p.soldPrice || 0), 0);
     const overseas = roster.filter(p => p.isOverseas || p.o).length;
     const releaseLocked = !!rs.releaseLocked;
     const squadLocked = !!rs.squadLocked;
@@ -1098,8 +1371,7 @@
       <!-- Stats banner -->
       <div style="display:grid;grid-template-columns:${mob ? 'repeat(3,1fr)' : 'repeat(auto-fit,minmax(160px,1fr))'};gap:${mob ? 7 : 14}px;margin-bottom:${mob ? 12 : 18}px;">
         ${mob ? miniStat(xiPlayers.length + '+' + benchPlayers.length, 'XI+Bench', 'var(--electric)') : CD.Stat({val: xiPlayers.length + '+' + benchPlayers.length, lbl: 'XI + Bench', accent:'var(--electric)'})}
-        ${mob ? miniStat('₹' + (t.budget||0).toFixed(1), 'Purse', 'var(--lime)') : CD.Stat({val: '₹' + (t.budget||0).toFixed(1), lbl:'Purse left (cr)', accent:'var(--lime)'})}
-        ${mob ? miniStat('₹' + spent.toFixed(1), 'Spent', 'var(--pink)') : CD.Stat({val: '₹' + spent.toFixed(1), lbl:'Total spent (cr)', accent:'var(--pink)'})}
+        ${mob ? miniStat(roster.length + '/' + (rs.maxPlayers || rs.setup?.maxPlayers || 21), 'Squad', 'var(--pink)') : CD.Stat({val: roster.length + '/' + (rs.maxPlayers || rs.setup?.maxPlayers || 21), lbl:'Squad size', accent:'var(--pink)'})}
         ${mob ? miniStat(overseas + '/' + (rs.maxOverseas || 8), 'Overseas', 'var(--gold)') : CD.Stat({val: overseas + '/' + (rs.maxOverseas || 8), lbl:'Overseas', accent:'var(--gold)'})}
         ${mob ? miniStat((seasonTotal>=0?'+':'') + seasonTotal, 'Pts', 'var(--lime)') : CD.Stat({val: (seasonTotal>=0?'+':'') + seasonTotal, lbl:'Season points', accent:'var(--lime)'})}
       </div>
@@ -1220,9 +1492,8 @@
         </div>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:11px;">
-        <span style="font-family:var(--mono);color:var(--mute);">₹${(p.soldPrice||0).toFixed(2)}</span>
         <span style="font-family:var(--display);font-weight:800;color:${pts>0?'var(--lime)':pts<0?'var(--red)':'var(--mute)'};">${pts>=0?'+':''}${pts}${mc?' <span style="color:var(--mute);font-weight:500;font-size:10px;">· '+mc+'m</span>':''}</span>
-        ${(!releaseLocked || isSuper) ? `<button data-team="${esc(teamName)}" data-idx="${idx}" data-name="${esc(name)}" data-price="${p.soldPrice||0}" onclick="CD.handleRelease(this)" style="padding:3px 8px;border-radius:9999px;background:rgba(255,59,59,0.12);border:1px solid rgba(255,59,59,0.3);color:var(--red);font-size:10px;font-weight:600;cursor:pointer;">Release</button>` : ''}
+        ${(!releaseLocked || isSuper) ? `<button data-team="${esc(teamName)}" data-idx="${idx}" data-name="${esc(name)}" onclick="CD.handleRelease(this)" style="padding:3px 8px;border-radius:9999px;background:rgba(255,59,59,0.12);border:1px solid rgba(255,59,59,0.3);color:var(--red);font-size:10px;font-weight:600;cursor:pointer;">Release</button>` : ''}
       </div>
     </div>`;
   };
@@ -1788,7 +2059,7 @@
                   ${CD.Avatar({name: t.name, size: 40})}
                   <div style="flex:1;min-width:0;">
                     <div class="ed" style="font-size:20px;line-height:1;">${esc(t.name)}${t.name === myTeam ? ' <span style="color:var(--lime);font-size:10px;letter-spacing:0.14em;text-transform:uppercase;">you</span>' : ''}</div>
-                    <div style="font-size:11px;color:var(--mute);margin-top:3px;">${t.rosterSize} players · ${t.overseas} OS · ₹${t.spent.toFixed(1)}cr spent</div>
+                    <div style="font-size:11px;color:var(--mute);margin-top:3px;">${t.rosterSize} players · ${t.overseas} OS</div>
                   </div>
                   <div style="font-family:var(--display);font-size:28px;font-weight:800;color:var(--ink);text-align:right;">${t.pts >= 0 ? '+' : ''}${t.pts}<div style="font-size:9px;color:var(--mute);letter-spacing:0.14em;text-transform:uppercase;font-weight:700;margin-top:-2px;">points</div></div>
                   <div style="color:var(--mute);transform:${isExpanded ? 'rotate(180deg)' : 'none'};transition:transform 0.2s;">▼</div>
@@ -1840,18 +2111,10 @@
 
     const renderSection = (label, players, mult, totalPts, sectionColor) => {
       if(!players.length) return '';
-      const multBadge = mult === 0
-        ? CD.Pill({tone:'red', style:'font-size:9px;padding:2px 7px;', children:'0× (no scoring)'})
-        : mult === 1
-          ? CD.Pill({style:'font-size:9px;padding:2px 7px;', children:'1× points'})
-          : CD.Pill({tone:'gold', style:'font-size:9px;padding:2px 7px;', children: mult + '× multiplier'});
       return `
         <div style="margin-bottom:16px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
-            <div style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;">
-              <span style="font-size:10px;color:${sectionColor};letter-spacing:0.14em;text-transform:uppercase;font-weight:700;">${label} · ${players.length}</span>
-              ${multBadge}
-            </div>
+            <span style="font-size:10px;color:${sectionColor};letter-spacing:0.14em;text-transform:uppercase;font-weight:700;">${label} · ${players.length}</span>
             <span style="font-family:var(--display);font-weight:800;color:${totalPts>0?'var(--lime)':totalPts<0?'var(--red)':'var(--mute)'};font-size:16px;">${totalPts>=0?'+':''}${totalPts} <span style="font-size:9px;color:var(--mute);font-weight:500;letter-spacing:0.1em;text-transform:uppercase;">pts</span></span>
           </div>
           <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px;">
@@ -1860,17 +2123,13 @@
               const raw = Math.round(playerPts[pName.toLowerCase().trim()] || 0);
               const val = Math.round(raw * mult);
               const isOs = !!(p.isOverseas || p.o);
-              const showMultExpr = mult !== 1 && raw !== 0;
-              return `<div title="${raw} raw × ${mult}× = ${val}" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid var(--line);">
+              return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid var(--line);">
                 ${CD.Avatar({team: p.iplTeam || p.t, name: pName, size: 24})}
                 <div style="flex:1;min-width:0;overflow:hidden;">
                   <div style="font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(pName)}${isOs ? ' <span style="color:var(--gold);font-size:9px;">★</span>' : ''}</div>
                   <div style="font-size:10px;color:var(--mute);">${esc(teamCode(p.iplTeam||p.t))} · ${esc((p.role||p.r||'').split('-')[0].slice(0,3))}</div>
                 </div>
-                <div style="text-align:right;">
-                  <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:${val>0?'var(--lime)':val<0?'var(--red)':'var(--mute)'};">${val>=0?'+':''}${val}</div>
-                  ${showMultExpr ? `<div style="font-size:9px;color:var(--mute);font-family:var(--mono);">${raw}×${mult}</div>` : ''}
-                </div>
+                <div style="font-family:var(--mono);font-size:13px;font-weight:700;color:${val>0?'var(--lime)':val<0?'var(--red)':'var(--mute)'};">${val>=0?'+':''}${val}</div>
               </div>`;
             }).join('')}
           </div>
@@ -1878,11 +2137,14 @@
       `;
     };
 
+    // Reserves row: still show, but 0 points (they didn't play)
+    const reservesTotal = 0;
+
     return `
       <div style="padding:16px 18px 18px;border-top:1px solid var(--line);background:linear-gradient(180deg,${c1}10,transparent);">
         ${renderSection('Playing XI', xi, xiMult, xiTotal, 'var(--electric)')}
         ${renderSection('Bench', bench, 1, benchTotal, 'var(--ink-2)')}
-        ${reserves.length ? renderSection('Reserves', reserves, 0, 0, 'var(--mute)') : ''}
+        ${reserves.length ? renderSection('Reserves', reserves, 0, reservesTotal, 'var(--mute)') : ''}
       </div>
     `;
   };
@@ -2236,7 +2498,7 @@
   CD.renderPlayersPool = () => {
     const rs = window.roomState || {};
     const players = rs.players ? (Array.isArray(rs.players) ? rs.players : Object.values(rs.players)) : [];
-    if(!players.length) return `<div style="padding:40px;border-radius:18px;background:var(--glass);border:1px solid var(--line);color:var(--mute);text-align:center;backdrop-filter:blur(20px);"><div class="ed" style="font-size:22px;margin-bottom:6px;">Player pool <span class="ed-i" style="color:var(--mute);">empty</span></div><div style="font-size:13px;">Ask the admin to initialize the auction.</div></div>`;
+    if(!players.length) return `<div style="padding:40px;border-radius:18px;background:var(--glass);border:1px solid var(--line);color:var(--mute);text-align:center;backdrop-filter:blur(20px);"><div class="ed" style="font-size:22px;margin-bottom:6px;">Player pool <span class="ed-i" style="color:var(--mute);">empty</span></div><div style="font-size:13px;">Ask the admin to initialize the draft.</div></div>`;
 
     const search = (window._cdPoolSearch || '').toLowerCase().trim();
     const statusF = window._cdPoolStatus || 'all';
@@ -2247,7 +2509,8 @@
 
     let filtered = players.slice();
     if(search) filtered = filtered.filter(p => (p.name||p.n||'').toLowerCase().includes(search) || (p.iplTeam||p.t||'').toLowerCase().includes(search));
-    if(statusF !== 'all') filtered = filtered.filter(p => p.status === statusF);
+    if(statusF === 'available') filtered = filtered.filter(p => !p.draftedBy);
+    else if(statusF === 'picked') filtered = filtered.filter(p => !!p.draftedBy);
     if(roleF) filtered = filtered.filter(p => (p.role||p.r||'').toLowerCase().includes(roleF.toLowerCase().split('-')[0]));
     if(teamF) filtered = filtered.filter(p => (p.iplTeam||p.t||'') === teamF);
     if(originF === 'Indian') filtered = filtered.filter(p => !(p.isOverseas||p.o));
@@ -2265,7 +2528,7 @@
 
           <!-- Status pills -->
           <div style="display:flex;gap:4px;">
-            ${[['all','All'],['available','Available'],['sold','Sold'],['unsold','Unsold']].map(([k,l]) => `
+            ${[['all','All'],['available','Available'],['picked','Picked']].map(([k,l]) => `
               <button onclick="window._cdPoolStatus='${k}';CD.render();" style="padding:7px 13px;border-radius:9999px;background:${statusF===k?'linear-gradient(180deg,var(--electric-2),var(--electric))':'var(--glass)'};border:1px solid ${statusF===k?'transparent':'var(--line)'};color:${statusF===k?'#fff':'var(--ink-2)'};font-size:11px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer;">${l}</button>
             `).join('')}
           </div>
@@ -2322,18 +2585,14 @@
                 <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--mute);">Team</th>
                 <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--mute);">Role</th>
                 <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--mute);">Type</th>
-                <th style="padding:10px 14px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--mute);">Base</th>
-                <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--mute);">Status</th>
-                <th style="padding:10px 14px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--mute);">Sold for</th>
-                <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--mute);">Buyer</th>
+                <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--mute);">Drafted by</th>
               </tr>
             </thead>
             <tbody>
               ${filtered.slice(0, 150).map(p => {
                 const name = p.name || p.n || '';
-                const status = p.status || 'available';
-                const tone = status === 'sold' ? 'lime' : status === 'unsold' ? 'red' : 'electric';
                 const isOs = !!(p.isOverseas||p.o);
+                const drafter = p.draftedBy || p.soldTo || '';
                 return `<tr style="border-top:1px solid var(--line);transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='transparent'">
                   <td style="padding:11px 14px;">
                     <div style="display:flex;align-items:center;gap:10px;">
@@ -2344,10 +2603,7 @@
                   <td style="padding:11px 14px;">${CD.TeamChip({code: p.iplTeam || p.t})}</td>
                   <td style="padding:11px 14px;color:var(--ink-2);font-size:12px;">${esc(p.role || p.r || '')}</td>
                   <td style="padding:11px 14px;">${isOs ? CD.Pill({tone:'gold', style:'font-size:9px;padding:2px 7px;', children:'★ OS'}) : CD.Pill({style:'font-size:9px;padding:2px 7px;', children:'IND'})}</td>
-                  <td style="padding:11px 14px;text-align:right;font-family:var(--mono);color:var(--mute);">₹${(p.basePrice||0).toFixed(2)}</td>
-                  <td style="padding:11px 14px;">${CD.Pill({tone, style:'font-size:9px;padding:2px 7px;', children: status.toUpperCase()})}</td>
-                  <td style="padding:11px 14px;text-align:right;font-family:var(--mono);color:${status==='sold'?'var(--lime)':'var(--mute)'};font-weight:${status==='sold'?700:400};">${p.soldPrice ? '₹'+p.soldPrice.toFixed(2) : '—'}</td>
-                  <td style="padding:11px 14px;color:var(--ink-2);font-size:12px;">${esc(p.soldTo || '—')}</td>
+                  <td style="padding:11px 14px;color:${drafter?'var(--ink-2)':'var(--mute)'};font-size:12px;">${drafter ? esc(drafter) : 'Available'}</td>
                 </tr>`;
               }).join('')}
             </tbody>
@@ -2363,9 +2619,10 @@
     const players = rs.players ? (Array.isArray(rs.players) ? rs.players : Object.values(rs.players)) : [];
     if(!players.length){ window.showAlert?.('No players to export.','err'); return; }
     const csvEscape = (v) => { const s = String(v == null ? '' : v); return (s.includes(',') || s.includes('"') || s.includes('\n')) ? '"' + s.replace(/"/g,'""') + '"' : s; };
-    const rows = [['Player','IPL Team','Role','Overseas','Base (Cr)','Status','Sold For (Cr)','Buyer']];
+    const rows = [['Player','IPL Team','Role','Overseas','Status','Drafted By']];
     players.slice().sort((a,b) => (a.name||a.n||'').localeCompare(b.name||b.n||'')).forEach(p => {
-      rows.push([p.name||p.n||'', p.iplTeam||p.t||'', p.role||p.r||'', (p.isOverseas||p.o)?'Yes':'No', (p.basePrice||0).toFixed(2), p.status||'available', p.soldPrice ? p.soldPrice.toFixed(2) : '', p.soldTo||'']);
+      const drafter = p.draftedBy || p.soldTo || '';
+      rows.push([p.name||p.n||'', p.iplTeam||p.t||'', p.role||p.r||'', (p.isOverseas||p.o)?'Yes':'No', drafter?'Picked':'Available', drafter]);
     });
     const csv = rows.map(r => r.map(csvEscape).join(',')).join('\n');
     const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
@@ -2430,8 +2687,7 @@
       points: { label:'⭐ Points', subs: {
         overall: { label:'Overall', sort:(a,b)=>b.pts-a.pts, cols:['Player','Owner','Inns','Runs','Wkts','Pts'], row:p=>[p.name,p.owner||'—',p.mc,p.runs,p.wkts,p.pts], fmt:[null,null,null,null,null,v=>`<span style="color:${v>0?'var(--lime)':v<0?'var(--red)':'var(--mute)'};font-family:var(--display);font-weight:800;">${v>=0?'+':''}${Math.round(v)}</span>`] },
         batters: { label:'Top Batters', filter:p=>/batter|keep/i.test(p.role), sort:(a,b)=>b.pts-a.pts, cols:['Player','Owner','Runs','4s','6s','Pts'], row:p=>[p.name,p.owner||'—',p.runs,p.fours,p.sixes,p.pts], fmt:[null,null,null,null,null,v=>`<span style="color:${v>0?'var(--lime)':'var(--mute)'};font-family:var(--display);font-weight:800;">${v>=0?'+':''}${Math.round(v)}</span>`] },
-        bowlers: { label:'Top Bowlers', filter:p=>/bowl|all/i.test(p.role), sort:(a,b)=>b.pts-a.pts, cols:['Player','Owner','Wkts','Overs','Eco','Pts'], row:p=>[p.name,p.owner||'—',p.wkts,p.overs.toFixed(1),p.overs?(p.runsConc/p.overs).toFixed(2):'—',p.pts], fmt:[null,null,null,null,null,v=>`<span style="color:${v>0?'var(--lime)':'var(--mute)'};font-family:var(--display);font-weight:800;">${v>=0?'+':''}${Math.round(v)}</span>`] },
-        value: { label:'Best Value', filter:p=>p.price>0 && p.pts>0, sort:(a,b)=>(b.pts/b.price)-(a.pts/a.price), cols:['Player','Owner','Pts','Price','Pts/Cr'], row:p=>[p.name,p.owner||'—',p.pts,'₹'+p.price.toFixed(1)+'cr',p.price?(p.pts/p.price).toFixed(1):'—'] }
+        bowlers: { label:'Top Bowlers', filter:p=>/bowl|all/i.test(p.role), sort:(a,b)=>b.pts-a.pts, cols:['Player','Owner','Wkts','Overs','Eco','Pts'], row:p=>[p.name,p.owner||'—',p.wkts,p.overs.toFixed(1),p.overs?(p.runsConc/p.overs).toFixed(2):'—',p.pts], fmt:[null,null,null,null,null,v=>`<span style="color:${v>0?'var(--lime)':'var(--mute)'};font-family:var(--display);font-weight:800;">${v>=0?'+':''}${Math.round(v)}</span>`] }
       }},
       batting: { label:'🏏 Batting', subs: {
         runs: { label:'Most Runs', filter:p=>p.runs>0, sort:(a,b)=>b.runs-a.runs, cols:['Player','Owner','Runs','Balls','SR','HS'], row:p=>[p.name,p.owner||'—',p.runs,p.balls,p.balls?((p.runs/p.balls)*100).toFixed(1):'—',p.hs] },
@@ -3064,6 +3320,7 @@
     if(CD.state.view === 'auth') html = CD.renderAuth();
     else if(CD.state.view === 'dashboard') html = CD.renderDashboard();
     else if(CD.state.view === 'room') html = CD.renderRoom();
+    else if(CD.state.view === 'admin') html = CD.renderAdmin();
     r.innerHTML = html;
     if(CD.state.view === 'dashboard') CD.injectRoomCards();
   };
@@ -3176,7 +3433,7 @@
                 <div class="ed" style="font-size:20px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(r.name)}</div>
                 ${isOwner ? '<span style="display:inline-flex;align-items:center;padding:3px 8px;border-radius:9999px;background:rgba(255,200,61,0.16);border:1px solid rgba(255,200,61,0.4);color:#FFD97D;font-size:9px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;flex-shrink:0;">Owner</span>' : '<span style="display:inline-flex;align-items:center;padding:3px 8px;border-radius:9999px;background:rgba(46,91,255,0.18);border:1px solid rgba(46,91,255,0.4);color:#8EA9FF;font-size:9px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;flex-shrink:0;">Joined</span>'}
               </div>
-              <div style="font-size:11px;color:var(--mute);">${r.budget ? '₹' + r.budget + ' Cr' : ''}${r.maxTeams ? ' · ' + r.maxTeams + ' teams' : ''}${r.maxPlayers ? ' · ' + r.maxPlayers + ' players' : ''}</div>
+              <div style="font-size:11px;color:var(--mute);">${r.maxTeams ? r.maxTeams + ' teams' : ''}${r.maxPlayers ? (r.maxTeams ? ' · ' : '') + r.maxPlayers + ' players' : ''}</div>
               <div style="font-size:11px;color:var(--electric);margin-top:8px;">Tap to enter →</div>
             </div>`;
           }).join('');
