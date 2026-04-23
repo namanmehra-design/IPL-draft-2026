@@ -238,11 +238,11 @@
               </div>
             </div>
             <div class="ed" style="font-size:${CD.state.isMobile ? 56 : 88}px;line-height:0.95;letter-spacing:-0.03em;">
-              Bid bold.
-              <div class="ed-i" style="color:var(--pink);font-style:italic;font-weight:500;">Win bolder.</div>
+              Draft sharp.
+              <div class="ed-i" style="color:var(--pink);font-style:italic;font-weight:500;">Win sharper.</div>
             </div>
             <p style="margin-top:24px;font-size:16px;color:var(--ink-2);max-width:480px;line-height:1.6;${CD.state.isMobile ? 'margin-left:auto;margin-right:auto;' : ''}">
-              Private fantasy auctions for your crew. Bid live, build squads, track points across the season — all with broadcast-grade scoring.
+              Private fantasy snake drafts for your crew. Pick live, build squads, track points across the season — all with broadcast-grade scoring.
             </p>
             <div style="display:flex;gap:32px;margin-top:32px;${CD.state.isMobile ? 'justify-content:center;' : ''}">
               <div><div class="ed" style="font-size:42px;color:var(--lime);">220</div><div style="font-size:10px;color:var(--mute);letter-spacing:0.14em;text-transform:uppercase;font-weight:700;">Players</div></div>
