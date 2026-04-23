@@ -7,51 +7,42 @@
   <link rel="stylesheet" href="cd-styles.css">
   <link rel="stylesheet" href="styles.css">
   <style>
+    /* CD is the only view. The classic draft chrome stays in the DOM so
+       classic window.* handlers can still read form elements and modals,
+       but it's pushed off-screen and inaccessible. Parity with auction. */
     #cd-root { position: relative; z-index: 5; min-height: 100vh; }
-    #cd-root.cd-active { display: block; }
-    #cd-root:not(.cd-active) { display: none; }
-    body.cd-mode #app-shell, body.cd-mode #auth-view, body.cd-mode .aurora,
-    body.cd-mode .hamburger, body.cd-mode .sidebar, body.cd-mode .sidebar-overlay,
-    body.cd-mode .theme-toggle { display: none !important; }
-    body:not(.cd-mode) #cd-root { display: none !important; }
-    .cd-toggle-btn {
-      position: fixed; top: 14px; right: 14px; z-index: 9999;
-      padding: 8px 14px; border-radius: 9999px;
-      background: linear-gradient(180deg, #FF5AA0, #FF2D87);
-      color: #fff; border: none; cursor: pointer;
-      font-family: 'Barlow Condensed', sans-serif; font-weight: 800;
-      font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
-      box-shadow: 0 4px 14px rgba(255,45,135,0.45);
+    #auth-view, .aurora, .hamburger, .sidebar, .sidebar-overlay, .theme-toggle {
+      position: absolute !important;
+      left: -99999px !important;
+      top: -99999px !important;
+      width: 1px !important;
+      height: 1px !important;
+      overflow: hidden !important;
+      pointer-events: none !important;
+      visibility: hidden !important;
     }
+    body:not(.cd-room-mounted) #app-shell {
+      position: absolute !important;
+      left: -99999px !important;
+      top: -99999px !important;
+      width: 1px !important;
+      height: 1px !important;
+      overflow: hidden !important;
+      pointer-events: none !important;
+      visibility: hidden !important;
+    }
+    body { background: #07070C; min-height: 100vh; }
+    @media (max-width: 900px) { body { padding-bottom: 80px; } }
   </style>
   <script>
     (function () {
       if (!localStorage.getItem('ipl-theme')) localStorage.setItem('ipl-theme', 'dark');
-      if (localStorage.getItem('ipl-theme') === 'light') document.body.classList.add('light');
-      var cdMode = localStorage.getItem('cd-mode');
-      if(cdMode === null){ localStorage.setItem('cd-mode', '1'); cdMode = '1'; }
-      if(cdMode === '1') document.documentElement.dataset.cdMode = '1';
     })();
   </script>
 </head>
 <body>
 
 <div id="cd-root"></div>
-<button class="cd-toggle-btn" onclick="(function(){var v=localStorage.getItem('cd-mode')==='1'?'0':'1';localStorage.setItem('cd-mode',v);location.reload();})()" id="cdToggleBtn">
-  <span id="cdToggleLabel">Classic View</span>
-</button>
-<script>
-(function(){
-  var on = localStorage.getItem('cd-mode') === '1';
-  if(on){
-    document.body.classList.add('cd-mode');
-    var r = document.getElementById('cd-root'); if(r) r.classList.add('cd-active');
-    var lbl = document.getElementById('cdToggleLabel'); if(lbl) lbl.textContent = 'Classic View';
-  } else {
-    var lbl = document.getElementById('cdToggleLabel'); if(lbl) lbl.textContent = 'New Design';
-  }
-})();
-</script>
 
 <!-- Aurora Background -->
 <div class="aurora" id="aurora">
