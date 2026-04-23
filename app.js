@@ -3122,7 +3122,12 @@ function renderGlobalScorecardHistory(){
  const playerCount=m.players?Object.keys(m.players).length:0;
  const topPlayer=m.players?Object.values(m.players).sort((a,b)=>(b.pts||0)-(a.pts||0))[0]:null;
  const resultLabel=m.result==='noresult'?'No Result':m.result==='superover'?'Super Over':'Completed';
- return`<div class="gsc-history-row"><div><div class="gsc-history-label">${escapeHtml(m.label||mid)}</div><div class="text-dim text-sm mt-2">${m.winner?`Winner: <strong>${escapeHtml(m.winner)}</strong>. `:''}${m.motm?`MOTM: ${escapeHtml(m.motm)} . `:''}${resultLabel} . ${playerCount} players scored${topPlayer?` . Top: <strong>${escapeHtml(topPlayer.name)}</strong>(${topPlayer.pts>=0?'+':''}${topPlayer.pts} pts)`:''}</div></div><div class="btn-group"><button class="btn btn-ghost btn-sm" onclick="window.repushScorecard('${mid}')">Re-push</button><button class="btn btn-danger btn-sm" onclick="window.deleteGlobalScorecard('${mid}','${escapeHtml(m.label||mid)}')">Delete</button></div></div>`;
+ const winChip=m.winner?`<span class="gsc-chip win">Winner: ${escapeHtml(m.winner)}</span>`:'';
+ const motmChip=m.motm?`<span class="gsc-chip motm">MOTM: ${escapeHtml(m.motm)}</span>`:'';
+ const resChip=`<span class="gsc-chip count">${resultLabel}</span>`;
+ const pcChip=`<span class="gsc-chip count">${playerCount} players</span>`;
+ const topChip=topPlayer?`<span class="gsc-chip top">Top: ${escapeHtml(topPlayer.name)} ${topPlayer.pts>=0?'+':''}${topPlayer.pts}</span>`:'';
+ return`<div class="gsc-history-row"><div><div class="gsc-history-label">${escapeHtml(m.label||mid)}</div><div class="text-dim">${winChip}${motmChip}${resChip}${pcChip}${topChip}</div></div><div class="btn-group"><button class="btn btn-ghost btn-sm" onclick="window.repushScorecard('${mid}')">Re-push</button><button class="btn btn-danger btn-sm" onclick="window.deleteGlobalScorecard('${mid}','${escapeHtml(m.label||mid)}')">Delete</button></div></div>`;
  }).join('');
  }).catch(e=>{ list.innerHTML=`<div class="empty">Error loading: ${e.message}</div>`; });
 }
@@ -3227,7 +3232,14 @@ async function renderSuperAdminPanel(){
  sel.innerHTML='<option value="">-- Select a saved scorecard --</option>';
  Object.entries(scorecards).sort((a,b)=>(b[1].timestamp||0)-(a[1].timestamp||0)).forEach(([mid,m])=>{
  const opt=document.createElement('option');
- opt.value=mid; opt.textContent=m.label||mid;
+ const pc=m.players?Object.keys(m.players).length:0;
+ const top=m.players?Object.values(m.players).sort((a,b)=>(b.pts||0)-(a.pts||0))[0]:null;
+ const hints=[];
+ if(m.winner) hints.push('W: '+m.winner);
+ hints.push(pc+' players');
+ if(top) hints.push('+'+top.pts+' top');
+ opt.value=mid;
+ opt.textContent=(m.label||mid)+(hints.length?' · '+hints.join(' · '):'');
  sel.appendChild(opt);
  });
  }
@@ -3242,16 +3254,21 @@ async function renderSuperAdminPanel(){
  return;
  }
 
- const makeRoomRow=(rid,r,type)=>`
- <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--b1);gap:10px;flex-wrap:wrap;"><div><div style="display:flex;align-items:center;gap:8px;"><span style="font-weight:600;">${escapeHtml(r.name||r.roomName||rid)}</span><span class="room-type-pill ${type}">${type==='auction'?' Auction':'Draft'}</span></div><div style="font-size:.75rem;color:var(--dim);margin-top:2px;">ID: <code style="background:var(--surface);padding:1px 5px;border-radius:3px;">${rid}</code>${r._ownerUid?' . Owner: '+r._ownerUid.substring(0,8)+'...':''}
- ${r.createdAt?' . '+new Date(r.createdAt).toLocaleDateString():''}
- </div></div><div style="display:flex;gap:8px;flex-shrink:0;"><button class="btn btn-ghost btn-sm" onclick="window.saViewRoom('${rid}','${type}')" style="font-size:.72rem;">View</button><button class="btn btn-danger btn-sm" onclick="window.saDeleteRoom('${rid}','${type}','${escapeHtml(r.name||r.roomName||rid)}')" style="font-size:.72rem;">Delete</button></div></div>`;
+ const makeRoomRow=(rid,r,type)=>{
+  const roomName=escapeHtml(r.name||r.roomName||'Untitled room');
+  const owner=escapeHtml(r._ownerEmail||(r._ownerUid?r._ownerUid.substring(0,8)+'…':''));
+  const teamCount=r.teams?Object.keys(r.teams).length:0;
+  const matchCount=r.matches?Object.keys(r.matches).length:0;
+  const created=r.createdAt?new Date(r.createdAt).toLocaleDateString():'—';
+  const shortId=escapeHtml(rid.substring(0,8));
+  return`<div class="sa-room-card"><div class="sa-room-main"><div class="sa-room-name">${roomName}<span class="room-type-pill ${type}">${type==='auction'?'Auction':'Draft'}</span></div><div class="sa-room-meta"><span><span class="sa-meta-k">Owner</span>${owner||'—'}</span><span class="sa-room-count">${teamCount} teams</span><span class="sa-room-count">${matchCount} matches</span><span><span class="sa-meta-k">Created</span>${created}</span><span><span class="sa-meta-k">ID</span><code>${shortId}</code></span></div></div><div class="btn-group"><button class="btn btn-ghost btn-sm" onclick="window.saViewRoom('${rid}','${type}')">View</button><button class="btn btn-danger btn-sm" onclick="window.saDeleteRoom('${rid}','${type}','${escapeHtml((r.name||r.roomName||rid).replace(/'/g,"\\'"))}')">Delete</button></div></div>`;
+ };
 
  roomsList.innerHTML=
- `<div style="padding:8px 20px;background:rgba(0,0,0,.2);font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.06em;font-weight:600;">Auction Rooms (${aEntries.length})</div>`+
- (aEntries.length?aEntries.map(([rid,r])=>makeRoomRow(rid,r,'auction')).join(''):'<div class="empty" style="padding:14px 20px;">No auction rooms.</div>')+
- `<div style="padding:8px 20px;background:rgba(0,0,0,.2);font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.06em;font-weight:600;">Draft Rooms (${dEntries.length})</div>`+
- (dEntries.length?dEntries.map(([rid,r])=>makeRoomRow(rid,r,'draft')).join(''):'<div class="empty" style="padding:14px 20px;">No draft rooms.</div>');
+ `<div class="sa-section-hdr">Auction Rooms (${aEntries.length})</div>`+
+ (aEntries.length?aEntries.map(([rid,r])=>makeRoomRow(rid,r,'auction')).join(''):'<div class="empty">No auction rooms.</div>')+
+ `<div class="sa-section-hdr">Draft Rooms (${dEntries.length})</div>`+
+ (dEntries.length?dEntries.map(([rid,r])=>makeRoomRow(rid,r,'draft')).join(''):'<div class="empty">No draft rooms.</div>');
 
  }catch(e){
  if(roomsList) roomsList.innerHTML=`<div class="empty" style="padding:20px;color:var(--err);">Error: ${e.message}</div>`;
@@ -3446,31 +3463,32 @@ window.saPopulateOsRooms=async function(){
   try{
     const usersSnap=await get(ref(db,'users'));
     const users=usersSnap.val()||{};
-    const auctionIds=new Set();
-    const draftIds=new Set();
+    const auctionRooms=new Map();
+    const draftRooms=new Map();
     Object.values(users).forEach(u=>{
-      if(u.auctions) Object.keys(u.auctions).forEach(rid=>auctionIds.add(rid));
-      if(u.drafts) Object.keys(u.drafts).forEach(rid=>draftIds.add(rid));
+      const em=u.email||'';
+      if(u.auctions) Object.entries(u.auctions).forEach(([rid,r])=>auctionRooms.set(rid,{ownerEmail:r?.email||em,name:r?.name||r?.roomName||''}));
+      if(u.drafts) Object.entries(u.drafts).forEach(([rid,r])=>draftRooms.set(rid,{ownerEmail:r?.email||em,name:r?.name||r?.roomName||''}));
     });
     sel.innerHTML='<option value="">-- Select a room --</option>';
-    for(const rid of auctionIds){
+    for(const [rid,info] of auctionRooms){
       const nameSnap=await get(ref(db,`auctions/${rid}/roomName`));
-      const name=nameSnap.val()||`Room ${rid.substring(0,6)}`;
+      const name=nameSnap.val()||info.name||'Untitled room';
       const osSnap=await get(ref(db,`auctions/${rid}/maxOverseas`));
       const curOs=osSnap.val()??8;
       const o=document.createElement('option');
       o.value='auction:'+rid;
-      o.textContent=`[Auction] ${name} (limit: ${curOs})`;
+      o.textContent=`${name}  ·  (${info.ownerEmail||'—'})  ·  auction  ·  ${rid.substring(0,6)}  ·  OS:${curOs}`;
       sel.appendChild(o);
     }
-    for(const rid of draftIds){
+    for(const [rid,info] of draftRooms){
       const nameSnap=await get(ref(db,`drafts/${rid}/roomName`));
-      const name=nameSnap.val()||`Draft ${rid.substring(0,6)}`;
+      const name=nameSnap.val()||info.name||'Untitled room';
       const osSnap=await get(ref(db,`drafts/${rid}/maxOverseas`));
       const curOs=osSnap.val()??8;
       const o=document.createElement('option');
       o.value='draft:'+rid;
-      o.textContent=`[Draft] ${name} (limit: ${curOs})`;
+      o.textContent=`${name}  ·  (${info.ownerEmail||'—'})  ·  draft  ·  ${rid.substring(0,6)}  ·  OS:${curOs}`;
       sel.appendChild(o);
     }
   }catch(e){console.error('saPopulateOsRooms:',e);}
@@ -3504,26 +3522,29 @@ window.saPopulateMultRooms=async function(){
   try{
     const usersSnap=await get(ref(db,'users'));
     const users=usersSnap.val()||{};
-    const auctionIds=new Set(), draftIds=new Set();
+    const auctionRooms=new Map(), draftRooms=new Map();
     Object.values(users).forEach(u=>{
-      if(u.auctions) Object.keys(u.auctions).forEach(rid=>auctionIds.add(rid));
-      if(u.drafts) Object.keys(u.drafts).forEach(rid=>draftIds.add(rid));
+      const em=u.email||'';
+      if(u.auctions) Object.entries(u.auctions).forEach(([rid,r])=>auctionRooms.set(rid,{ownerEmail:r?.email||em,name:r?.name||r?.roomName||''}));
+      if(u.drafts) Object.entries(u.drafts).forEach(([rid,r])=>draftRooms.set(rid,{ownerEmail:r?.email||em,name:r?.name||r?.roomName||''}));
     });
     sel.innerHTML='<option value="">-- Select a room --</option>';
-    for(const rid of auctionIds){
+    for(const [rid,info] of auctionRooms){
       const ns=await get(ref(db,`auctions/${rid}/roomName`));
       const ms=await get(ref(db,`auctions/${rid}/xiMultiplier`));
+      const name=ns.val()||info.name||'Untitled room';
       const o=document.createElement('option');
       o.value='auction:'+rid;
-      o.textContent=`[Auction] ${ns.val()||rid.substring(0,6)} (XI: ${ms.val()??1}x)`;
+      o.textContent=`${name}  ·  (${info.ownerEmail||'—'})  ·  auction  ·  ${rid.substring(0,6)}  ·  XI:${ms.val()??1}x`;
       sel.appendChild(o);
     }
-    for(const rid of draftIds){
+    for(const [rid,info] of draftRooms){
       const ns=await get(ref(db,`drafts/${rid}/roomName`));
       const ms=await get(ref(db,`drafts/${rid}/xiMultiplier`));
+      const name=ns.val()||info.name||'Untitled room';
       const o=document.createElement('option');
       o.value='draft:'+rid;
-      o.textContent=`[Draft] ${ns.val()||rid.substring(0,6)} (XI: ${ms.val()??1}x)`;
+      o.textContent=`${name}  ·  (${info.ownerEmail||'—'})  ·  draft  ·  ${rid.substring(0,6)}  ·  XI:${ms.val()??1}x`;
       sel.appendChild(o);
     }
   }catch(e){console.error('saPopulateMultRooms:',e);}
