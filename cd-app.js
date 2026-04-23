@@ -365,6 +365,30 @@
     }, 40);
   };
 
+  // Cricbuzz Step 4 — switch to scorecards sub-tab first (so gsc* DOM ids exist),
+  // then call the legacy populate which fills the form from cbzDParsedScorecard.
+  CD.sendCbzToScorecards = () => {
+    const hasData = (typeof window !== 'undefined') && window.cbzDParsedScorecard
+                    && Array.isArray(window.cbzDParsedScorecard.innings)
+                    && window.cbzDParsedScorecard.innings.length > 0;
+    if(!hasData) {
+      const s = document.getElementById('cbzDPushStatus') || document.getElementById('cbzPushStatus');
+      if(s) { s.textContent = 'No innings data loaded. Fetch a scorecard first.'; s.className = 'adm-status cbz-status fail'; }
+      return;
+    }
+    CD.state.adminSub = 'scorecards';
+    CD.render();
+    setTimeout(() => {
+      try {
+        // Draft uses cbzDPushToForm; legacy cbzPushToRoom alias may also exist
+        const pushFn = window.cbzDPushToForm || window.cbzPushToRoom;
+        if(typeof pushFn === 'function') pushFn();
+        const mainEl = document.querySelector('#cd-root main');
+        if(mainEl) mainEl.scrollIntoView({behavior:'smooth', block:'start'});
+      } catch(e){ console.warn('sendCbzToScorecards:', e); }
+    }, 80);
+  };
+
   CD.renderAdmin = () => {
     const sub = CD.state.adminSub || 'scorecards';
     const subs = [
@@ -565,7 +589,7 @@
       <div id="cbzStep4" style="display:none;padding:16px;border-radius:12px;background:var(--glass);border:1px solid var(--line);">
         <div class="adm-lbl" style="color:var(--gold);margin-bottom:10px;">Step 4 — Send to Scorecards Tab</div>
         <div style="font-size:12px;color:var(--ink-2);margin-bottom:12px;">Sends <strong style="color:var(--ink);">both innings combined</strong> to the Scorecards tab, ready for save &amp; fan-out.</div>
-        <button class="adm-btn adm-btn-cta" onclick="window.cbzPushToRoom && window.cbzPushToRoom()">Send to Scorecards Tab →</button>
+        <button class="adm-btn adm-btn-cta" onclick="CD.sendCbzToScorecards()">Send to Scorecards Tab →</button>
         <div class="adm-status cbz-status" id="cbzPushStatus"></div>
       </div>
     </div>
