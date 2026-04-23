@@ -338,7 +338,7 @@
   window.addEventListener('resize', () => {
     const wasMobile = CD.state.isMobile;
     CD.state.isMobile = window.innerWidth < 900;
-    if(wasMobile !== CD.state.isMobile) CD.render();
+    if(wasMobile !== CD.state.isMobile) CD.scheduleRender();
   });
 
   // ── PAGE-LEVEL: TICKER ─────────────────────────────────────────
@@ -358,8 +358,8 @@
     return `
       <div style="display:flex;align-items:center;height:36px;background:#07070C;border-top:1px solid var(--line);border-bottom:1px solid var(--line);overflow:hidden;position:relative;">
         <div style="flex-shrink:0;padding:0 22px 0 14px;height:100%;display:flex;align-items:center;gap:6px;background:linear-gradient(90deg,var(--pink),var(--pink-2));color:#fff;font-family:var(--display);font-size:13px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;clip-path:polygon(0 0,100% 0,calc(100% - 12px) 100%,0 100%);z-index:2;">${CD.LiveDot()} LIVE</div>
-        <div style="flex:1;overflow:hidden;position:relative;height:100%;">
-          <div style="display:flex;align-items:center;gap:48px;height:100%;animation:cd-ticker 50s linear infinite;white-space:nowrap;padding-left:24px;">
+        <div class="cd-ticker-viewport" style="flex:1;overflow:hidden;position:relative;height:100%;">
+          <div class="cd-ticker-track" style="display:flex;align-items:center;gap:48px;height:100%;animation:cd-ticker 50s linear infinite;white-space:nowrap;padding-left:24px;">
             ${itemHtml}${itemHtml}
           </div>
         </div>
@@ -982,9 +982,9 @@
       </aside>`;
 
     const subTabBar = subs.length > 1 ? `
-      <div style="display:flex;gap:4px;padding:14px 32px 0;border-bottom:1px solid var(--line);overflow-x:auto;">
+      <div class="cd-subtab-bar" style="display:flex;gap:4px;padding:14px 32px 0;border-bottom:1px solid var(--line);overflow-x:auto;">
         ${subs.map(s => `
-          <button onclick="CD.goSub('${s.id}')" style="padding:8px 14px;background:transparent;border:none;border-bottom:2px solid ${activeSub === s.id ? 'var(--pink)' : 'transparent'};color:${activeSub === s.id ? 'var(--ink)' : 'var(--mute)'};font-family:var(--sans);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;text-transform:uppercase;letter-spacing:0.08em;">${s.label}</button>
+          <button ${activeSub === s.id ? 'data-sub-active="1"' : ''} onclick="CD.goSub('${s.id}')" style="padding:8px 14px;background:transparent;border:none;border-bottom:2px solid ${activeSub === s.id ? 'var(--pink)' : 'transparent'};color:${activeSub === s.id ? 'var(--ink)' : 'var(--mute)'};font-family:var(--sans);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;text-transform:uppercase;letter-spacing:0.08em;position:relative;">${s.label}</button>
         `).join('')}
       </div>
     ` : '';
@@ -1013,7 +1013,7 @@
           </div>
         </div>
         ${subTabBar}
-        <div style="padding:${CD.state.isMobile ? '14px 16px 80px' : '20px 32px'};flex:1;" id="cd-tab-content">
+        <div style="padding:${CD.state.isMobile ? '14px 16px 80px' : '20px 32px'};flex:1;" id="cd-tab-content" data-cd-nav="${CD.state.activeNav || ''}" data-cd-sub="${activeSub || ''}">
           ${CD.renderTabContent()}
         </div>
       </main>`;
@@ -2373,7 +2373,7 @@
           <div class="ed" style="font-size:22px;">All <span class="ed-i" style="color:var(--mute);">squads</span></div>
           <div style="font-size:11px;color:var(--mute);">Click to expand</div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:10px;">
+        <div class="cd-league-list" style="display:flex;flex-direction:column;gap:10px;">
           ${arr.map((t, rankIdx) => {
             const isExpanded = expandedTeam === t.name;
             const code = teamCode(t.name);
@@ -2909,7 +2909,7 @@
                 <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--mute);">Drafted by</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody class="cd-pool-tbody">
               ${filtered.slice(0, 150).map(p => {
                 const name = p.name || p.n || '';
                 const isOs = !!(p.isOverseas||p.o);
@@ -3073,7 +3073,7 @@
             <div style="overflow-x:auto;">
               <table style="width:100%;border-collapse:collapse;font-size:13px;">
                 <thead><tr style="background:rgba(0,0,0,0.2);"><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--mute);">#</th>${activeSub.cols.map((c,i) => `<th style="padding:10px 14px;text-align:${i>=2?'right':'left'};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--mute);">${c}</th>`).join('')}</tr></thead>
-                <tbody>
+                <tbody class="cd-analytics-tbody">
                   ${rows.slice(0, 50).map((p, i) => {
                     const rowVals = activeSub.row(p);
                     return `<tr style="border-top:1px solid var(--line);" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='transparent'">
@@ -3634,33 +3634,95 @@
   // Track when the user is actively typing in any CD form so that
   // automatic re-renders (Firebase snapshot storms, poll-diff, ticker
   // updates) defer until the user pauses typing.
+  //
+  // Grace window is a generous 4 seconds — scorecard entry involves
+  // click-tab-type-tab-click patterns where focus leaves briefly.
   CD._userEditingUntil = 0;
-  CD._markUserEditing = () => { CD._userEditingUntil = Date.now() + 2000; };
-  // Admin-only check: other views aren't sensitive — only the scorecard
-  // entry form loses state on re-render. Always treat form as "active"
-  // when the focused element is inside #gscFormBody or any cd-root input.
+  CD._markUserEditing = () => { CD._userEditingUntil = Date.now() + 4000; };
+  // The scorecard form is populated with dynamically-appended row DOMs
+  // (window.addGscBattingRow / addGscBowlingRow / addGscFieldingRow).
+  // Those rows live inside #gscBattingRows / #gscBowlingRows /
+  // #gscFieldingRows containers. An innerHTML wipe of #cd-root destroys
+  // every row — and the static template does NOT re-populate them —
+  // so _captureFormState cannot restore them. Only prevention works.
+  //
+  // Editing is "active" when ANY of:
+  //   (a) recent input/keydown/focusin/paste in a cd-root field
+  //   (b) a cd-root input has focus right now
+  //   (c) the scorecard form is VISIBLE with rows present (we stay
+  //       hot-typing-safe even if the user briefly tabs out)
+  CD._isScorecardFormActive = () => {
+    try {
+      const form = document.getElementById('gscFormBody');
+      if(!form) return false;
+      if(form.style.display === 'none') return false;
+      const bRows = document.getElementById('gscBattingRows');
+      const bwRows = document.getElementById('gscBowlingRows');
+      const fRows = document.getElementById('gscFieldingRows');
+      const hasRows = !!(
+        (bRows && bRows.children.length > 0) ||
+        (bwRows && bwRows.children.length > 0) ||
+        (fRows && fRows.children.length > 0)
+      );
+      return hasRows;
+    } catch(e){ return false; }
+  };
   CD._isUserEditing = () => {
-    if(Date.now() >= CD._userEditingUntil) return false;
+    // Path A: recent input event AND still focused in cd-root
+    if(Date.now() < CD._userEditingUntil){
+      const ae = document.activeElement;
+      if(ae){
+        const tag = ae.tagName;
+        if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'){
+          const root = document.getElementById('cd-root');
+          if(root && root.contains(ae)) return true;
+        }
+      }
+      // Path A-relaxed: recent input, even if focus just left — still
+      // treat as editing (user may have blurred to click "Add row").
+      return true;
+    }
+    // Path B: focus is currently inside a cd-root input (caret sitting
+    // there without typing, e.g. paused mid-entry)
     const ae = document.activeElement;
-    if(!ae) return false;
-    const tag = ae.tagName;
-    if(tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') return false;
-    // Must be within cd-root
-    const root = document.getElementById('cd-root');
-    if(!root || !root.contains(ae)) return false;
+    if(ae){
+      const tag = ae.tagName;
+      if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'){
+        const root = document.getElementById('cd-root');
+        if(root && root.contains(ae)) return true;
+      }
+    }
+    return false;
+  };
+
+  // Harder guard for destructive renders: used by CD.render to decide
+  // whether to BLOCK a render entirely (not just defer). Triggers when
+  // the scorecard form has rows on screen — because restoring state
+  // after a wipe is impossible for dynamically-appended row DOMs.
+  CD._shouldBlockRender = () => {
+    if(CD.state.view !== 'admin') return false;
+    if(CD.state.adminSub !== 'scorecards') return false;
+    if(!CD._isScorecardFormActive()) return false;
     return true;
   };
 
   // Wire delegate listeners on #cd-root once. Input/keydown/focusin all
-  // tick the editing timestamp; blur is handled implicitly (timer expires).
+  // tick the editing timestamp. We cover every user-interaction event
+  // that matters: typing (keydown/keyup/input), clipboard (paste/cut),
+  // focus movement (focusin), change commits (change), and selection.
+  // The listener lives on #cd-root which persists across innerHTML
+  // writes (the element itself is never removed) — so the listener
+  // itself never needs to be re-registered after a render.
   CD._wireEditGuard = () => {
     if(CD._editGuardWired) return;
     const root = document.getElementById('cd-root');
     if(!root) return;
     CD._editGuardWired = true;
-    root.addEventListener('input',   CD._markUserEditing, true);
-    root.addEventListener('keydown', CD._markUserEditing, true);
-    root.addEventListener('focusin', CD._markUserEditing, true);
+    const evts = ['input','keydown','keyup','change','paste','cut','focusin','select'];
+    evts.forEach(ev => root.addEventListener(ev, CD._markUserEditing, true));
+    // Also track on document-level for edge cases (e.g. native date
+    // pickers that swallow input events).
+    document.addEventListener('keydown', CD._markUserEditing, true);
   };
 
   // ── FORM-STATE PRESERVATION ────────────────────────────────────
@@ -3724,17 +3786,28 @@
   let _renderRaf = null;
   let _deferredRenderTimer = null;
   CD.scheduleRender = () => {
+    // If the admin scorecard form is active (has rows visible), block
+    // absolutely — don't even schedule. The auto-refreshers that call
+    // scheduleRender (room-data poll, ticker, resize) have no business
+    // destroying the scorecard form. The user is expected to click
+    // "Save & push" or switch tabs when done; both of those paths are
+    // explicit user actions and will force their own render then.
+    if(CD._shouldBlockRender()){
+      return;
+    }
     // If the user is actively typing in a form, defer. A single follow-up
-    // render is queued to run ~2.5s after last input — that catches any
-    // state drift that accumulated while they were editing.
+    // render is queued to run ~3.5s after last input — that catches any
+    // state drift that accumulated while they were editing. Re-checks the
+    // guard on fire; if still editing, pushes the timer forward.
     if(CD._isUserEditing()){
       if(!_deferredRenderTimer){
         _deferredRenderTimer = setTimeout(() => {
           _deferredRenderTimer = null;
-          // If they're still editing, push it again.
-          if(CD._isUserEditing()){ CD.scheduleRender(); return; }
+          // If they're still editing OR the scorecard form is still live,
+          // don't wipe the DOM; keep deferring.
+          if(CD._isUserEditing() || CD._shouldBlockRender()){ CD.scheduleRender(); return; }
           try { CD.render(); } catch(e){ console.error('CD deferred render:', e); }
-        }, 2500);
+        }, 3500);
       }
       return;
     }
@@ -3744,6 +3817,9 @@
       if(_renderRaf) cancelAnimationFrame(_renderRaf);
       _renderRaf = requestAnimationFrame(() => {
         _renderRaf = null;
+        // Final guard before DOM write — a lot can happen between
+        // setTimeout scheduling and the rAF callback.
+        if(CD._shouldBlockRender()) return;
         try { CD.render(); } catch(e){ console.error('CD render:', e); }
       });
     }, 60);
@@ -3759,17 +3835,36 @@
       <div style="font-size:10px;color:var(--mute);letter-spacing:0.2em;text-transform:uppercase;font-weight:700;">Loading…</div>
     </div>`;
   let _lastRenderedView = null;
+  let _lastRenderedSub = null;
   CD.render = () => {
     const r = document.getElementById('cd-root');
     if(!r) return;
-    // Guard: if user is typing in a form, defer to scheduleRender which
-    // will queue a single delayed render. Exception: auth-pending/view
-    // transitions ALWAYS render (otherwise splash/auth can't recover).
-    if(!CD.state.authPending && CD.state.view === _lastRenderedView && CD._isUserEditing()){
+    // HARD GUARD: scorecard form rows are dynamically-appended DOM —
+    // an innerHTML wipe destroys them and the static template does NOT
+    // recreate them. Only safe time to render while a scorecard form is
+    // live is when the user EXPLICITLY switches tab/view — that's the
+    // only way `_lastRenderedSub` or `_lastRenderedView` differs. In all
+    // other cases (Firebase tick, ticker tick, resize, etc.) we block.
+    const sub = CD.state.adminSub;
+    const isOnScorecards = (CD.state.view === 'admin' && sub === 'scorecards');
+    const subChanged = sub !== _lastRenderedSub;
+    const viewChanged = _lastRenderedView !== CD.state.view;
+    const isNavTransition = viewChanged || subChanged || CD.state.authPending;
+    if(!isNavTransition && isOnScorecards && CD._isScorecardFormActive()){
+      // Explicitly DO NOT schedule another render. The stats banner has
+      // its own direct-DOM updater (CD._updateAdminStatsOnly); other
+      // widgets will refresh on the next user navigation.
+      return;
+    }
+    // Soft guard: user typing + same view/sub → defer.
+    if(!isNavTransition && CD._isUserEditing()){
       CD.scheduleRender();
       return;
     }
     // Capture form state (values + focus + selection) before the wipe.
+    // This is a belt-and-suspenders backup for non-scorecard fields
+    // (search boxes, filters) that survive the wipe because their DOMs
+    // are re-rendered by CD.render* functions with matching ids.
     const _formSnap = CD._captureFormState();
     let html = '';
     let viewKey = CD.state.view;
@@ -3779,9 +3874,26 @@
     else if(CD.state.view === 'room') html = CD.renderRoom();
     else if(CD.state.view === 'admin') html = CD.renderAdmin();
     // Page-level fade when the top-level view changes
-    const viewChanged = _lastRenderedView !== viewKey;
+    const viewChangedFromRender = _lastRenderedView !== viewKey;
+    const _prevView = _lastRenderedView;
+    const _prevAdminSub = _lastRenderedSub;
     _lastRenderedView = viewKey;
-    r.innerHTML = `<div class="cd-view${viewChanged ? ' cd-view-enter' : ''}">${html}</div>`;
+    _lastRenderedSub = CD.state.adminSub;
+    // Per-view specialised enter class (drives the tasteful transition for each surface).
+    // Only applied when the view actually changed so in-place re-renders don't re-animate.
+    let _viewCls = 'cd-view';
+    if(viewChangedFromRender){
+      _viewCls += ' cd-view-enter';
+      if(viewKey === 'room')            _viewCls += ' cd-enter-room';
+      else if(viewKey === 'dashboard')  _viewCls += (_prevView === 'room') ? ' cd-enter-dashboard-back' : ' cd-enter-dashboard';
+      else if(viewKey === 'admin')      _viewCls += ' cd-enter-admin';
+      else if(viewKey === 'auth')       _viewCls += ' cd-enter-auth';
+      else if(viewKey === 'splash')     _viewCls += ' cd-enter-splash';
+    } else if(viewKey === 'admin' && _prevAdminSub !== CD.state.adminSub){
+      // Admin sub-tab switch — quick professional fade only.
+      _viewCls += ' cd-enter-admin-sub';
+    }
+    r.innerHTML = `<div class="${_viewCls}">${html}</div>`;
     // Restore captured form state (values + focus + selection).
     CD._restoreFormState(_formSnap);
     // (Re-)wire the delegate listeners; cheap no-op if already wired.
@@ -3790,6 +3902,24 @@
     // Re-paint the roster-stale banner after every render (admin-entry form
     // may have just appeared or changed sub-tab). No-op when !rosterStale.
     try { CD._paintRosterStaleBanner && CD._paintRosterStaleBanner(); } catch(e){ console.warn('paintRosterStaleBanner:', e); }
+  };
+
+  // Direct-DOM updater for the admin stats banner (#sa-total-users
+  // etc). Call this instead of a full re-render when only stats need
+  // refreshing. Safe to call while the scorecard form is open — it
+  // never touches anything inside #gscFormBody.
+  CD._updateAdminStatsOnly = (stats) => {
+    try {
+      if(!stats || typeof stats !== 'object') return;
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        if(el && v != null) el.textContent = String(v);
+      };
+      set('sa-total-users',    stats.totalUsers);
+      set('sa-total-auctions', stats.totalAuctions);
+      set('sa-total-drafts',   stats.totalDrafts);
+      set('sa-total-matches',  stats.totalMatches);
+    } catch(e){ console.warn('CD._updateAdminStatsOnly:', e); }
   };
 
   // ── ROOM CARDS INJECTION ───────────────────────────────────────
