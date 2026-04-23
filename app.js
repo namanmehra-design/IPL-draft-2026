@@ -368,7 +368,9 @@ function loadDash(){
  renderGlobalScorecardHistory();
  const _saTab=document.getElementById('dt-superadmin');
  if(_saTab) _saTab.style.display=isSuperAdminEmail(user?.email)?'block':'none';
- const _saSection=document.getElementById('tab-superadmin');
+ // tab-superadmin classic id was removed from index.html (CD surface replaces it);
+ // fallback: CD root section gets the same admin gating via its own renderer.
+ const _saSection=document.getElementById('tab-superadmin') || document.querySelector('#cd-root [data-role="superadmin"]');
  if(_saSection) _saSection.style.display=isSuperAdminEmail(user?.email)?'block':'none';
  if(isSuperAdminEmail(user?.email)) renderSuperAdminPanel();
  // Unsubscribe previous dashboard listeners to prevent memory leak / lag
@@ -597,7 +599,7 @@ function loadDraftRoom(rid){
  // loadRoom session (not on every onValue tick).
  if(!window._recalcLBDDone||window._recalcLBDDone!==rid){
   window._recalcLBDDone=rid;
-  setTimeout(()=>{ try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){} }, 400);
+  setTimeout(()=>{ try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){ console.warn('recalc leaderboard (draft, deferred):', e); } }, 400);
  }
 
  const cfg=data.config||{};
@@ -1241,7 +1243,7 @@ window.confirmRelease=function(){
   window.closeReleaseModal();
   window.showAlert(releasePlayerName+' released. Compensatory pick added at end.','ok');
   // Auto-heal stored leaderboardTotals so future reads can't drift.
-  try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){}
+  try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){ console.warn('recalc leaderboard (draft):', e); }
  }).catch(function(e){window.showAlert('Release failed: '+e.message);});
  }).catch(function(e){window.showAlert('Error: '+e.message);});
 };
@@ -1307,7 +1309,7 @@ window.confirmReplace=function(){
  update(ref(db),upd).then(function(){
   window.closeReplaceModal();
   window.showAlert(oldPlayer.name+' replaced with '+newPlayer.name,'ok');
-  try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){}
+  try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){ console.warn('recalc leaderboard (draft):', e); }
  }).catch(function(e){window.showAlert('Replace failed: '+e.message);});
  }).catch(function(e){window.showAlert('Error: '+e.message);});
 };
@@ -4013,8 +4015,8 @@ window.cbzDPushToForm = function(){
   if(!innings.length){ cbzDSetStatus('cbzDPushStatus','No innings data loaded.','fail'); return; }
   cbzDSetStatus('cbzDPushStatus','Populating Scorecards tab with all innings...','loading');
 
-  // Scroll to scorecards section (scroll layout — no tab switching)
-  const _scEl=document.getElementById('tab-scorecards');
+  // Scroll to scorecards section (classic id removed — fall back to CD admin surface)
+  const _scEl=document.getElementById('tab-scorecards') || document.querySelector('#cd-root main') || document.getElementById('gscFormBody');
   if(_scEl) _scEl.scrollIntoView({behavior:'smooth',block:'start'});
 
   setTimeout(()=>{
@@ -5028,10 +5030,10 @@ window.IPL_SCHEDULE = typeof IPL_SCHEDULE !== 'undefined' ? IPL_SCHEDULE : [];
 (function publishRoomsForCD(){
   if(!auth) return;
   let unsubCreated = null, unsubJoined = null;
-  const push = () => { try { window.dispatchEvent(new CustomEvent('cd-drafts-update')); } catch(e){} };
+  const push = () => { try { window.dispatchEvent(new CustomEvent('cd-drafts-update')); } catch(e){ console.warn('cd-drafts-update dispatch:', e); } };
   onAuthStateChanged(auth, u => {
-    try { unsubCreated && unsubCreated(); } catch(e){}
-    try { unsubJoined && unsubJoined(); } catch(e){}
+    try { unsubCreated && unsubCreated(); } catch(e){ console.warn('unsubCreated:', e); }
+    try { unsubJoined && unsubJoined(); } catch(e){ console.warn('unsubJoined:', e); }
     window.userCreatedDrafts = [];
     window.userJoinedDrafts = [];
     if(!u){ push(); return; }
