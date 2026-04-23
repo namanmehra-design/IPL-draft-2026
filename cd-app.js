@@ -1598,9 +1598,12 @@
           </div>
         </div>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:11px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:11px;flex-wrap:wrap;">
         <span style="font-family:var(--display);font-weight:800;color:${pts>0?'var(--lime)':pts<0?'var(--red)':'var(--mute)'};">${pts>=0?'+':''}${pts}${mc?' <span style="color:var(--mute);font-weight:500;font-size:10px;">· '+mc+'m</span>':''}</span>
-        ${(!releaseLocked || isSuper) ? `<button data-team="${esc(teamName)}" data-idx="${idx}" data-name="${esc(name)}" onclick="CD.handleRelease(this)" style="padding:3px 8px;border-radius:9999px;background:rgba(255,59,59,0.12);border:1px solid rgba(255,59,59,0.3);color:var(--red);font-size:10px;font-weight:600;cursor:pointer;">Release</button>` : ''}
+        <div style="display:flex;gap:5px;">
+          ${isSuper ? `<button onclick="window.openReplaceModal && window.openReplaceModal('${esc(teamName)}','${esc(name)}',${isOs?'true':'false'})" style="padding:3px 8px;border-radius:9999px;background:rgba(255,200,61,0.12);border:1px solid rgba(255,200,61,0.45);color:#FFD97D;font-size:10px;font-weight:600;cursor:pointer;">Replace</button>` : ''}
+          ${(!releaseLocked || isSuper) ? `<button data-team="${esc(teamName)}" data-idx="${idx}" data-name="${esc(name)}" onclick="CD.handleRelease(this)" style="padding:3px 8px;border-radius:9999px;background:rgba(255,59,59,0.12);border:1px solid rgba(255,59,59,0.3);color:var(--red);font-size:10px;font-weight:600;cursor:pointer;">Release</button>` : ''}
+        </div>
       </div>
     </div>`;
   };
