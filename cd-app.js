@@ -3628,6 +3628,93 @@
     CD.render();
   };
 
+  // ── FORM-EDIT GUARD ────────────────────────────────────────────
+  // User's core complaint: auto-refresh wipes form inputs mid-entry
+  // (especially Admin > Scorecards batting/bowling/fielding rows).
+  // Track when the user is actively typing in any CD form so that
+  // automatic re-renders (Firebase snapshot storms, poll-diff, ticker
+  // updates) defer until the user pauses typing.
+  CD._userEditingUntil = 0;
+  CD._markUserEditing = () => { CD._userEditingUntil = Date.now() + 2000; };
+  // Admin-only check: other views aren't sensitive — only the scorecard
+  // entry form loses state on re-render. Always treat form as "active"
+  // when the focused element is inside #gscFormBody or any cd-root input.
+  CD._isUserEditing = () => {
+    if(Date.now() >= CD._userEditingUntil) return false;
+    const ae = document.activeElement;
+    if(!ae) return false;
+    const tag = ae.tagName;
+    if(tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') return false;
+    // Must be within cd-root
+    const root = document.getElementById('cd-root');
+    if(!root || !root.contains(ae)) return false;
+    return true;
+  };
+
+  // Wire delegate listeners on #cd-root once. Input/keydown/focusin all
+  // tick the editing timestamp; blur is handled implicitly (timer expires).
+  CD._wireEditGuard = () => {
+    if(CD._editGuardWired) return;
+    const root = document.getElementById('cd-root');
+    if(!root) return;
+    CD._editGuardWired = true;
+    root.addEventListener('input',   CD._markUserEditing, true);
+    root.addEventListener('keydown', CD._markUserEditing, true);
+    root.addEventListener('focusin', CD._markUserEditing, true);
+  };
+
+  // ── FORM-STATE PRESERVATION ────────────────────────────────────
+  // Even with the guard, some legitimate state changes (tab switch,
+  // auth change) must force a render mid-edit. Capture form values
+  // before the innerHTML wipe and restore them afterwards — plus the
+  // active element + selection range so typing feels seamless.
+  CD._captureFormState = () => {
+    try {
+      const root = document.getElementById('cd-root');
+      if(!root) return null;
+      const snap = { fields: {}, activeId: '', selStart: 0, selEnd: 0 };
+      // gsc* are the scorecard form inputs; generic [id^="cd-"] catches
+      // CD-owned fields (search boxes, dropdowns).
+      const sel = 'input[id^="gsc"], textarea[id^="gsc"], select[id^="gsc"], input[id^="cd"], textarea[id^="cd"], select[id^="cd"]';
+      root.querySelectorAll(sel).forEach(el => {
+        if(!el.id) return;
+        if(el.type === 'checkbox' || el.type === 'radio') snap.fields[el.id] = { checked: el.checked };
+        else snap.fields[el.id] = { value: el.value };
+      });
+      const ae = document.activeElement;
+      if(ae && ae.id && root.contains(ae)){
+        snap.activeId = ae.id;
+        try {
+          if('selectionStart' in ae){ snap.selStart = ae.selectionStart || 0; snap.selEnd = ae.selectionEnd || 0; }
+        } catch(e){ /* some input types don't support selection */ }
+      }
+      return snap;
+    } catch(e){ return null; }
+  };
+  CD._restoreFormState = (snap) => {
+    if(!snap) return;
+    try {
+      const root = document.getElementById('cd-root');
+      if(!root) return;
+      Object.keys(snap.fields).forEach(id => {
+        const el = document.getElementById(id);
+        if(!el) return;
+        const v = snap.fields[id];
+        if('checked' in v) el.checked = v.checked;
+        else if(el.value !== v.value) el.value = v.value;
+      });
+      if(snap.activeId){
+        const ae = document.getElementById(snap.activeId);
+        if(ae && typeof ae.focus === 'function'){
+          ae.focus();
+          try {
+            if('setSelectionRange' in ae) ae.setSelectionRange(snap.selStart, snap.selEnd);
+          } catch(e){ /* input type may not support selection */ }
+        }
+      }
+    } catch(e){ console.warn('CD restore form state:', e); }
+  };
+
   // ── MAIN RENDER ────────────────────────────────────────────────
   // Debounced render: coalesces bursts of state changes into a single render.
   // Uses a short setTimeout (collects close-together changes), then hands off
@@ -3635,7 +3722,22 @@
   // — this keeps the UI thread free during Firebase snapshot storms.
   let _renderTimer = null;
   let _renderRaf = null;
+  let _deferredRenderTimer = null;
   CD.scheduleRender = () => {
+    // If the user is actively typing in a form, defer. A single follow-up
+    // render is queued to run ~2.5s after last input — that catches any
+    // state drift that accumulated while they were editing.
+    if(CD._isUserEditing()){
+      if(!_deferredRenderTimer){
+        _deferredRenderTimer = setTimeout(() => {
+          _deferredRenderTimer = null;
+          // If they're still editing, push it again.
+          if(CD._isUserEditing()){ CD.scheduleRender(); return; }
+          try { CD.render(); } catch(e){ console.error('CD deferred render:', e); }
+        }, 2500);
+      }
+      return;
+    }
     if(_renderTimer) clearTimeout(_renderTimer);
     _renderTimer = setTimeout(() => {
       _renderTimer = null;
@@ -3660,6 +3762,15 @@
   CD.render = () => {
     const r = document.getElementById('cd-root');
     if(!r) return;
+    // Guard: if user is typing in a form, defer to scheduleRender which
+    // will queue a single delayed render. Exception: auth-pending/view
+    // transitions ALWAYS render (otherwise splash/auth can't recover).
+    if(!CD.state.authPending && CD.state.view === _lastRenderedView && CD._isUserEditing()){
+      CD.scheduleRender();
+      return;
+    }
+    // Capture form state (values + focus + selection) before the wipe.
+    const _formSnap = CD._captureFormState();
     let html = '';
     let viewKey = CD.state.view;
     if(CD.state.authPending){ html = CD.renderSplash(); viewKey = 'splash'; }
@@ -3671,6 +3782,10 @@
     const viewChanged = _lastRenderedView !== viewKey;
     _lastRenderedView = viewKey;
     r.innerHTML = `<div class="cd-view${viewChanged ? ' cd-view-enter' : ''}">${html}</div>`;
+    // Restore captured form state (values + focus + selection).
+    CD._restoreFormState(_formSnap);
+    // (Re-)wire the delegate listeners; cheap no-op if already wired.
+    CD._wireEditGuard();
     if(!CD.state.authPending && CD.state.view === 'dashboard') CD.injectRoomCards();
     // Re-paint the roster-stale banner after every render (admin-entry form
     // may have just appeared or changed sub-tab). No-op when !rosterStale.
@@ -3709,9 +3824,13 @@
     }
 
     // CRITICAL: detect login/logout by polling window.user (showAuth/showApp are module-scoped, can't override)
+    // After auth resolves, the auth-poll SELF-CANCELS and re-subscribes on a
+    // slower 1s cadence (no more 200ms loops running forever).
     let lastUserUid = null;
     let lastRoomId = null;
     let _authResolved = false;
+    let _fastPoll = null;
+    let _slowPoll = null;
     // Fallback: after 1500ms always clear pending so we never stall forever
     // if Firebase fails to init (e.g. offline). This is the worst-case splash time.
     setTimeout(() => {
@@ -3720,21 +3839,24 @@
         if(CD.state.authPending){ CD.state.authPending = false; CD.render(); }
       }
     }, 1500);
-    setInterval(() => {
+    const pollTick = () => {
       try {
         const u = window.user;
         const uid = u && u.uid;
         const rid = window.roomId;
-        // First tick where auth has hydrated (user is set, OR firebase.authReady flag, OR we've seen ≥1 tick)
-        // We now consider auth "resolved" after the first poll where user has been hydrated by app.js,
-        // OR after the fallback timeout above. Either way, flip authPending off so render picks real view.
+        // First tick where auth has hydrated — flip authPending off.
         if(!_authResolved){
-          // app.js's mirrorDraftState() runs every 120ms and sets window.user from module state.
-          // If window._cdAuthReady has been fired (by app.js onAuthStateChanged), trust that.
           if(uid || window._cdAuthReady){
             _authResolved = true;
             if(CD.state.authPending){ CD.state.authPending = false; CD.render(); }
           }
+        }
+        // Once auth resolves and we're no longer pending, downshift to 1s
+        // polling (user/room transitions are rare post-login; no reason to
+        // keep ticking every 200ms burning battery).
+        if(_authResolved && _fastPoll && !_slowPoll){
+          clearInterval(_fastPoll); _fastPoll = null;
+          _slowPoll = setInterval(pollTick, 1000);
         }
         if(uid !== lastUserUid){
           lastUserUid = uid;
@@ -3767,9 +3889,12 @@
           }
         }
       } catch(e){ console.error('CD auth poll:', e); }
-    }, 200);
+    };
+    _fastPoll = setInterval(pollTick, 200);
 
-    // Poll for room data changes
+    // Poll for room data changes. Debounced via scheduleRender (which now
+    // has a rAF + edit-guard wrapper). The poll itself stays at 400ms
+    // because that's just JSON.stringify on a tiny object.
     let lastKey = '';
     setInterval(() => {
       try {
@@ -3793,13 +3918,17 @@
     // Listen for room list updates (fired by app.js when Firebase data loads)
     const updateRoomGrids = () => {
       try {
-        if(CD.state.view !== 'dashboard') return;
-        const myRooms = window.userCreatedDrafts || [];
-        const joinedRooms = window.userJoinedDrafts || [];
         const myGrid = document.getElementById('cd-my-rooms-grid');
         const joinedGrid = document.getElementById('cd-joined-rooms-grid');
-        // Always write — the diff-guard caused bugs where pre-render calls
-        // cached an empty key and blocked subsequent renders of real data.
+        if(!myGrid && !joinedGrid) return;
+        const myRooms = window.userCreatedDrafts || [];
+        const joinedRooms = window.userJoinedDrafts || [];
+        // Self-healing: if boot-time+2.5s passed and no rooms arrived,
+        // force-load directly from Firebase bypassing the listener.
+        if(!window._cdBootTime) window._cdBootTime = Date.now();
+        if(Date.now() - window._cdBootTime > 2500 && !window.userCreatedDrafts && window.user && window.user.uid){
+          if(typeof window.cdForceLoadRooms === 'function') window.cdForceLoadRooms();
+        }
         const buildCards = (rooms, isOwner) => {
           if(!rooms.length) return '<div style="padding:20px;color:var(--mute);grid-column:1/-1;text-align:center;background:var(--glass);border:1px dashed var(--line-2);border-radius:14px;">' + (isOwner ? 'No rooms yet — create one above.' : 'No joined rooms yet.') + '</div>';
           return rooms.map(r => {

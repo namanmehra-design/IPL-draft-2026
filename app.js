@@ -401,6 +401,22 @@ function loadDash(){
  const _saSection=document.getElementById('tab-superadmin') || document.querySelector('#cd-root [data-role="superadmin"]');
  if(_saSection) _saSection.style.display=isSuperAdminEmail(user?.email)?'block':'none';
  if(isSuperAdminEmail(user?.email)) renderSuperAdminPanel();
+ // Self-healing fallback: directly reads the user's draft rooms once, bypassing the listener.
+ window.cdForceLoadRooms = async function(){
+  try{
+   if(!user||!user.uid) return;
+   const [cSnap, jSnap] = await Promise.all([
+     get(ref(db,`users/${user.uid}/drafts`)),
+     get(ref(db,`users/${user.uid}/joinedDrafts`))
+   ]);
+   const cRooms = cSnap.val();
+   const jRooms = jSnap.val();
+   window.userCreatedDrafts = cRooms ? Object.entries(cRooms).map(([k,r])=>({id:k,name:r.name||'Draft Room',maxTeams:r.maxTeams,maxPlayers:r.maxPlayers,createdAt:r.createdAt,isOwner:true})).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)) : [];
+   window.userJoinedDrafts  = jRooms ? Object.entries(jRooms).map(([k,r])=>({id:k,name:r.name||'Draft Room',joinedAt:r.joinedAt,isOwner:false})).sort((a,b)=>(b.joinedAt||0)-(a.joinedAt||0)) : [];
+   window.dispatchEvent(new CustomEvent('cd-drafts-update'));
+   console.log('[CD] forceLoadRooms — drafts:', window.userCreatedDrafts.length, 'joined:', window.userJoinedDrafts.length);
+  }catch(e){ console.warn('cdForceLoadRooms:', e); }
+ };
  // Unsubscribe previous dashboard listeners to prevent memory leak / lag
  if(window._dashListenerD1){window._dashListenerD1();window._dashListenerD1=null;}
  if(window._dashListenerD2){window._dashListenerD2();window._dashListenerD2=null;}
@@ -5136,6 +5152,14 @@ window.IPL_SCHEDULE = typeof IPL_SCHEDULE !== 'undefined' ? IPL_SCHEDULE : [];
 // CD expects `window.roomState` and `window.roomId` to be current; mirror
 // on every assignment in classic by wrapping the onAuthStateChanged + listener
 // flow. Easiest pragmatic approach: a ticker that polls module state.
+//
+// CADENCE: 500ms is a safe sweet-spot. The 120ms loop was a stale artifact
+// from before the CD layer had a poll-diff/rAF debouncer — today it just
+// burns CPU on idle. Real state changes push into window.roomState inside
+// the Firebase onValue callback (line ~650), so this mirror only needs to
+// catch module-scoped vars (user, draftId, myTeamName, isAdmin) that can
+// mutate without hitting the DB (e.g. legacy reassigns). 500ms is well
+// below any human-perceptible delay.
 (function mirrorDraftState(){
   function sync(){
     window.user = user || window.user || null;
@@ -5144,7 +5168,7 @@ window.IPL_SCHEDULE = typeof IPL_SCHEDULE !== 'undefined' ? IPL_SCHEDULE : [];
     window.myTeamName = myTeamName || '';
     window.isAdmin = !!isAdmin;
   }
-  setInterval(sync, 120);
+  setInterval(sync, 500);
   sync();
 })();
 
