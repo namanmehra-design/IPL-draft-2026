@@ -499,9 +499,7 @@
           <div id="gscPreviewContent"></div>
         </div>
         <div class="adm-row" style="margin-top:14px;">
-          <button class="adm-btn adm-btn-ghost" onclick="window.previewGlobalScorecard && window.previewGlobalScorecard()">Preview</button>
           <button class="adm-btn adm-btn-cta" onclick="window.saveGlobalScorecard && window.saveGlobalScorecard()">Save &amp; push to all rooms</button>
-          <button class="adm-btn adm-btn-ghost" onclick="window.resetGlobalScorecardForm && window.resetGlobalScorecardForm()">Clear</button>
         </div>
         <div class="adm-status ai-status" id="gscSaveStatus"></div>
       </div>
@@ -2079,13 +2077,46 @@
     const rs = window.roomState || {};
     const xiMult = parseFloat(rs.xiMultiplier) || 1;
     const matches = rs.matches || {};
-    const playerPts = {};
+    const teams = rs.teams || {};
+
+    // Build rosterOwnerMap across ALL teams (mirrors computeMatchContribution)
+    const cleanName = (n) => (n||'').toLowerCase().trim().replace(/\*?\s*\([^)]*\)\s*$/,'').trim();
+    const rosterOwnerMap = {};
+    Object.values(teams).forEach(tt => {
+      const rostr = Array.isArray(tt.roster) ? tt.roster : (tt.roster ? Object.values(tt.roster) : []);
+      rostr.forEach(p => {
+        const fn = (p.name||p.n||'').toLowerCase().trim();
+        rosterOwnerMap[fn] = tt.name;
+        rosterOwnerMap[cleanName(p.name||p.n||'')] = tt.name;
+      });
+    });
+
+    // Per-player season total (snapshot-aware, multiplier baked in) — same algorithm as computeMatchContribution
+    const playerPts = {}; // keyed by cleanName
     Object.values(matches).forEach(m => {
-      if(!m.players) return;
+      if(!m?.players) return;
+      const hasStoredSnaps = !!m.squadSnapshots;
+      const matchSnaps = m.squadSnapshots || {};
+      const mXI = {}, mBench = {};
+      Object.entries(matchSnaps).forEach(([tn, snap]) => {
+        const xiS = new Set(), bnS = new Set();
+        (snap.xi||[]).forEach(n => { const fn = (n||'').toLowerCase().trim(); xiS.add(fn); xiS.add(cleanName(n)); });
+        (snap.bench||[]).forEach(n => { const fn = (n||'').toLowerCase().trim(); bnS.add(fn); bnS.add(cleanName(n)); });
+        mXI[tn] = xiS; mBench[tn] = bnS;
+      });
       Object.values(m.players).forEach(p => {
-        if(p.ownedBy !== t.name) return;
         const key = (p.name||'').toLowerCase().trim();
-        playerPts[key] = (playerPts[key] || 0) + (p.pts || 0);
+        const ckey = cleanName(p.name||'');
+        const owner = rosterOwnerMap[key] || rosterOwnerMap[ckey] || p.ownedBy || '';
+        if(!owner || owner !== t.name) return;
+        let mult = 0;
+        if(mXI[owner] && (mXI[owner].has(key) || mXI[owner].has(ckey))) mult = xiMult;
+        else if(mBench[owner] && (mBench[owner].has(key) || mBench[owner].has(ckey))) mult = 1;
+        if(mult === 0 && !hasStoredSnaps && owner && (p.ownedBy || rosterOwnerMap[key] || rosterOwnerMap[ckey])) mult = 1;
+        if(mult > 0) {
+          const mPts = (p.pts || 0) * mult;
+          playerPts[ckey] = (playerPts[ckey] || 0) + mPts;
+        }
       });
     });
 
@@ -2106,10 +2137,12 @@
     const bench = benchNames.map(findP).filter(Boolean);
     const reserves = reserveNames.map(findP).filter(Boolean);
 
-    const xiTotal = xi.reduce((s,p) => s + Math.round((playerPts[(p.name||p.n||'').toLowerCase().trim()] || 0) * xiMult), 0);
-    const benchTotal = bench.reduce((s,p) => s + Math.round(playerPts[(p.name||p.n||'').toLowerCase().trim()] || 0), 0);
+    const ptsFor = (p) => Math.round(playerPts[cleanName(p.name||p.n||'')] || 0);
+    const xiTotal = xi.reduce((s,p) => s + ptsFor(p), 0);
+    const benchTotal = bench.reduce((s,p) => s + ptsFor(p), 0);
+    const reservesTotalComputed = reserves.reduce((s,p) => s + ptsFor(p), 0);
 
-    const renderSection = (label, players, mult, totalPts, sectionColor) => {
+    const renderSection = (label, players, totalPts, sectionColor) => {
       if(!players.length) return '';
       return `
         <div style="margin-bottom:16px;">
@@ -2120,8 +2153,7 @@
           <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px;">
             ${players.map(p => {
               const pName = p.name || p.n || '';
-              const raw = Math.round(playerPts[pName.toLowerCase().trim()] || 0);
-              const val = Math.round(raw * mult);
+              const val = ptsFor(p);
               const isOs = !!(p.isOverseas || p.o);
               return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid var(--line);">
                 ${CD.Avatar({team: p.iplTeam || p.t, name: pName, size: 24})}
@@ -2137,14 +2169,11 @@
       `;
     };
 
-    // Reserves row: still show, but 0 points (they didn't play)
-    const reservesTotal = 0;
-
     return `
       <div style="padding:16px 18px 18px;border-top:1px solid var(--line);background:linear-gradient(180deg,${c1}10,transparent);">
-        ${renderSection('Playing XI', xi, xiMult, xiTotal, 'var(--electric)')}
-        ${renderSection('Bench', bench, 1, benchTotal, 'var(--ink-2)')}
-        ${reserves.length ? renderSection('Reserves', reserves, 0, reservesTotal, 'var(--mute)') : ''}
+        ${renderSection('Playing XI', xi, xiTotal, 'var(--electric)')}
+        ${renderSection('Bench', bench, benchTotal, 'var(--ink-2)')}
+        ${reserves.length ? renderSection('Reserves', reserves, reservesTotalComputed, 'var(--mute)') : ''}
       </div>
     `;
   };

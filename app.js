@@ -5054,3 +5054,22 @@ window.validateSquadCD = function(xiNames, benchNames){
 window.showPlayerModal = window.showPlayerModal || function(name){
   if(typeof window.showPlayerModalDraft === 'function') return window.showPlayerModalDraft(name);
 };
+
+
+// ─── CD Super Admin Console bridge ──────────────────────────────
+// Expose module-scope helpers + unify handler names with the auction app
+// so the shared CD admin console (cd-app.js) works unchanged.
+window.renderSuperAdminPanel       = renderSuperAdminPanel;
+window.renderGlobalScorecardHistory = renderGlobalScorecardHistory;
+window.refreshGlobalScorecardList  = renderGlobalScorecardHistory;
+window.populateScorecardSelect     = renderSuperAdminPanel;
+
+// Cricbuzz naming parity (draft uses cbzD* prefix internally)
+window.cbzFetchLive      = window.cbzFetchLive      || window.cbzDFetchLive;
+window.cbzFetchRecent    = window.cbzFetchRecent    || window.cbzDFetchRecent;
+window.cbzFetchUpcoming  = window.cbzFetchUpcoming  || window.cbzDFetchUpcoming;
+window.cbzFetchScorecard = window.cbzFetchScorecard || window.cbzDFetchScorecard;
+window.cbzPushToRoom     = window.cbzPushToRoom     || window.cbzDPushToForm;
+
+// XI multiplier casing parity
+window.saSetXIMultiplier = window.saSetXIMultiplier || window.saSetXiMultiplier;
