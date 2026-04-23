@@ -367,6 +367,49 @@
 
   // Cricbuzz Step 4 — switch to scorecards sub-tab first (so gsc* DOM ids exist),
   // then call the legacy populate which fills the form from cbzDParsedScorecard.
+  // Cricbuzz Step 1 loader with visible error reporting.
+  // Wraps the legacy window.cbzDFetch* so any failure is shown in the status
+  // div instead of disappearing into an unhandled promise rejection.
+  CD.cbzLoad = (mode) => {
+    const statusEl = document.getElementById('cbzDMatchStatus');
+    const listEl   = document.getElementById('cbzDMatchList');
+    const setStatus = (msg, cls) => {
+      if(!statusEl) return;
+      statusEl.textContent = msg;
+      statusEl.className = 'adm-status cbz-status ' + (cls||'');
+    };
+    if(!statusEl || !listEl) {
+      console.warn('CD.cbzLoad: missing DOM — are you on the Cricbuzz sub-tab?', { statusEl, listEl });
+      return;
+    }
+    const map = {
+      live:     ['cbzDFetchLive',    'cbzFetchLive'],
+      recent:   ['cbzDFetchRecent',  'cbzFetchRecent'],
+      upcoming: ['cbzDFetchUpcoming','cbzFetchUpcoming'],
+    };
+    const [primary, fallback] = map[mode] || [];
+    const fn = window[primary] || window[fallback];
+    if(typeof fn !== 'function') {
+      setStatus(`❌ Cricbuzz helper not loaded (${primary}). Reload the page.`, 'fail');
+      console.error('CD.cbzLoad: neither window.' + primary + ' nor window.' + fallback + ' is defined. window keys with "cbz":',
+        Object.keys(window).filter(k => /cbz/i.test(k)));
+      return;
+    }
+    setStatus('Loading matches…', 'loading');
+    try {
+      const result = fn();
+      if(result && typeof result.catch === 'function') {
+        result.catch(e => {
+          setStatus(`❌ ${e.message || e}`, 'fail');
+          console.error('CD.cbzLoad rejected:', e);
+        });
+      }
+    } catch(e) {
+      setStatus(`❌ ${e.message || e}`, 'fail');
+      console.error('CD.cbzLoad threw:', e);
+    }
+  };
+
   CD.sendCbzToScorecards = () => {
     const hasData = (typeof window !== 'undefined') && window.cbzDParsedScorecard
                     && Array.isArray(window.cbzDParsedScorecard.innings)
@@ -563,9 +606,9 @@
       <div style="padding:16px;border-radius:12px;background:var(--glass);border:1px solid var(--line);margin-bottom:14px;">
         <div class="adm-lbl" style="color:var(--electric);margin-bottom:10px;">Step 1 — Select Match</div>
         <div class="adm-row">
-          <button class="adm-btn adm-btn-cta" onclick="(window.cbzDFetchLive||window.cbzFetchLive)&&(window.cbzDFetchLive||window.cbzFetchLive)()">⚡ Live</button>
-          <button class="adm-btn adm-btn-ghost" onclick="(window.cbzDFetchRecent||window.cbzFetchRecent)&&(window.cbzDFetchRecent||window.cbzFetchRecent)()">🕐 Recent</button>
-          <button class="adm-btn adm-btn-ghost" onclick="(window.cbzDFetchUpcoming||window.cbzFetchUpcoming)&&(window.cbzDFetchUpcoming||window.cbzFetchUpcoming)()">📅 Upcoming</button>
+          <button class="adm-btn adm-btn-cta" onclick="CD.cbzLoad('live')">⚡ Live</button>
+          <button class="adm-btn adm-btn-ghost" onclick="CD.cbzLoad('recent')">🕐 Recent</button>
+          <button class="adm-btn adm-btn-ghost" onclick="CD.cbzLoad('upcoming')">📅 Upcoming</button>
         </div>
         <div class="adm-status cbz-status" id="cbzDMatchStatus">Click a button to load matches.</div>
         <div class="match-pick-grid" id="cbzDMatchList"></div>
