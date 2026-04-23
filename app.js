@@ -591,6 +591,15 @@ function loadDraftRoom(rid){
  migrateSquadSnapshots(rid,data);
  migrateDuckPoints(rid,data);
 
+ // Self-heal: silently recalc leaderboardTotals once per room load so stored
+ // values never drift from what computeMatchContribution would produce right
+ // now with the current xiMultiplier + snapshots. Guarded so it runs once per
+ // loadRoom session (not on every onValue tick).
+ if(!window._recalcLBDDone||window._recalcLBDDone!==rid){
+  window._recalcLBDDone=rid;
+  setTimeout(()=>{ try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){} }, 400);
+ }
+
  const cfg=data.config||{};
  const setup=data.setup||{};
  const roomName=setup.roomName||cfg.roomName||`Draft ${rid.substring(0,5).toUpperCase()}`;
@@ -1231,6 +1240,8 @@ window.confirmRelease=function(){
  update(ref(db),upd).then(function(){
   window.closeReleaseModal();
   window.showAlert(releasePlayerName+' released. Compensatory pick added at end.','ok');
+  // Auto-heal stored leaderboardTotals so future reads can't drift.
+  try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){}
  }).catch(function(e){window.showAlert('Release failed: '+e.message);});
  }).catch(function(e){window.showAlert('Error: '+e.message);});
 };
@@ -1296,6 +1307,7 @@ window.confirmReplace=function(){
  update(ref(db),upd).then(function(){
   window.closeReplaceModal();
   window.showAlert(oldPlayer.name+' replaced with '+newPlayer.name,'ok');
+  try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){}
  }).catch(function(e){window.showAlert('Replace failed: '+e.message);});
  }).catch(function(e){window.showAlert('Error: '+e.message);});
 };
@@ -2039,23 +2051,20 @@ function computeMatchContribution(matchData, matchSnaps, teamsData, xiMultiplier
  return contrib;
 }
 
-// -- Recalculate leaderboard totals from all matches (admin tool) --
-window.recalcLeaderboardD=async function(){
- if(!draftId||!draftState) return;
- if(!confirm('Recalculate leaderboard totals from all match data? This will overwrite current stored totals.')) return;
- window.showAlert('Recalculating...','info');
+// -- Core: recompute stored leaderboardTotals from match records + snapshots + current xiMultiplier --
+// This is the SINGLE source of truth used by both the admin button and the silent auto-heal pass.
+async function _recalcLeaderboardDCore(){
+ if(!draftId||!draftState) return false;
  var matches=draftState.matches||{};
  var teams=draftState.teams||{};
  var xiMult=parseFloat(draftState.xiMultiplier)||1;
  var currentSnaps=buildSquadSnapshots(teams);
- var totals={}; // teamName -> {pts, topPlayer, topPts, playerCount}
- // Initialize all teams
+ var totals={};
  Object.values(teams).forEach(function(t){
   totals[t.name]={pts:0,topPlayer:'--',topPts:0,playerCount:0,_players:{}};
  });
- // Sum across all matches
  Object.entries(matches).forEach(function(me){
-  var mid=me[0], m=me[1];
+  var m=me[1];
   var matchSnaps=m.squadSnapshots||currentSnaps;
   var contrib=computeMatchContribution(m, matchSnaps, teams, xiMult);
   Object.entries(contrib).forEach(function(ce){
@@ -2067,7 +2076,6 @@ window.recalcLeaderboardD=async function(){
    });
   });
  });
- // Compute topPlayer and playerCount from aggregated player data
  var toStore={};
  Object.entries(totals).forEach(function(te){
   var tn=te[0], t=te[1];
@@ -2076,7 +2084,6 @@ window.recalcLeaderboardD=async function(){
    if(pe[1]!==0) pCount++;
    if(pe[1]>topPts){topPts=pe[1];topP=pe[0];}
   });
-  // Find display name for topPlayer
   if(teams[tn]){
    var roster=Array.isArray(teams[tn].roster)?teams[tn].roster:(teams[tn].roster?Object.values(teams[tn].roster):[]);
    var found=roster.find(function(x){return(x.name||x.n||'').toLowerCase().trim().replace(/\*?\s*\([^)]*\)\s*$/,'').trim()===topP;});
@@ -2084,8 +2091,32 @@ window.recalcLeaderboardD=async function(){
   }
   toStore[tn]={pts:Math.round(t.pts*100)/100,topPlayer:topP,topPts:Math.round(topPts*100)/100,playerCount:pCount};
  });
+ await set(ref(db,'drafts/'+draftId+'/leaderboardTotals'),toStore);
+ return true;
+}
+
+// Silent auto-heal: no prompts, no toasts. Safe to call on room load + after mutations.
+// Uses a small debounce flag to avoid redundant writes during listener storms.
+var _recalcLBDSilentBusy=false, _recalcLBDSilentPending=false;
+window._recalcLeaderboardDSilent=async function(){
+ if(!draftId||!draftState) return;
+ if(_recalcLBDSilentBusy){ _recalcLBDSilentPending=true; return; }
+ _recalcLBDSilentBusy=true;
+ try{ await _recalcLeaderboardDCore(); }
+ catch(e){ /* silent */ }
+ finally{
+  _recalcLBDSilentBusy=false;
+  if(_recalcLBDSilentPending){ _recalcLBDSilentPending=false; setTimeout(()=>window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(),200); }
+ }
+};
+
+// Admin button: prompts + shows toast.
+window.recalcLeaderboardD=async function(){
+ if(!draftId||!draftState) return;
+ if(!confirm('Recalculate leaderboard totals from all match data? This will overwrite current stored totals.')) return;
+ window.showAlert('Recalculating...','info');
  try{
-  await set(ref(db,'drafts/'+draftId+'/leaderboardTotals'),toStore);
+  await _recalcLeaderboardDCore();
   window.showAlert('Leaderboard totals recalculated and saved.','ok');
  }catch(e){
   window.showAlert('Failed: '+e.message);
