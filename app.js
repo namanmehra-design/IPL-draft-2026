@@ -3795,6 +3795,33 @@ function cbzDSetStatus(id, msg, cls=''){
   if(el){ el.textContent=msg; el.className='cbz-status '+(cls||''); }
 }
 
+// Does the series / match look like IPL (Indian Premier League)?
+function cbzDIsIPL(seriesName, matchInfo){
+  const s=(seriesName||'').toLowerCase();
+  if(s.includes('indian premier league')||/\bipl\b/.test(s)) return true;
+  const ms=((matchInfo&&(matchInfo.seriesName||matchInfo.seriesname))||'').toLowerCase();
+  return ms.includes('indian premier league')||/\bipl\b/.test(ms);
+}
+
+// Flat helper — fetch endpoint, return IPL-only raw match entries (Cricbuzz shape preserved).
+async function cbzDFetchIPLMatchesRaw(endpoint){
+  const data=await cbzDFetch(endpoint);
+  const out=[];
+  (data.typeMatches||[]).forEach(type=>{
+    (type.seriesMatches||[]).forEach(sm=>{
+      const series=sm.seriesAdWrapper||sm;
+      const seriesName=series.seriesName||series.seriesname||'';
+      (series.matches||[]).forEach(m=>{
+        const mi=m.matchInfo||{};
+        if(cbzDIsIPL(seriesName,mi)) out.push(m);
+      });
+    });
+  });
+  return out;
+}
+// Flat-array wrapper for the CD ticker — tolerant of errors (returns []).
+window.cbzDFetchIPLLive = () => cbzDFetchIPLMatchesRaw('/matches/v1/live').catch(()=>[]);
+
 async function cbzDLoadMatches(endpoint){
   cbzDSetStatus('cbzDMatchStatus','Loading matches...','loading');
   document.getElementById('cbzDMatchList').innerHTML='';
@@ -3804,13 +3831,15 @@ async function cbzDLoadMatches(endpoint){
     (data.typeMatches||[]).forEach(type=>{
       (type.seriesMatches||[]).forEach(sm=>{
         const series=sm.seriesAdWrapper||sm;
+        const seriesName=series.seriesName||series.seriesname||'';
         (series.matches||[]).forEach(m=>{
           const mi=m.matchInfo||{};
           const ms=m.matchScore||{};
+          if(!cbzDIsIPL(seriesName, mi)) return;
           allMatches.push({
             matchId: mi.matchId,
             teams: `${mi.team1?.teamSName||mi.team1?.teamsname||'?'} vs ${mi.team2?.teamSName||mi.team2?.teamsname||'?'}`,
-            series: series.seriesName||mi.seriesName||series.seriesname||mi.seriesname||'',
+            series: seriesName||mi.seriesName||mi.seriesname||'',
             venue: mi.venueInfo?.ground||mi.venueinfo?.ground||'',
             state: mi.state||'',
             score1: ms.team1Score?.inngs1?`${ms.team1Score.inngs1.runs}/${ms.team1Score.inngs1.wickets}`:'',
@@ -3819,7 +3848,7 @@ async function cbzDLoadMatches(endpoint){
         });
       });
     });
-    if(!allMatches.length){ cbzDSetStatus('cbzDMatchStatus','No matches found.','fail'); return; }
+    if(!allMatches.length){ cbzDSetStatus('cbzDMatchStatus','No IPL matches found.','fail'); return; }
     cbzDSetStatus('cbzDMatchStatus',`${allMatches.length} match${allMatches.length===1?'':'es'} loaded -- click one to select.`,'done');
     const grid=document.getElementById('cbzDMatchList');
     grid.innerHTML='';

@@ -195,31 +195,34 @@
       </div>`;
   };
 
-  // Fetch live scores once
+  // Fetch live IPL scores for the ticker. Uses the flat-array helper that
+  // returns only IPL-series matches; falls back to empty (Loading…) if the
+  // API errors or no IPL match is live.
   CD.fetchTicker = async () => {
     try {
-      // Try the existing Cricbuzz integration if available
-      if(typeof window.cbzFetchLive === 'function'){
-        try {
-          const matches = await window.cbzFetchLive();
-          if(matches && matches.length) {
-            CD.state.cbzMatches = matches.slice(0, 6).map(m => {
-              const mi = m.matchInfo || m;
-              const ts = (m.matchScore && m.matchScore.team1Score) || (m.matchScore && m.matchScore.team2Score);
-              const ta = mi.team1?.teamSName || mi.team1?.teamName || '';
-              const tb = mi.team2?.teamSName || mi.team2?.teamName || '';
-              const sc = m.matchScore && m.matchScore.team2Score && m.matchScore.team2Score.inngs1
-                ? `${m.matchScore.team2Score.inngs1.runs}/${m.matchScore.team2Score.inngs1.wickets}` : '';
-              return { teamA: ta, teamB: tb, vs: 'vs', score: sc, status: mi.status || '' };
-            });
-            CD.scheduleRender();
-            return;
-          }
-        } catch(e){ /* fallthrough */ }
+      const fetcher = window.cbzDFetchIPLLive || window.cbzFetchIPLLive;
+      if(typeof fetcher !== 'function') { CD.state.cbzMatches = []; return; }
+      const matches = await fetcher();
+      if(!Array.isArray(matches) || !matches.length){
+        CD.state.cbzMatches = [];
+        CD.scheduleRender();
+        return;
       }
-      // Fallback: empty
+      CD.state.cbzMatches = matches.slice(0, 8).map(m => {
+        const mi = m.matchInfo || {};
+        const ms = m.matchScore || {};
+        const ta = mi.team1?.teamSName || mi.team1?.teamName || mi.team1?.teamsname || '';
+        const tb = mi.team2?.teamSName || mi.team2?.teamName || mi.team2?.teamsname || '';
+        const t1 = ms.team1Score?.inngs1 ? `${ms.team1Score.inngs1.runs}/${ms.team1Score.inngs1.wickets}` : '';
+        const t2 = ms.team2Score?.inngs1 ? `${ms.team2Score.inngs1.runs}/${ms.team2Score.inngs1.wickets}` : '';
+        const score = t1 && t2 ? `${t1} · ${t2}` : (t2 || t1 || '');
+        return { teamA: ta, teamB: tb, vs: 'vs', score, status: mi.status || mi.state || '' };
+      });
+      CD.scheduleRender();
+    } catch(e){
+      console.error('CD ticker:', e);
       CD.state.cbzMatches = [];
-    } catch(e){ console.error('CD ticker:', e); }
+    }
   };
 
   // ── AUTH SCREEN ─────────────────────────────────────────────────
