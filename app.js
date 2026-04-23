@@ -2508,7 +2508,17 @@ function renderMatchDataDraft(data){
    const batM=bd.match(/Bat(?:ting)?\((\d+)r\s+([\d.]+)b(?:\s+(\d+)[x\u00d7]4)?(?:\s+(\d+)[x\u00d7]6)?/);
    if(batM) batters.push({name:p.name,team,runs:+batM[1],balls:+batM[2],fours:+(batM[3]||0),sixes:+(batM[4]||0),duck:bd.includes('DUCK'),pts:p.pts});
    const bowM=bd.match(/Bowl(?:ing)?\((\d+)w\s+([\d.]+)ov(?:\s+(\d+)r)?/);
-   if(bowM) bowlers.push({name:p.name,team,wkts:+bowM[1],overs:+bowM[2],runs:+(bowM[3]||0),pts:p.pts});
+   if(bowM){
+    // Fallback: global scorecards store "Bowl(2w 4ov eco:5.00)" without
+    // explicit runs — derive runs from eco so the Eco column isn't 0.00.
+    const _ov=+bowM[2];
+    let _r=bowM[3]?+bowM[3]:null;
+    if(_r===null){
+     const _ecoM=bd.match(/eco:([\d.]+)/);
+     if(_ecoM && +_ecoM[1]>0 && _ov>0) _r=Math.round(+_ecoM[1]*_ov);
+    }
+    bowlers.push({name:p.name,team,wkts:+bowM[1],overs:_ov,runs:_r||0,pts:p.pts});
+   }
    const fldM=bd.match(/Field(?:ing)?\((\d+)c\s+(\d+)st\s+(\d+)ro\)/);
    if(fldM&&(+fldM[1]||+fldM[2]||+fldM[3])) fielders.push({name:p.name,team,catches:+fldM[1],stumpings:+fldM[2],runouts:+fldM[3],pts:p.pts});
   });
@@ -4903,3 +4913,144 @@ window.showDraftPickFlash=function(playerName, teamName){
     window.setSidebarMode('dash');
   });
 })();
+
+// ─────────────────────────────────────────────────────────
+// Bridge: expose module-scoped state + helpers to window
+// for the new CD UI layer (cd-app.js). No classic behavior
+// is modified — these are additive window mirrors.
+// ─────────────────────────────────────────────────────────
+window.cbzAvatar = cbzAvatar;
+window.cbzGetImg = cbzGetImg;
+window.cbzPlayerImgId = cbzPlayerImgId;
+window.IPL_TEAM_META = typeof IPL_TEAM_META !== 'undefined' ? IPL_TEAM_META : {};
+window.IPL_SCHEDULE = typeof IPL_SCHEDULE !== 'undefined' ? IPL_SCHEDULE : [];
+
+// CD expects `window.roomState` and `window.roomId` to be current; mirror
+// on every assignment in classic by wrapping the onAuthStateChanged + listener
+// flow. Easiest pragmatic approach: a ticker that polls module state.
+(function mirrorDraftState(){
+  function sync(){
+    window.user = user || window.user || null;
+    window.roomId = draftId || null;
+    window.roomState = draftState || null;
+    window.myTeamName = myTeamName || '';
+    window.isAdmin = !!isAdmin;
+  }
+  setInterval(sync, 120);
+  sync();
+})();
+
+// Room lists for the CD dashboard. The CD layer listens for a
+// 'cd-drafts-update' CustomEvent to know when to re-render.
+(function publishRoomsForCD(){
+  if(!auth) return;
+  let unsubCreated = null, unsubJoined = null;
+  const push = () => { try { window.dispatchEvent(new CustomEvent('cd-drafts-update')); } catch(e){} };
+  onAuthStateChanged(auth, u => {
+    try { unsubCreated && unsubCreated(); } catch(e){}
+    try { unsubJoined && unsubJoined(); } catch(e){}
+    window.userCreatedDrafts = [];
+    window.userJoinedDrafts = [];
+    if(!u){ push(); return; }
+    unsubCreated = onValue(ref(db, `users/${u.uid}/drafts`), snap => {
+      const val = snap.val() || {};
+      window.userCreatedDrafts = Object.entries(val).map(([rid, r]) => ({
+        id: rid, type: 'draft', isOwner: true,
+        roomName: r.name || r.roomName || '',
+        name: r.name || r.roomName || '',
+        maxTeams: r.maxTeams, picksPerTeam: r.picksPerTeam,
+        createdAt: r.createdAt || 0
+      }));
+      push();
+    });
+    unsubJoined = onValue(ref(db, `users/${u.uid}/joinedDrafts`), snap => {
+      const val = snap.val() || {};
+      window.userJoinedDrafts = Object.entries(val).map(([rid, r]) => ({
+        id: rid, type: 'draft', isOwner: false,
+        roomName: r.name || r.roomName || '',
+        name: r.name || r.roomName || '',
+        teamName: r.teamName, maxTeams: r.maxTeams, picksPerTeam: r.picksPerTeam,
+        joinedAt: r.joinedAt || 0
+      }));
+      push();
+    });
+  });
+})();
+
+// Squad save used by CD My Team edit mode. Validates XI/Bench
+// composition and writes to the same draft paths the classic
+// mt_save_D handler uses, so no data migration is needed.
+window.saveSquadCD = async function(xiNames, benchNames){
+  if(!user || !user.uid) return { ok:false, error:'Not signed in' };
+  if(!draftId) return { ok:false, error:'No active draft' };
+  if(!myTeamName) return { ok:false, error:'No team registered' };
+  if(draftState && draftState.squadLocked && !isAdmin){
+    return { ok:false, error:'Squad changes are locked by admin' };
+  }
+  const team = draftState?.teams?.[myTeamName];
+  if(!team) return { ok:false, error:'Team not found' };
+  const roster = Array.isArray(team.roster) ? team.roster : (team.roster ? Object.values(team.roster) : []);
+  const allNames = roster.map(p => p.name || p.n || '');
+  const bad = xiNames.concat(benchNames).filter(n => allNames.indexOf(n) < 0);
+  if(bad.length) return { ok:false, error:'Unknown player: ' + bad[0] };
+  const combined = xiNames.concat(benchNames);
+  if(new Set(combined).size !== combined.length){
+    return { ok:false, error:'A player appears twice in XI/Bench' };
+  }
+  const xiTarget = Math.min(11, roster.length);
+  const needBench = roster.length > 11;
+  const benchTarget = needBench ? Math.min(5, roster.length - 11) : 0;
+  const msgs = [];
+  if(xiNames.length !== xiTarget) msgs.push('XI needs ' + xiTarget + ' (has ' + xiNames.length + ')');
+  if(needBench && benchNames.length !== benchTarget) msgs.push('Bench needs ' + benchTarget + ' (has ' + benchNames.length + ')');
+  function _pd(n){ return roster.find(x => (x.name||x.n||'') === n) || {}; }
+  function _pr(n){ return (_pd(n).role || _pd(n).r || '').toLowerCase(); }
+  function _po(n){ return !!(_pd(n).isOverseas || _pd(n).o); }
+  function _cb(n){ const r = _pr(n); return r.indexOf('bowler') >= 0 || r.indexOf('all-rounder') >= 0 || r.indexOf('all rounder') >= 0; }
+  function _wk(n){ const r = _pr(n); return r.indexOf('wicketkeeper') >= 0 || r.indexOf('keeper') >= 0; }
+  const xiOs = xiNames.filter(_po).length;
+  const benchOs = benchNames.filter(_po).length;
+  const xiBowl = xiNames.filter(_cb).length;
+  const xiWk = xiNames.filter(_wk).length;
+  const p16Os = xiOs + benchOs;
+  if(p16Os > 6) msgs.push('Playing 16 has ' + p16Os + ' overseas (max 6)');
+  if(xiNames.length === xiTarget && xiTarget >= 5 && xiBowl < 5) msgs.push('XI needs 5+ bowlers/all-rounders (has ' + xiBowl + ')');
+  if(xiNames.length === xiTarget && xiWk < 1) msgs.push('XI needs at least 1 wicketkeeper (has ' + xiWk + ')');
+  if(msgs.length) return { ok:false, error: msgs.join(' · ') };
+  try{
+    await set(ref(db, 'users/' + user.uid + '/squads/drafts/' + draftId), { xi: xiNames, bench: benchNames, savedAt: Date.now() });
+    await update(ref(db, 'drafts/' + draftId + '/teams/' + myTeamName), { squadValid: true, activeSquad: xiNames.concat(benchNames) });
+    return { ok:true };
+  }catch(e){ return { ok:false, error: e.message || String(e) }; }
+};
+
+window.validateSquadCD = function(xiNames, benchNames){
+  const team = draftState?.teams?.[myTeamName];
+  if(!team) return { ok:false, errors:['No team registered'] };
+  const roster = Array.isArray(team.roster) ? team.roster : (team.roster ? Object.values(team.roster) : []);
+  const xiTarget = Math.min(11, roster.length);
+  const needBench = roster.length > 11;
+  const benchTarget = needBench ? Math.min(5, roster.length - 11) : 0;
+  const errs = [];
+  function _pd(n){ return roster.find(x => (x.name||x.n||'') === n) || {}; }
+  function _pr(n){ return (_pd(n).role || _pd(n).r || '').toLowerCase(); }
+  function _po(n){ return !!(_pd(n).isOverseas || _pd(n).o); }
+  function _cb(n){ const r = _pr(n); return r.indexOf('bowler') >= 0 || r.indexOf('all-rounder') >= 0 || r.indexOf('all rounder') >= 0; }
+  function _wk(n){ const r = _pr(n); return r.indexOf('wicketkeeper') >= 0 || r.indexOf('keeper') >= 0; }
+  if(xiNames.length !== xiTarget) errs.push('XI needs ' + xiTarget + ' (has ' + xiNames.length + ')');
+  if(needBench && benchNames.length !== benchTarget) errs.push('Bench needs ' + benchTarget + ' (has ' + benchNames.length + ')');
+  const xiOs = xiNames.filter(_po).length;
+  const benchOs = benchNames.filter(_po).length;
+  const xiBowl = xiNames.filter(_cb).length;
+  const xiWk = xiNames.filter(_wk).length;
+  const p16Os = xiOs + benchOs;
+  if(p16Os > 6) errs.push('Playing 16 has ' + p16Os + ' overseas (max 6)');
+  if(xiNames.length === xiTarget && xiTarget >= 5 && xiBowl < 5) errs.push('XI needs 5+ bowlers/all-rounders (has ' + xiBowl + ')');
+  if(xiNames.length === xiTarget && xiWk < 1) errs.push('XI needs at least 1 wicketkeeper (has ' + xiWk + ')');
+  return { ok: errs.length === 0, errors: errs };
+};
+
+// Small adapters so the CD layer can call auction-style names without edits
+window.showPlayerModal = window.showPlayerModal || function(name){
+  if(typeof window.showPlayerModalDraft === 'function') return window.showPlayerModalDraft(name);
+};
