@@ -232,14 +232,14 @@
 <!-- ══════════════════════════════════════════════════════════════
      PLAYER PERFORMANCE MODAL
      ══════════════════════════════════════════════════════════════ -->
-<div class="modal-bg" id="playerModal">
+<div class="modal-bg" id="playerModal" onclick="if(event.target===this)this.classList.remove('open')">
   <div class="modal modal-lg">
     <div class="modal-header">
       <div>
         <h3 id="pmPlayerName"></h3>
         <div class="modal-desc" id="pmPlayerMeta"></div>
       </div>
-      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('playerModal').classList.remove('active')">Close</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('playerModal').classList.remove('open')">Close</button>
     </div>
     <div id="pmPlayerBody"></div>
   </div>

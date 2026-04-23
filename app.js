@@ -369,17 +369,23 @@ function loadDash(){
  const _saSection=document.getElementById('tab-superadmin');
  if(_saSection) _saSection.style.display=isSuperAdminEmail(user?.email)?'block':'none';
  if(isSuperAdminEmail(user?.email)) renderSuperAdminPanel();
- onValue(ref(db,`users/${user.uid}/drafts`),snap=>{
+ // Unsubscribe previous dashboard listeners to prevent memory leak / lag
+ if(window._dashListenerD1){window._dashListenerD1();window._dashListenerD1=null;}
+ if(window._dashListenerD2){window._dashListenerD2();window._dashListenerD2=null;}
+ window._dashListenerD1=onValue(ref(db,`users/${user.uid}/drafts`),snap=>{
  const rooms=snap.val(),c=document.getElementById('myDraftsList');
+ if(!c) return;
  if(!rooms){c.innerHTML='<div class="empty">No rooms yet -- create one above.</div>';return;}
- c.innerHTML='';
- Object.entries(rooms).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0)).forEach(([k,r])=>c.innerHTML+=draftCardHTML(k,r,true));
+ // Build HTML once then assign (avoid innerHTML += in loop)
+ const _entries=Object.entries(rooms).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
+ c.innerHTML=_entries.map(([k,r])=>draftCardHTML(k,r,true)).join('');
  });
- onValue(ref(db,`users/${user.uid}/joinedDrafts`),snap=>{
+ window._dashListenerD2=onValue(ref(db,`users/${user.uid}/joinedDrafts`),snap=>{
  const rooms=snap.val(),c=document.getElementById('joinedDraftsList');
+ if(!c) return;
  if(!rooms){c.innerHTML='<div class="empty">No joined rooms yet.</div>';return;}
- c.innerHTML='';
- Object.entries(rooms).sort((a,b)=>(b[1].joinedAt||0)-(a[1].joinedAt||0)).forEach(([k,r])=>c.innerHTML+=draftCardHTML(k,r,false));
+ const _entries=Object.entries(rooms).sort((a,b)=>(b[1].joinedAt||0)-(a[1].joinedAt||0));
+ c.innerHTML=_entries.map(([k,r])=>draftCardHTML(k,r,false)).join('');
  });
 }
 
@@ -2104,12 +2110,17 @@ function renderAnalyticsDraft(data){
     else if(r>=90) s.nineties++;
     if(r>=50&&r<100) s.fifties++;
    }
-   const bowM=bd.match(/Bowl(?:ing)?\((\d+)w\s+([\d.]+)ov(?:\s+(\d+)r)?/);
+   const bowM=bd.match(/Bowl(?:ing)?\((\d+)w\s+([\d.]+)ov(?:\s+(\d+)r)?[^)]*\)/);
    if(bowM){
-    const w=+bowM[1]; s.wkts+=w; s.overs+=+bowM[2]; s.bowlRuns+=+(bowM[3]||0); s.bowlInns++;
+    const w=+bowM[1]; const ov=+bowM[2]; s.wkts+=w; s.overs+=ov; s.bowlInns++;
     if(w>=5) s.fiveWkts++;
     if(w>=3) s.threeWkts++;
     const ecoM=bd.match(/eco:([\d.]+)/);
+    let runsFromBreakdown=bowM[3]?+bowM[3]:null;
+    if(runsFromBreakdown===null&&ecoM&&+ecoM[1]>0&&ov>0){
+     runsFromBreakdown=Math.round(+ecoM[1]*normalizeOvers(ov));
+    }
+    s.bowlRuns+=(runsFromBreakdown||0);
     if(ecoM&&+ecoM[1]>0){s.ecoStored+=+ecoM[1];s.ecoCount++;}
    }
    const fldM=bd.match(/Field(?:ing)?\((\d+)c\s+(\d+)st\s+(\d+)ro\)/);
@@ -2190,7 +2201,7 @@ function renderAnalyticsDraft(data){
     cols:['#','Player','Owner','Wkts','Overs','Eco','5W'],
     row:p=>([ownerMap[p.name.toLowerCase()]||'--',p.wkts,p.overs,p.overs>0?(p.bowlRuns/normalizeOvers(p.overs)).toFixed(2):'--',p.fiveWkts||'--']),
     colR:[0,0,0,1,1,1,1]},
-   {id:'bowl-eco',label:'Best Economy',filter:()=>true,sort:(a,b)=>{const ea=a.overs>0?a.bowlRuns/normalizeOvers(a.overs):99;const eb=b.overs>0?b.bowlRuns/normalizeOvers(b.overs):99;return ea-eb;},need:p=>p.overs>=2,
+   {id:'bowl-eco',label:'Best Economy (min 6 overs)',filter:()=>true,sort:(a,b)=>{const ea=a.overs>=6?a.bowlRuns/normalizeOvers(a.overs):99;const eb=b.overs>=6?b.bowlRuns/normalizeOvers(b.overs):99;return ea-eb;},need:p=>p.overs>=6,
     cols:['#','Player','Owner','Eco','Overs','Wkts','Runs'],
     row:p=>([ownerMap[p.name.toLowerCase()]||'--',p.overs>0?(p.bowlRuns/normalizeOvers(p.overs)).toFixed(2):'--',p.overs,p.wkts,p.bowlRuns]),
     colR:[0,0,0,1,1,1,1]},
