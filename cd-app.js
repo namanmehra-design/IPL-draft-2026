@@ -411,19 +411,21 @@
   };
 
   CD.sendCbzToScorecards = () => {
-    const hasData = (typeof window !== 'undefined') && window.cbzDParsedScorecard
-                    && Array.isArray(window.cbzDParsedScorecard.innings)
-                    && window.cbzDParsedScorecard.innings.length > 0;
-    if(!hasData) {
+    // cbzDParsedScorecard is module-scope inside app.js so we can't check it
+    // from here. Use the DOM instead: Step 4 is only visible after a successful
+    // Fetch Scorecard, and Step 3 Preview has content. Fall back to letting the
+    // legacy push function report "No innings data loaded" itself.
+    const step4 = document.getElementById('cbzDStep4') || document.getElementById('cbzStep4');
+    const step4Visible = step4 && step4.style.display !== 'none';
+    if(!step4Visible) {
       const s = document.getElementById('cbzDPushStatus') || document.getElementById('cbzPushStatus');
-      if(s) { s.textContent = 'No innings data loaded. Fetch a scorecard first.'; s.className = 'adm-status cbz-status fail'; }
+      if(s) { s.textContent = 'Fetch a scorecard first.'; s.className = 'adm-status cbz-status fail'; }
       return;
     }
     CD.state.adminSub = 'scorecards';
     CD.render();
     setTimeout(() => {
       try {
-        // Draft uses cbzDPushToForm; legacy cbzPushToRoom alias may also exist
         const pushFn = window.cbzDPushToForm || window.cbzPushToRoom;
         if(typeof pushFn === 'function') pushFn();
         const mainEl = document.querySelector('#cd-root main');
