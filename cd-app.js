@@ -563,34 +563,34 @@
       <div style="padding:16px;border-radius:12px;background:var(--glass);border:1px solid var(--line);margin-bottom:14px;">
         <div class="adm-lbl" style="color:var(--electric);margin-bottom:10px;">Step 1 — Select Match</div>
         <div class="adm-row">
-          <button class="adm-btn adm-btn-cta" onclick="window.cbzFetchLive && window.cbzFetchLive()">⚡ Live</button>
-          <button class="adm-btn adm-btn-ghost" onclick="window.cbzFetchRecent && window.cbzFetchRecent()">🕐 Recent</button>
-          <button class="adm-btn adm-btn-ghost" onclick="window.cbzFetchUpcoming && window.cbzFetchUpcoming()">📅 Upcoming</button>
+          <button class="adm-btn adm-btn-cta" onclick="(window.cbzDFetchLive||window.cbzFetchLive)&&(window.cbzDFetchLive||window.cbzFetchLive)()">⚡ Live</button>
+          <button class="adm-btn adm-btn-ghost" onclick="(window.cbzDFetchRecent||window.cbzFetchRecent)&&(window.cbzDFetchRecent||window.cbzFetchRecent)()">🕐 Recent</button>
+          <button class="adm-btn adm-btn-ghost" onclick="(window.cbzDFetchUpcoming||window.cbzFetchUpcoming)&&(window.cbzDFetchUpcoming||window.cbzFetchUpcoming)()">📅 Upcoming</button>
         </div>
-        <div class="adm-status cbz-status" id="cbzMatchStatus">Click a button to load matches.</div>
-        <div class="match-pick-grid" id="cbzMatchList"></div>
+        <div class="adm-status cbz-status" id="cbzDMatchStatus">Click a button to load matches.</div>
+        <div class="match-pick-grid" id="cbzDMatchList"></div>
       </div>
-      <div id="cbzStep2" style="display:none;padding:16px;border-radius:12px;background:var(--glass);border:1px solid var(--line);margin-bottom:14px;">
+      <div id="cbzDStep2" style="display:none;padding:16px;border-radius:12px;background:var(--glass);border:1px solid var(--line);margin-bottom:14px;">
         <div class="adm-lbl" style="color:var(--pink);margin-bottom:10px;">Step 2 — Load Scorecard</div>
         <div class="adm-row">
           <div style="flex:1;">
-            <div id="cbzSelectedMatchLabel" style="font-family:var(--display);font-weight:800;font-size:16px;">—</div>
-            <div id="cbzSelectedMatchMeta" style="font-size:11px;color:var(--mute);margin-top:2px;"></div>
+            <div id="cbzDSelectedMatchLabel" style="font-family:var(--display);font-weight:800;font-size:16px;">—</div>
+            <div id="cbzDSelectedMatchMeta" style="font-size:11px;color:var(--mute);margin-top:2px;"></div>
           </div>
-          <button class="adm-btn adm-btn-gold" onclick="window.cbzFetchScorecard && window.cbzFetchScorecard()">Fetch Scorecard</button>
+          <button class="adm-btn adm-btn-gold" onclick="(window.cbzDFetchScorecard||window.cbzFetchScorecard)&&(window.cbzDFetchScorecard||window.cbzFetchScorecard)()">Fetch Scorecard</button>
         </div>
-        <div class="adm-status cbz-status" id="cbzScorecardStatus"></div>
+        <div class="adm-status cbz-status" id="cbzDScorecardStatus"></div>
       </div>
-      <div id="cbzStep3" style="display:none;padding:16px;border-radius:12px;background:var(--glass);border:1px solid var(--line);margin-bottom:14px;">
+      <div id="cbzDStep3" style="display:none;padding:16px;border-radius:12px;background:var(--glass);border:1px solid var(--line);margin-bottom:14px;">
         <div class="adm-lbl" style="color:var(--lime);margin-bottom:10px;">Step 3 — Preview Innings</div>
-        <div id="cbzInningsButtons" style="display:none;margin-bottom:10px;"></div>
-        <div id="cbzPreview" style="overflow-x:auto;"></div>
+        <div id="cbzDInningsButtons" style="display:none;margin-bottom:10px;"></div>
+        <div id="cbzDPreview" style="overflow-x:auto;"></div>
       </div>
-      <div id="cbzStep4" style="display:none;padding:16px;border-radius:12px;background:var(--glass);border:1px solid var(--line);">
+      <div id="cbzDStep4" style="display:none;padding:16px;border-radius:12px;background:var(--glass);border:1px solid var(--line);">
         <div class="adm-lbl" style="color:var(--gold);margin-bottom:10px;">Step 4 — Send to Scorecards Tab</div>
         <div style="font-size:12px;color:var(--ink-2);margin-bottom:12px;">Sends <strong style="color:var(--ink);">both innings combined</strong> to the Scorecards tab, ready for save &amp; fan-out.</div>
         <button class="adm-btn adm-btn-cta" onclick="CD.sendCbzToScorecards()">Send to Scorecards Tab →</button>
-        <div class="adm-status cbz-status" id="cbzPushStatus"></div>
+        <div class="adm-status cbz-status" id="cbzDPushStatus"></div>
       </div>
     </div>
   `;
