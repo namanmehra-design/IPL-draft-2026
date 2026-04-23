@@ -3916,13 +3916,21 @@
     }, 400);
 
     // Listen for room list updates (fired by app.js when Firebase data loads)
+    let _lastGridKey = '';
     const updateRoomGrids = () => {
       try {
-        const myGrid = document.getElementById('cd-my-rooms-grid');
-        const joinedGrid = document.getElementById('cd-joined-rooms-grid');
-        if(!myGrid && !joinedGrid) return;
+        if(CD.state.view !== 'dashboard') return;
         const myRooms = window.userCreatedDrafts || [];
         const joinedRooms = window.userJoinedDrafts || [];
+        // Diff-guard: only rewrite the grid when the room-list actually
+        // changed. Stops the 800ms interval from hammering innerHTML on
+        // every tick (huge battery save on dashboard idle).
+        const gridKey = myRooms.map(r=>r.id+':'+(r.name||'')+':'+(r.maxTeams||'')+':'+(r.maxPlayers||'')).join('|')
+          + '##' + joinedRooms.map(r=>r.id+':'+(r.name||'')+':'+(r.maxTeams||'')+':'+(r.maxPlayers||'')).join('|');
+        if(gridKey === _lastGridKey) return;
+        _lastGridKey = gridKey;
+        const myGrid = document.getElementById('cd-my-rooms-grid');
+        const joinedGrid = document.getElementById('cd-joined-rooms-grid');
         // Self-healing: if boot-time+2.5s passed and no rooms arrived,
         // force-load directly from Firebase bypassing the listener.
         if(!window._cdBootTime) window._cdBootTime = Date.now();
