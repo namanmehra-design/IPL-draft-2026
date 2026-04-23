@@ -3797,13 +3797,16 @@
         if(CD.state.view !== 'dashboard') return;
         const myRooms = window.userCreatedDrafts || [];
         const joinedRooms = window.userJoinedDrafts || [];
-        // Skip re-render if rooms list hasn't changed — avoids rebuilding
-        // innerHTML every 800ms, which was causing dashboard lag.
-        const key = JSON.stringify([myRooms.map(r=>r.id+':'+r.name), joinedRooms.map(r=>r.id+':'+r.name)]);
-        if(key === _lastRoomsKey) return;
-        _lastRoomsKey = key;
         const myGrid = document.getElementById('cd-my-rooms-grid');
         const joinedGrid = document.getElementById('cd-joined-rooms-grid');
+        // Only cache the key AFTER verifying both grids are in the DOM.
+        // On pre-render calls we don't poison the cache, so when Firebase
+        // fires with real data, the render actually happens.
+        if(myGrid && joinedGrid){
+          const key = JSON.stringify([myRooms.map(r=>r.id+':'+r.name), joinedRooms.map(r=>r.id+':'+r.name)]);
+          if(key === _lastRoomsKey) return;
+          _lastRoomsKey = key;
+        }
         const buildCards = (rooms, isOwner) => {
           if(!rooms.length) return '<div style="padding:20px;color:var(--mute);grid-column:1/-1;text-align:center;background:var(--glass);border:1px dashed var(--line-2);border-radius:14px;">' + (isOwner ? 'No rooms yet — create one above.' : 'No joined rooms yet.') + '</div>';
           return rooms.map(r => {
