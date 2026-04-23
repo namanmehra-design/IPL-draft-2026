@@ -420,22 +420,42 @@ function loadDash(){
  // Unsubscribe previous dashboard listeners to prevent memory leak / lag
  if(window._dashListenerD1){window._dashListenerD1();window._dashListenerD1=null;}
  if(window._dashListenerD2){window._dashListenerD2();window._dashListenerD2=null;}
+ // EAGER fetch: run a one-shot get() immediately so the dashboard
+ // populates even if the onValue listener is delayed by permissions
+ // races, token refresh, or Safari's aggressive caching.
+ (async()=>{
+  try{ if(typeof window.cdForceLoadRooms==='function') await window.cdForceLoadRooms(); }
+  catch(e){ console.warn('eager rooms fetch:',e); }
+ })();
+ // Wrap every onValue callback in try/catch — a single thrown error
+ // inside the handler silently detaches the listener in Firebase SDK,
+ // so a malformed /users/{uid}/drafts node would leave the dashboard
+ // frozen on "Loading…" with no obvious cause.
  window._dashListenerD1=onValue(ref(db,`users/${user.uid}/drafts`),snap=>{
+ try{
  const rooms=snap.val(),c=document.getElementById('myDraftsList');
  if(!c) return;
  if(!rooms){c.innerHTML='<div class="empty">No rooms yet -- create one above.</div>';return;}
  // Build HTML once then assign (avoid innerHTML += in loop)
- const _entries=Object.entries(rooms).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
- c.innerHTML=_entries.map(([k,r])=>draftCardHTML(k,r,true)).join('');
+ const _entries=Object.entries(rooms).sort((a,b)=>(b[1]?.createdAt||0)-(a[1]?.createdAt||0));
+ c.innerHTML=_entries.map(([k,r])=>draftCardHTML(k,r||{},true)).join('');
+ }catch(e){ console.warn('dashListenerD1:', e); }
  });
  window._dashListenerD2=onValue(ref(db,`users/${user.uid}/joinedDrafts`),snap=>{
+ try{
  const rooms=snap.val(),c=document.getElementById('joinedDraftsList');
  if(!c) return;
  if(!rooms){c.innerHTML='<div class="empty">No joined rooms yet.</div>';return;}
- const _entries=Object.entries(rooms).sort((a,b)=>(b[1].joinedAt||0)-(a[1].joinedAt||0));
- c.innerHTML=_entries.map(([k,r])=>draftCardHTML(k,r,false)).join('');
+ const _entries=Object.entries(rooms).sort((a,b)=>(b[1]?.joinedAt||0)-(a[1]?.joinedAt||0));
+ c.innerHTML=_entries.map(([k,r])=>draftCardHTML(k,r||{},false)).join('');
+ }catch(e){ console.warn('dashListenerD2:', e); }
  });
 }
+// Expose module-scoped loadDash so the sidebar "Dashboard" link
+// (index.html onclick="window.loadDash&&window.loadDash()") actually
+// fires — it was a silent noop before because loadDash lived only in
+// module scope.
+window.loadDash = loadDash;
 
 window.leaveDraftRoom=function(rid,name){
  if(!user)return;
@@ -482,9 +502,16 @@ window.leaveDraftRoom=function(rid,name){
 
 window.createDraftRoom=function(){
  if(!user)return;
- const name=document.getElementById('newRoomName').value.trim()||'My Draft League';
- const maxTeams=parseInt(document.getElementById('newMaxTeams').value)||6;
- const picksPerTeam=parseInt(document.getElementById('newPicksPerTeam').value)||15;
+ const rawName=document.getElementById('newRoomName').value.trim()||'My Draft League';
+ // Cap room names at 80 chars so a pathological paste can't blow up
+ // downstream renderers (Teams tab, sidebar title, invite link UI).
+ const name=rawName.length>80?rawName.slice(0,80):rawName;
+ // Clamp numeric config to the same bounds the HTML inputs advertise.
+ // DevTools / typos can smuggle 0, negatives, or absurd values past the
+ // `min`/`max` attributes — they'd silently corrupt the snake order and
+ // every downstream roster cap.
+ const maxTeams=Math.min(10,Math.max(2,parseInt(document.getElementById('newMaxTeams').value)||6));
+ const picksPerTeam=Math.min(25,Math.max(5,parseInt(document.getElementById('newPicksPerTeam').value)||15));
  const maxOverseas=Math.min(8,Math.max(4,parseInt(document.getElementById('newMaxOverseas')?.value)||8));
  const nr=push(ref(db,'drafts'));
  const upd={};
@@ -646,8 +673,16 @@ function loadDraftRoom(rid){
  document.getElementById('setup-tab').style.display='none';
  window.switchTab('draft');
  }
- // Re-render now that myTeamName is known -- wait for draftState if needed
+ // Re-render now that myTeamName is known -- wait for draftState if needed.
+ // Bounded retry: give up after ~6s (30 * 200ms) to avoid an orphaned
+ // timer loop if the user signs out, navigates back to the dashboard,
+ // or Firebase rules block the listener from ever resolving.
+ var _retryAttempts=0;
  var _retryRender=function(){
+  // Abort if user has navigated away from this room (draftId was cleared
+  // by backToDash / signout) or hit the retry cap.
+  if(draftId!==rid||!user||_retryAttempts>=30) return;
+  _retryAttempts++;
   if(draftState&&draftState.setup&&draftState.setup.isStarted&&draftState.draftOrder){
    var _rm=draftState.members?Object.values(draftState.members):[];
    const _pptR=draftState.setup?.picksPerTeam||draftState.config?.picksPerTeam||15;
@@ -663,7 +698,11 @@ function loadDraftRoom(rid){
 
  if(draftListener){draftListener();draftListener=null;}
 
+ // Wrap the full body in try/catch. If any renderer throws (e.g. a
+ // corrupted team node, DOM race), the SDK silently drops the listener
+ // and the room freezes with no console context.
  draftListener=onValue(ref(db,`drafts/${rid}`),snap=>{
+ try {
  const data=snap.val();if(!data)return;
  draftState=data;
 
@@ -864,6 +903,7 @@ function loadDraftRoom(rid){
    setTimeout(function(){if(myTeamName)renderDraftTab(_rdata,_rlen,_rppt);},1500);
   }
  }
+ } catch(e){ console.warn('draftListener onValue:', e); }
  });
 }
 
@@ -1167,7 +1207,10 @@ window.lockInPick=function(){
  if(player.draftedBy)return window.showAlert('That player is already drafted!');
  // Quota check: prevent picking beyond the per-team limit
  const _maxPicks=draftState?.setup?.picksPerTeam||draftState?.config?.picksPerTeam||21;
- const _curRoster=draftState.teams[current.teamName]?.roster;
+ // Guard every draftState.teams access with ?. — the pick could land on a
+ // team that hasn't written a teams/{name} stub yet (first round of a
+ // freshly-started draft, mid-write race).
+ const _curRoster=draftState.teams?.[current.teamName]?.roster;
  const _curRosterArr=Array.isArray(_curRoster)?_curRoster:(_curRoster?Object.values(_curRoster):[]);
  if(_curRosterArr.length>=_maxPicks){
   // Auto-skip this pick and advance to next
@@ -1182,13 +1225,13 @@ window.lockInPick=function(){
 if((team?.overseasCount||0)>=_osMax)return window.showAlert(`Max ${_osMax} overseas players per team!`);
  }
  player.draftedBy=current.teamName;
- const oldRoster=draftState.teams[current.teamName]?.roster;
+ const oldRoster=draftState.teams?.[current.teamName]?.roster;
  const roster=Array.isArray(oldRoster)?[...oldRoster]:(oldRoster?Object.values(oldRoster):[]);
  roster.push({id:player.id,name:player.name,iplTeam:player.iplTeam,role:player.role,isOverseas:player.isOverseas});
  const upd={};
  upd[`drafts/${draftId}/players`]=players;
  upd[`drafts/${draftId}/teams/${current.teamName}/roster`]=roster;
- if(player.isOverseas)upd[`drafts/${draftId}/teams/${current.teamName}/overseasCount`]=(draftState.teams[current.teamName]?.overseasCount||0)+1;
+ if(player.isOverseas)upd[`drafts/${draftId}/teams/${current.teamName}/overseasCount`]=(draftState.teams?.[current.teamName]?.overseasCount||0)+1;
  upd[`drafts/${draftId}/currentPickIndex`]=idx+1;
  update(ref(db),upd)
   .then(()=>window.showAlert(`${player.name} drafted to ${current.teamName}!`,'ok'))
@@ -1412,6 +1455,17 @@ function calcBattingPtsD(runs,balls,fours,sixes,dismissal,isWin,isMot,playerRole
 }
 // Eco auto-calc
 document.addEventListener('input',function(e){if(e.target.placeholder==='Eco'&&e.target.value)e.target.dataset.manual='1';if(e.target.placeholder==='Eco'&&!e.target.value)delete e.target.dataset.manual;});
+// window.autoEcoD -- wires the draft bowling-row's Ov/R inputs so the Eco
+// column auto-fills until the admin types in it manually. Mirrors
+// window.autoEco in the auction app. Without this, the oninput="window.autoEcoD(...)"
+// handlers in addBowlingRowD threw ReferenceError and eco never populated.
+window.autoEcoD=function(prefix){
+ const ov=parseFloat(document.getElementById(prefix+'o')?.value)||0;
+ const r=parseFloat(document.getElementById(prefix+'r')?.value)||0;
+ const ecoEl=document.getElementById(prefix+'e');
+ if(ecoEl&&!ecoEl.dataset.manual&&ov>0) ecoEl.value=(r/normalizeOvers(ov)).toFixed(2);
+ else if(ecoEl&&!ecoEl.dataset.manual&&ov===0) ecoEl.value='';
+};
 function normalizeOvers(ov){
  // Cricket overs: 3.3 means 3 overs + 3 balls = 3.5 true overs for eco calc
  const full=Math.floor(ov);
@@ -4841,16 +4895,21 @@ window.acceptTrade=function(tradeId){
   var fromRoster=Array.isArray(fromTeam.roster)?fromTeam.roster.slice():(fromTeam.roster?Object.values(fromTeam.roster):[]);
   var toRoster=Array.isArray(toTeam.roster)?toTeam.roster.slice():(toTeam.roster?Object.values(toTeam.roster):[]);
 
+  // Coerce to arrays — Firebase strips empty arrays so an old trade record
+  // could have trade.sending === undefined and crash forEach.
+  var sendingList=Array.isArray(trade.sending)?trade.sending:(trade.sending?Object.values(trade.sending):[]);
+  var receivingList=Array.isArray(trade.receiving)?trade.receiving:(trade.receiving?Object.values(trade.receiving):[]);
+
   // Move "sending" players: from -> to
   var sendingPlayers=[];
-  trade.sending.forEach(function(name){
+  sendingList.forEach(function(name){
    var idx=fromRoster.findIndex(function(p){return(p.name||p.n||'')===name;});
    if(idx>=0){ sendingPlayers.push(fromRoster[idx]); fromRoster.splice(idx,1); }
   });
 
   // Move "receiving" players: to -> from
   var receivingPlayers=[];
-  trade.receiving.forEach(function(name){
+  receivingList.forEach(function(name){
    var idx=toRoster.findIndex(function(p){return(p.name||p.n||'')===name;});
    if(idx>=0){ receivingPlayers.push(toRoster[idx]); toRoster.splice(idx,1); }
   });
@@ -4868,14 +4927,14 @@ window.acceptTrade=function(tradeId){
   // Also update draftedBy/soldTo in the players array if it exists
   if(data.players){
    var allP=Array.isArray(data.players)?data.players:Object.values(data.players||{});
-   trade.sending.forEach(function(name){
+   sendingList.forEach(function(name){
     var pIdx=allP.findIndex(function(p){return(p.name||p.n||'')===name;});
     if(pIdx>=0){
      upd['drafts/'+draftId+'/players/'+pIdx+'/draftedBy']=trade.to;
      upd['drafts/'+draftId+'/players/'+pIdx+'/soldTo']=trade.to;
     }
    });
-   trade.receiving.forEach(function(name){
+   receivingList.forEach(function(name){
     var pIdx=allP.findIndex(function(p){return(p.name||p.n||'')===name;});
     if(pIdx>=0){
      upd['drafts/'+draftId+'/players/'+pIdx+'/draftedBy']=trade.from;
@@ -5196,27 +5255,33 @@ window.IPL_SCHEDULE = typeof IPL_SCHEDULE !== 'undefined' ? IPL_SCHEDULE : [];
     window.userCreatedDrafts = [];
     window.userJoinedDrafts = [];
     if(!u){ push(); return; }
+    // Wrap each body — if a single malformed room throws, the listener
+    // silently detaches in the SDK and CD gets stuck on its splash screen.
     unsubCreated = onValue(ref(db, `users/${u.uid}/drafts`), snap => {
-      const val = snap.val() || {};
-      window.userCreatedDrafts = Object.entries(val).map(([rid, r]) => ({
-        id: rid, type: 'draft', isOwner: true,
-        roomName: r.name || r.roomName || '',
-        name: r.name || r.roomName || '',
-        maxTeams: r.maxTeams, picksPerTeam: r.picksPerTeam,
-        createdAt: r.createdAt || 0
-      }));
-      push();
+      try {
+        const val = snap.val() || {};
+        window.userCreatedDrafts = Object.entries(val).map(([rid, r]) => ({
+          id: rid, type: 'draft', isOwner: true,
+          roomName: r?.name || r?.roomName || '',
+          name: r?.name || r?.roomName || '',
+          maxTeams: r?.maxTeams, picksPerTeam: r?.picksPerTeam,
+          createdAt: r?.createdAt || 0
+        }));
+        push();
+      } catch(e){ console.warn('publishRoomsForCD/drafts:', e); }
     });
     unsubJoined = onValue(ref(db, `users/${u.uid}/joinedDrafts`), snap => {
-      const val = snap.val() || {};
-      window.userJoinedDrafts = Object.entries(val).map(([rid, r]) => ({
-        id: rid, type: 'draft', isOwner: false,
-        roomName: r.name || r.roomName || '',
-        name: r.name || r.roomName || '',
-        teamName: r.teamName, maxTeams: r.maxTeams, picksPerTeam: r.picksPerTeam,
-        joinedAt: r.joinedAt || 0
-      }));
-      push();
+      try {
+        const val = snap.val() || {};
+        window.userJoinedDrafts = Object.entries(val).map(([rid, r]) => ({
+          id: rid, type: 'draft', isOwner: false,
+          roomName: r?.name || r?.roomName || '',
+          name: r?.name || r?.roomName || '',
+          teamName: r?.teamName, maxTeams: r?.maxTeams, picksPerTeam: r?.picksPerTeam,
+          joinedAt: r?.joinedAt || 0
+        }));
+        push();
+      } catch(e){ console.warn('publishRoomsForCD/joinedDrafts:', e); }
     });
   });
 })();

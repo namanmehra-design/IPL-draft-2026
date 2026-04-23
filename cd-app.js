@@ -828,7 +828,6 @@
       <div id="saMatchInfo" class="adm-info" style="display:none;"><span id="saMatchInfoText"></span></div>
       <div class="adm-row" style="margin-top:14px;">
         <button class="adm-btn adm-btn-cta" onclick="window.saPushToAll && window.saPushToAll()">Push to all rooms</button>
-        <button class="adm-btn adm-btn-gold" onclick="window.saDeleteAndRepush && window.saDeleteAndRepush()">Delete &amp; re-push</button>
         <button class="adm-btn adm-btn-danger" onclick="window.saDeleteMatchFromAll && window.saDeleteMatchFromAll()">Delete from all rooms</button>
       </div>
       <div class="adm-status ai-status" id="saPushStatus"></div>
