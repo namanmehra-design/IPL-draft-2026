@@ -66,8 +66,11 @@ const RAW=[
 const ERRS={'auth/invalid-credential':'Invalid email or password.','auth/user-not-found':'No account with this email.','auth/wrong-password':'Incorrect password.','auth/email-already-in-use':'Email already registered. Try signing in.','auth/weak-password':'Password must be at least 6 characters.','auth/invalid-email':'Enter a valid email address.','auth/too-many-requests':'Too many attempts. Please wait.','auth/unauthorized-domain':'Domain not authorized -- add it in Firebase Console -> Auth -> Authorized Domains.'};
 
 let user=null,draftId=null,draftState=null,draftListener=null;
-const SUPER_ADMIN='namanmehra@gmail.com';
-function isSuperAdminEmail(email){ return (email||'').toLowerCase().trim()==='namanmehra@gmail.com'; }
+const SUPER_ADMINS=['namanmehra@gmail.com','nmehra1@babson.edu'];
+const SUPER_ADMIN=SUPER_ADMINS[0]; // primary (kept for any legacy references)
+function isSuperAdminEmail(email){ return SUPER_ADMINS.includes((email||'').toLowerCase().trim()); }
+// Expose for cd-app.js (classic script, can't import module scope)
+if(typeof window !== 'undefined'){ window.isSuperAdminEmail = isSuperAdminEmail; window.SUPER_ADMINS = SUPER_ADMINS; }
 function escapeHtml(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 // -- Overseas detection helper (name-based: "* (" suffix means overseas) --
