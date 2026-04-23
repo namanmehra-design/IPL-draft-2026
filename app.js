@@ -306,7 +306,32 @@ onAuthStateChanged(auth,u=>{
  setTimeout(()=>{ const s=document.getElementById('dt-superadmin'); if(s) s.style.display=isSuperAdminEmail(u.email)?'block':'none'; },200);
  if(dp)loadDraftRoom(dp);else loadDash();
  }
- else showAuth();
+ else {
+  // Signed out mid-room: detach draft listener, clear state, and let CD render
+  // the auth screen. Guarded with a dedupe flag so the handler doesn't double-call.
+  if(!window._cdSignOutCleanupInFlight){
+   window._cdSignOutCleanupInFlight=true;
+   try{ if(draftListener){draftListener();draftListener=null;} }catch(e){ console.warn('detach draftListener:', e); }
+   try{ if(window._dashListenerD1){window._dashListenerD1();window._dashListenerD1=null;} }catch(e){ console.warn('detach _dashListenerD1:', e); }
+   try{ if(window._dashListenerD2){window._dashListenerD2();window._dashListenerD2=null;} }catch(e){ console.warn('detach _dashListenerD2:', e); }
+   draftState=null; myTeamName=''; isAdmin=false;
+   window.roomState=null; window.myTeamName=''; window.isAdmin=false; window.roomId=null;
+   // Clear CD-side super admin / edit state so it can't leak into the next session.
+   try{
+    if(window.CD && window.CD.state){
+     window.CD.state.view='auth';
+     window.CD.state.adminSub='scorecards';
+     window.CD.state.editingSquad=false;
+     window.CD.state.squadDraft=null;
+     window.CD.state.rosterStale=false;
+     window.CD.state.rosterStaleTeams=[];
+    }
+    if(window.CD){ window.CD._replaceA=null; }
+   }catch(e){ console.warn('clear CD.state on signout:', e); }
+   setTimeout(()=>{ window._cdSignOutCleanupInFlight=false; }, 300);
+  }
+  showAuth();
+ }
 });
 
 window.toggleAuthMode=function(){
@@ -395,10 +420,45 @@ function loadDash(){
 
 window.leaveDraftRoom=function(rid,name){
  if(!user)return;
- if(!confirm(`Leave "${name}"? You will lose your franchise slot in this draft.`))return;
- remove(ref(db,`users/${user.uid}/joinedDrafts/${rid}`))
- .then(()=>window.showAlert(`Left "${name}".`,'ok'))
- .catch(e=>window.showAlert(e.message));
+ // Block leaving while a draft is active (started but not ended). Super admin
+ // can force — but only behind an explicit confirm, and we then recompute the
+ // snake order from the remaining teams. Fresh read to avoid stale state.
+ get(ref(db,`drafts/${rid}`)).then(function(snap){
+  const data=snap.val()||{};
+  const isActive=!!(data.setup&&data.setup.isStarted&&!data.setup.isEnded);
+  const isSuper=isSuperAdminEmail(user?.email);
+  if(isActive && !isSuper){
+   return window.showAlert('Cannot delete a team while the draft is active. Pause or end the draft first.','error');
+  }
+  if(isActive && isSuper){
+   if(!confirm(`Draft "${name}" is ACTIVE. Force-remove this team and rebuild the snake order from the remaining teams? This cannot be undone.`)) return;
+   // Determine the team being removed
+   const mySlot=(data.members&&data.members[user.uid])||null;
+   const removedTeam=mySlot&&mySlot.teamName;
+   const writes=[];
+   writes.push(remove(ref(db,`users/${user.uid}/joinedDrafts/${rid}`)));
+   if(removedTeam){
+    writes.push(remove(ref(db,`drafts/${rid}/members/${user.uid}`)));
+    writes.push(remove(ref(db,`drafts/${rid}/teams/${removedTeam}`)));
+    // Rebuild snake order from remaining members
+    const remainMembers=Object.values(data.members||{}).filter(function(m){ return m.uid!==user.uid; });
+    const picksPerTeam=(data.setup&&data.setup.picksPerTeam)||(data.config&&data.config.picksPerTeam)||0;
+    if(picksPerTeam>0 && remainMembers.length>0){
+     const newOrder=[];
+     for(let round=1; round<=picksPerTeam; round++){
+      const ro = (round%2===1) ? remainMembers.slice() : remainMembers.slice().reverse();
+      ro.forEach(m=>newOrder.push({teamName:m.teamName,uid:m.uid,round:round}));
+     }
+     writes.push(update(ref(db,`drafts/${rid}`),{draftOrder:newOrder}));
+    }
+   }
+   return Promise.all(writes).then(()=>window.showAlert(`Force-removed from active draft "${name}". Draft order rebuilt.`,'ok')).catch(e=>window.showAlert(e.message));
+  }
+  if(!confirm(`Leave "${name}"? You will lose your franchise slot in this draft.`))return;
+  remove(ref(db,`users/${user.uid}/joinedDrafts/${rid}`))
+   .then(()=>window.showAlert(`Left "${name}".`,'ok'))
+   .catch(e=>window.showAlert(e.message));
+ }).catch(e=>window.showAlert(e.message));
 };
 
 window.createDraftRoom=function(){
@@ -1244,6 +1304,8 @@ window.confirmRelease=function(){
   window.showAlert(releasePlayerName+' released. Compensatory pick added at end.','ok');
   // Auto-heal stored leaderboardTotals so future reads can't drift.
   try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){ console.warn('recalc leaderboard (draft):', e); }
+  // Notify CD: any open match-entry form should surface a soft Resync banner.
+  try{ window.dispatchEvent(new CustomEvent('_cdRosterChanged',{detail:{team:releaseTeam}})); }catch(e){ console.warn('dispatch _cdRosterChanged:', e); }
  }).catch(function(e){window.showAlert('Release failed: '+e.message);});
  }).catch(function(e){window.showAlert('Error: '+e.message);});
 };
@@ -1310,6 +1372,7 @@ window.confirmReplace=function(){
   window.closeReplaceModal();
   window.showAlert(oldPlayer.name+' replaced with '+newPlayer.name,'ok');
   try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){ console.warn('recalc leaderboard (draft):', e); }
+  try{ window.dispatchEvent(new CustomEvent('_cdRosterChanged',{detail:{team:replaceTeam}})); }catch(e){ console.warn('dispatch _cdRosterChanged:', e); }
  }).catch(function(e){window.showAlert('Replace failed: '+e.message);});
  }).catch(function(e){window.showAlert('Error: '+e.message);});
 };
@@ -3028,25 +3091,28 @@ window.saveGlobalScorecard=async function(){
  const aRooms=aSnap.val()||{};
  const dRooms=dSnap.val()||{};
 
- // Duplicate detection: delete old matches with same label before pushing new
+ // Duplicate detection: delete old matches with same label before pushing new.
+ // Latest push wins — no confirm, always overwrite. Track how many old records
+ // got overwritten and across how many rooms so the toast can report it.
  const dupCleanPromises=[];
  const matchLabel=data.label.toLowerCase().trim();
+ var _gscOverwriteCount=0; var _gscRoomsTouched=0;
  Object.keys(aRooms).forEach(function(rid){
   dupCleanPromises.push(get(ref(db,'auctions/'+rid+'/matches')).then(function(mSnap){
-   var matches=mSnap.val()||{}; var delWrites={};
+   var matches=mSnap.val()||{}; var delWrites={}; var n=0;
    Object.entries(matches).forEach(function(me){
-    if((me[1].label||'').toLowerCase().trim()===matchLabel) delWrites['auctions/'+rid+'/matches/'+me[0]]=null;
+    if((me[1].label||'').toLowerCase().trim()===matchLabel){ delWrites['auctions/'+rid+'/matches/'+me[0]]=null; n++; }
    });
-   if(Object.keys(delWrites).length>0) return update(ref(db),delWrites);
+   if(n>0){ _gscOverwriteCount+=n; _gscRoomsTouched++; return update(ref(db),delWrites); }
   }).catch(function(){}));
  });
  Object.keys(dRooms).forEach(function(rid){
   dupCleanPromises.push(get(ref(db,'drafts/'+rid+'/matches')).then(function(mSnap){
-   var matches=mSnap.val()||{}; var delWrites={};
+   var matches=mSnap.val()||{}; var delWrites={}; var n=0;
    Object.entries(matches).forEach(function(me){
-    if((me[1].label||'').toLowerCase().trim()===matchLabel) delWrites['drafts/'+rid+'/matches/'+me[0]]=null;
+    if((me[1].label||'').toLowerCase().trim()===matchLabel){ delWrites['drafts/'+rid+'/matches/'+me[0]]=null; n++; }
    });
-   if(Object.keys(delWrites).length>0) return update(ref(db),delWrites);
+   if(n>0){ _gscOverwriteCount+=n; _gscRoomsTouched++; return update(ref(db),delWrites); }
   }).catch(function(){}));
  });
  await Promise.all(dupCleanPromises);
@@ -3120,7 +3186,11 @@ window.saveGlobalScorecard=async function(){
  }
 
  statusEl.className='ai-status done';
- statusEl.textContent=`"${data.label}" saved and pushed to ${totalRooms} room${totalRooms===1?'':'s'} (${Object.keys(aRooms).length} auction . ${Object.keys(dRooms).length} draft).`;
+ var _baseMsg=`"${data.label}" saved and pushed to ${totalRooms} room${totalRooms===1?'':'s'} (${Object.keys(aRooms).length} auction . ${Object.keys(dRooms).length} draft).`;
+ if(_gscOverwriteCount>0){
+  _baseMsg += ` '${data.label}' replaced — ${_gscOverwriteCount} old record${_gscOverwriteCount===1?'':'s'} overwritten across ${_gscRoomsTouched} room${_gscRoomsTouched===1?'':'s'}.`;
+ }
+ statusEl.textContent=_baseMsg;
 
  // Reset form
  document.getElementById('gscBattingRows').innerHTML='';
@@ -3166,6 +3236,7 @@ function renderGlobalScorecardHistory(){
 }
 
 // -- Re-push a previously saved scorecard to all rooms --
+// Per user: latest push wins, no confirm — always overwrite per-room edits.
 window.repushScorecard=async function(mid){
  if(!user) return;
  try{
@@ -3183,6 +3254,55 @@ window.repushScorecard=async function(mid){
  const total=Object.keys(aSnap.val()||{}).length+Object.keys(dSnap.val()||{}).length;
  window.showAlert(`Re-pushed "${matchRecord.label}" to ${total} room${total===1?'':'s'}.`,'ok');
  }catch(e){ window.showAlert('Re-push failed: '+e.message); }
+};
+
+// -- Resync all rooms: iterate every saved scorecard and re-fan-out to every
+// auction + draft room the user owns or joins. Per-room failures are captured
+// and summarised at the end (the network drop case). Super admin only.
+window.cdResyncAllRooms=async function(){
+ if(!user) return;
+ if(!isSuperAdminEmail(user?.email)){
+  window.showAlert('Only the super admin can resync all rooms.','error');
+  return;
+ }
+ const statusEl=document.getElementById('gscResyncStatus');
+ const setStatus=(cls,txt)=>{ if(!statusEl) return; statusEl.style.display='block'; statusEl.className='adm-status ai-status '+cls; statusEl.textContent=txt; };
+ try{
+  setStatus('parsing','Loading scorecards…');
+  const [scSnap,aSnap,dSnap]=await Promise.all([
+   get(ref(db,`users/${user.uid}/scorecards`)),
+   get(ref(db,`users/${user.uid}/auctions`)),
+   get(ref(db,`users/${user.uid}/drafts`))
+  ]);
+  const scorecards=scSnap.val()||{};
+  const mids=Object.keys(scorecards);
+  if(mids.length===0){ setStatus('done','No saved scorecards to resync.'); return; }
+  const aRids=Object.keys(aSnap.val()||{});
+  const dRids=Object.keys(dSnap.val()||{});
+  const totalRooms=aRids.length+dRids.length;
+  const failures=[];
+  let done=0;
+  for(const mid of mids){
+   const matchRecord=scorecards[mid];
+   setStatus('parsing',`Resyncing match ${done+1} of ${mids.length} — "${matchRecord.label||mid}"…`);
+   const fanOut={};
+   aRids.forEach(rid=>{ fanOut[`auctions/${rid}/matches/${mid}`]=matchRecord; });
+   dRids.forEach(rid=>{ fanOut[`drafts/${rid}/matches/${mid}`]=matchRecord; });
+   try{
+    if(Object.keys(fanOut).length>0) await update(ref(db),fanOut);
+   }catch(e){
+    failures.push(`"${matchRecord.label||mid}": ${e.message}`);
+   }
+   done++;
+  }
+  if(failures.length){
+   setStatus('fail',`Resynced ${done-failures.length}/${mids.length} matches to ${totalRooms} rooms. Failures: ${failures.slice(0,3).join(' | ')}${failures.length>3?` (+${failures.length-3} more)`:''}`);
+  }else{
+   setStatus('done',`Resynced ${done} match${done===1?'':'es'} to ${totalRooms} room${totalRooms===1?'':'s'}.`);
+  }
+ }catch(e){
+  setStatus('fail','Resync failed: '+(e.message||e));
+ }
 };
 
 // -- Delete a global scorecard --
