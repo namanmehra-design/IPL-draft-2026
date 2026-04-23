@@ -3279,6 +3279,12 @@ window.saveGlobalScorecard=async function(){
  document.getElementById('gscFormBody').style.display='none';
  renderGlobalScorecardHistory();
 
+ // Force-refresh the in-room view if the user is currently watching a target
+ // room — don't wait for the 400ms poll-diff (which can miss replacements
+ // that don't change match-count). Form is already hidden above so the
+ // scheduleRender guard won't block.
+ try{ if(window.CD && typeof window.CD.scheduleRender==='function'){ window.CD.scheduleRender(); } }catch(_){}
+
  }catch(e){
  statusEl.className='ai-status fail';
  statusEl.textContent=`\u274c Save failed: ${e.message}`;
@@ -3320,12 +3326,69 @@ window.repushScorecard=async function(mid){
  get(ref(db,`users/${user.uid}/auctions`)),
  get(ref(db,`users/${user.uid}/drafts`))
  ]);
+ const aRoomKeys=Object.keys(aSnap.val()||{});
+ const dRoomKeys=Object.keys(dSnap.val()||{});
  const fanOut={};
- Object.keys(aSnap.val()||{}).forEach(rid=>{fanOut[`auctions/${rid}/matches/${mid}`]=matchRecord;});
- Object.keys(dSnap.val()||{}).forEach(rid=>{fanOut[`drafts/${rid}/matches/${mid}`]=matchRecord;});
+ aRoomKeys.forEach(rid=>{fanOut[`auctions/${rid}/matches/${mid}`]=matchRecord;});
+ dRoomKeys.forEach(rid=>{fanOut[`drafts/${rid}/matches/${mid}`]=matchRecord;});
  await update(ref(db),fanOut);
- const total=Object.keys(aSnap.val()||{}).length+Object.keys(dSnap.val()||{}).length;
+ // Post-push: recompute leaderboardTotals from scratch for every target room.
+ // Re-push overwrites a match with the same mid, so incremental math would
+ // double-count — full recalc is the only safe approach.
+ var _rpPromises=[];
+ aRoomKeys.forEach(function(rid){
+  _rpPromises.push(get(ref(db,'auctions/'+rid)).then(function(roomSnap){
+   var roomData=roomSnap.val()||{};
+   var teams=roomData.teams||{};
+   var snaps=buildSquadSnapshots(teams);
+   var xiMult=parseFloat(roomData.xiMultiplier)||1;
+   var allMatches=roomData.matches||{};
+   // The just-pushed record already lives in Firebase; overwrite locally too
+   allMatches[mid]=matchRecord;
+   if(!allMatches[mid].squadSnapshots) allMatches[mid].squadSnapshots={};
+   Object.entries(snaps).forEach(function(se){allMatches[mid].squadSnapshots[se[0]]=se[1];});
+   var totals={}; Object.values(teams).forEach(function(t2){totals[t2.name]={pts:0,topPlayer:'--',topPts:0,playerCount:0,_players:{}};});
+   Object.entries(allMatches).forEach(function(me2){
+    var m2=me2[1]; if(!m2?.players) return;
+    var c2=computeMatchContribution(m2, m2.squadSnapshots||snaps, teams, xiMult);
+    Object.entries(c2).forEach(function(ce2){var tn3=ce2[0],cc=ce2[1];if(!totals[tn3])totals[tn3]={pts:0,topPlayer:'--',topPts:0,playerCount:0,_players:{}};totals[tn3].pts+=cc.pts;Object.entries(cc.players).forEach(function(pe){totals[tn3]._players[pe[0]]=(totals[tn3]._players[pe[0]]||0)+pe[1];});});
+   });
+   var storedNew={}; Object.entries(totals).forEach(function(te){var tn4=te[0],tt=te[1],topP='--',topPts=0,pCount=0;Object.entries(tt._players).forEach(function(pe){if(pe[1]!==0)pCount++;if(pe[1]>topPts){topPts=pe[1];topP=pe[0];}});storedNew[tn4]={pts:Math.round(tt.pts*100)/100,topPlayer:topP,topPts:Math.round(topPts*100)/100,playerCount:pCount};});
+   var writes={};
+   Object.entries(snaps).forEach(function(se){writes['auctions/'+rid+'/matches/'+mid+'/squadSnapshots/'+se[0]]=se[1];});
+   writes['auctions/'+rid+'/leaderboardTotals']=storedNew;
+   return update(ref(db),writes);
+  }).catch(function(){}));
+ });
+ dRoomKeys.forEach(function(rid){
+  _rpPromises.push(get(ref(db,'drafts/'+rid)).then(function(roomSnap){
+   var roomData=roomSnap.val()||{};
+   var teams=roomData.teams||{};
+   var snaps=buildSquadSnapshots(teams);
+   var xiMult=parseFloat(roomData.xiMultiplier)||1;
+   var allMatches=roomData.matches||{};
+   allMatches[mid]=matchRecord;
+   if(!allMatches[mid].squadSnapshots) allMatches[mid].squadSnapshots={};
+   Object.entries(snaps).forEach(function(se){allMatches[mid].squadSnapshots[se[0]]=se[1];});
+   var totals={}; Object.values(teams).forEach(function(t2){totals[t2.name]={pts:0,topPlayer:'--',topPts:0,playerCount:0,_players:{}};});
+   Object.entries(allMatches).forEach(function(me2){
+    var m2=me2[1]; if(!m2?.players) return;
+    var c2=computeMatchContribution(m2, m2.squadSnapshots||snaps, teams, xiMult);
+    Object.entries(c2).forEach(function(ce2){var tn3=ce2[0],cc=ce2[1];if(!totals[tn3])totals[tn3]={pts:0,topPlayer:'--',topPts:0,playerCount:0,_players:{}};totals[tn3].pts+=cc.pts;Object.entries(cc.players).forEach(function(pe){totals[tn3]._players[pe[0]]=(totals[tn3]._players[pe[0]]||0)+pe[1];});});
+   });
+   var storedNew={}; Object.entries(totals).forEach(function(te){var tn4=te[0],tt=te[1],topP='--',topPts=0,pCount=0;Object.entries(tt._players).forEach(function(pe){if(pe[1]!==0)pCount++;if(pe[1]>topPts){topPts=pe[1];topP=pe[0];}});storedNew[tn4]={pts:Math.round(tt.pts*100)/100,topPlayer:topP,topPts:Math.round(topPts*100)/100,playerCount:pCount};});
+   var writes={};
+   Object.entries(snaps).forEach(function(se){writes['drafts/'+rid+'/matches/'+mid+'/squadSnapshots/'+se[0]]=se[1];});
+   writes['drafts/'+rid+'/leaderboardTotals']=storedNew;
+   return update(ref(db),writes);
+  }).catch(function(){}));
+ });
+ await Promise.all(_rpPromises);
+ const total=aRoomKeys.length+dRoomKeys.length;
  window.showAlert(`Re-pushed "${matchRecord.label}" to ${total} room${total===1?'':'s'}.`,'ok');
+ // If the user is currently viewing one of the target rooms, force an
+ // immediate render so they don't wait for the 400ms poll-diff to pick it up.
+ try{ if(window.CD && typeof window.CD.scheduleRender==='function'){ window.CD.scheduleRender(); } }catch(_){}
  }catch(e){ window.showAlert('Re-push failed: '+e.message); }
 };
 
@@ -3553,7 +3616,10 @@ window.saPushToAll=async function(){
  draftRids.forEach(rid=>{fanOut[`drafts/${rid}/matches/${mid}`]=matchRecord;});
  await update(ref(db),fanOut);
 
- // Post-push: snapshots + leaderboard totals for each room
+ // Post-push: snapshots + leaderboard totals for each room. Recalc from
+ // scratch (never increment) because a push with an existing mid replaces
+ // the old record — an increment would double-count. Safe full recomputation
+ // uses computeMatchContribution against every match in the room.
  statusEl.textContent=' Saving snapshots and updating leaderboard totals...';
  var postPromises=[];
  auctionRids.forEach(function(rid){
@@ -3564,18 +3630,19 @@ window.saPushToAll=async function(){
    var upd={};
    Object.entries(snaps).forEach(function(se){upd['auctions/'+rid+'/matches/'+mid+'/squadSnapshots/'+se[0]]=se[1];});
    var xiMult=parseFloat(roomData.xiMultiplier)||1;
-   var contrib=computeMatchContribution(matchRecord, snaps, teams, xiMult);
-   var stored=roomData.leaderboardTotals||{};
-   Object.entries(contrib).forEach(function(ce){
-    var tn=ce[0], c=ce[1];
-    if(!stored[tn]) stored[tn]={pts:0,topPlayer:'--',topPts:0,playerCount:0};
-    stored[tn].pts=Math.round((stored[tn].pts+c.pts)*100)/100;
-    var bestN='--',bestP=0,pC=0;
-    Object.entries(c.players).forEach(function(pe){if(pe[1]!==0)pC++;if(pe[1]>bestP){bestP=pe[1];bestN=pe[0];}});
-    stored[tn].playerCount=(stored[tn].playerCount||0)+pC;
-    if(bestP>stored[tn].topPts){stored[tn].topPts=bestP;stored[tn].topPlayer=bestN;}
+   var allMatches=roomData.matches||{};
+   // The just-pushed record is live in Firebase; include it with enriched snapshots
+   allMatches[mid]=matchRecord;
+   if(!allMatches[mid].squadSnapshots) allMatches[mid].squadSnapshots={};
+   Object.entries(snaps).forEach(function(se2){allMatches[mid].squadSnapshots[se2[0]]=se2[1];});
+   var totals={}; Object.values(teams).forEach(function(t2){totals[t2.name]={pts:0,topPlayer:'--',topPts:0,playerCount:0,_players:{}};});
+   Object.entries(allMatches).forEach(function(me2){
+    var m2=me2[1]; if(!m2?.players) return;
+    var c2=computeMatchContribution(m2, m2.squadSnapshots||snaps, teams, xiMult);
+    Object.entries(c2).forEach(function(ce2){var tn3=ce2[0],cc=ce2[1];if(!totals[tn3])totals[tn3]={pts:0,topPlayer:'--',topPts:0,playerCount:0,_players:{}};totals[tn3].pts+=cc.pts;Object.entries(cc.players).forEach(function(pe){totals[tn3]._players[pe[0]]=(totals[tn3]._players[pe[0]]||0)+pe[1];});});
    });
-   upd['auctions/'+rid+'/leaderboardTotals']=stored;
+   var storedNew={}; Object.entries(totals).forEach(function(te){var tn4=te[0],tt=te[1],topP='--',topPts=0,pCount=0;Object.entries(tt._players).forEach(function(pe){if(pe[1]!==0)pCount++;if(pe[1]>topPts){topPts=pe[1];topP=pe[0];}});storedNew[tn4]={pts:Math.round(tt.pts*100)/100,topPlayer:topP,topPts:Math.round(topPts*100)/100,playerCount:pCount};});
+   upd['auctions/'+rid+'/leaderboardTotals']=storedNew;
    return update(ref(db),upd);
   }).catch(function(){}));
  });
@@ -3587,18 +3654,18 @@ window.saPushToAll=async function(){
    var upd={};
    Object.entries(snaps).forEach(function(se){upd['drafts/'+rid+'/matches/'+mid+'/squadSnapshots/'+se[0]]=se[1];});
    var xiMult=parseFloat(roomData.xiMultiplier)||1;
-   var contrib=computeMatchContribution(matchRecord, snaps, teams, xiMult);
-   var stored=roomData.leaderboardTotals||{};
-   Object.entries(contrib).forEach(function(ce){
-    var tn=ce[0], c=ce[1];
-    if(!stored[tn]) stored[tn]={pts:0,topPlayer:'--',topPts:0,playerCount:0};
-    stored[tn].pts=Math.round((stored[tn].pts+c.pts)*100)/100;
-    var bestN='--',bestP=0,pC=0;
-    Object.entries(c.players).forEach(function(pe){if(pe[1]!==0)pC++;if(pe[1]>bestP){bestP=pe[1];bestN=pe[0];}});
-    stored[tn].playerCount=(stored[tn].playerCount||0)+pC;
-    if(bestP>stored[tn].topPts){stored[tn].topPts=bestP;stored[tn].topPlayer=bestN;}
+   var allMatches=roomData.matches||{};
+   allMatches[mid]=matchRecord;
+   if(!allMatches[mid].squadSnapshots) allMatches[mid].squadSnapshots={};
+   Object.entries(snaps).forEach(function(se2){allMatches[mid].squadSnapshots[se2[0]]=se2[1];});
+   var totals={}; Object.values(teams).forEach(function(t2){totals[t2.name]={pts:0,topPlayer:'--',topPts:0,playerCount:0,_players:{}};});
+   Object.entries(allMatches).forEach(function(me2){
+    var m2=me2[1]; if(!m2?.players) return;
+    var c2=computeMatchContribution(m2, m2.squadSnapshots||snaps, teams, xiMult);
+    Object.entries(c2).forEach(function(ce2){var tn3=ce2[0],cc=ce2[1];if(!totals[tn3])totals[tn3]={pts:0,topPlayer:'--',topPts:0,playerCount:0,_players:{}};totals[tn3].pts+=cc.pts;Object.entries(cc.players).forEach(function(pe){totals[tn3]._players[pe[0]]=(totals[tn3]._players[pe[0]]||0)+pe[1];});});
    });
-   upd['drafts/'+rid+'/leaderboardTotals']=stored;
+   var storedNew={}; Object.entries(totals).forEach(function(te){var tn4=te[0],tt=te[1],topP='--',topPts=0,pCount=0;Object.entries(tt._players).forEach(function(pe){if(pe[1]!==0)pCount++;if(pe[1]>topPts){topPts=pe[1];topP=pe[0];}});storedNew[tn4]={pts:Math.round(tt.pts*100)/100,topPlayer:topP,topPts:Math.round(topPts*100)/100,playerCount:pCount};});
+   upd['drafts/'+rid+'/leaderboardTotals']=storedNew;
    return update(ref(db),upd);
   }).catch(function(){}));
  });
@@ -3606,6 +3673,7 @@ window.saPushToAll=async function(){
 
  statusEl.className='ai-status done';
  statusEl.textContent=`"${matchRecord.label}" pushed to ${auctionRids.size} auction + ${draftRids.size} draft rooms. Leaderboard totals updated.`;
+ try{ if(window.CD && typeof window.CD.scheduleRender==='function'){ window.CD.scheduleRender(); } }catch(_){}
 
  }catch(e){
  statusEl.className='ai-status fail';
@@ -5242,6 +5310,25 @@ window.IPL_SCHEDULE = typeof IPL_SCHEDULE !== 'undefined' ? IPL_SCHEDULE : [];
   setInterval(sync, 500);
   sync();
 })();
+
+// One-shot force-refresh: re-reads the current room doc from Firebase and
+// pushes the result into the module-scoped draftState. Called by the CD
+// layer when the user opens the leaderboard sub-tab — catches any updates
+// the onValue listener might have missed (network hiccup, focus switch,
+// recent push from another tab). Safe no-op if not in a room.
+window._cdForceRoomRefresh = async function(){
+  try{
+    if(!draftId) return;
+    const snap = await get(ref(db, 'drafts/' + draftId));
+    const data = snap && snap.val();
+    if(data){
+      draftState = data;
+      window.roomState = data;
+      // Nudge the CD layer to redraw with the fresh data.
+      try{ window.CD && typeof window.CD.scheduleRender === 'function' && window.CD.scheduleRender(); }catch(_){}
+    }
+  }catch(e){ console.warn('_cdForceRoomRefresh:', e); }
+};
 
 // Room lists for the CD dashboard. The CD layer listens for a
 // 'cd-drafts-update' CustomEvent to know when to re-render.
