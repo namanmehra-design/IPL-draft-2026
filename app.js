@@ -411,10 +411,17 @@ function loadDash(){
    ]);
    const cRooms = cSnap.val();
    const jRooms = jSnap.val();
-   window.userCreatedDrafts = cRooms ? Object.entries(cRooms).map(([k,r])=>({id:k,name:r.name||'Draft Room',maxTeams:r.maxTeams,maxPlayers:r.maxPlayers,createdAt:r.createdAt,isOwner:true})).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)) : [];
-   window.userJoinedDrafts  = jRooms ? Object.entries(jRooms).map(([k,r])=>({id:k,name:r.name||'Draft Room',joinedAt:r.joinedAt,isOwner:false})).sort((a,b)=>(b.joinedAt||0)-(a.joinedAt||0)) : [];
+   // Null-overwrite guard — only write if we actually got data OR current is empty.
+   const cNew = cRooms ? Object.entries(cRooms).map(([k,r])=>({id:k,name:r.name||'Draft Room',maxTeams:r.maxTeams,maxPlayers:r.maxPlayers,createdAt:r.createdAt,isOwner:true})).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)) : [];
+   const jNew = jRooms ? Object.entries(jRooms).map(([k,r])=>({id:k,name:r.name||'Draft Room',joinedAt:r.joinedAt,isOwner:false})).sort((a,b)=>(b.joinedAt||0)-(a.joinedAt||0)) : [];
+   if(cRooms || !window.userCreatedDrafts || window.userCreatedDrafts.length === 0){
+     window.userCreatedDrafts = cNew;
+   }
+   if(jRooms || !window.userJoinedDrafts || window.userJoinedDrafts.length === 0){
+     window.userJoinedDrafts = jNew;
+   }
    window.dispatchEvent(new CustomEvent('cd-drafts-update'));
-   console.log('[CD] forceLoadRooms — drafts:', window.userCreatedDrafts.length, 'joined:', window.userJoinedDrafts.length);
+   console.log('[CD] forceLoadRooms — drafts:', (window.userCreatedDrafts||[]).length, 'joined:', (window.userJoinedDrafts||[]).length);
   }catch(e){ console.warn('cdForceLoadRooms:', e); }
  };
  // Unsubscribe previous dashboard listeners to prevent memory leak / lag

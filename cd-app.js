@@ -4100,24 +4100,30 @@
     let _lastGridKey = '';
     const updateRoomGrids = () => {
       try {
-        if(CD.state.view !== 'dashboard') return;
-        const myRooms = window.userCreatedDrafts || [];
-        const joinedRooms = window.userJoinedDrafts || [];
-        // Diff-guard: only rewrite the grid when the room-list actually
-        // changed. Stops the 800ms interval from hammering innerHTML on
-        // every tick (huge battery save on dashboard idle).
-        const gridKey = myRooms.map(r=>r.id+':'+(r.name||'')+':'+(r.maxTeams||'')+':'+(r.maxPlayers||'')).join('|')
-          + '##' + joinedRooms.map(r=>r.id+':'+(r.name||'')+':'+(r.maxTeams||'')+':'+(r.maxPlayers||'')).join('|');
-        if(gridKey === _lastGridKey) return;
-        _lastGridKey = gridKey;
         const myGrid = document.getElementById('cd-my-rooms-grid');
         const joinedGrid = document.getElementById('cd-joined-rooms-grid');
-        // Self-healing: if boot-time+2.5s passed and no rooms arrived,
-        // force-load directly from Firebase bypassing the listener.
-        if(!window._cdBootTime) window._cdBootTime = Date.now();
-        if(Date.now() - window._cdBootTime > 2500 && !window.userCreatedDrafts && window.user && window.user.uid){
-          if(typeof window.cdForceLoadRooms === 'function') window.cdForceLoadRooms();
+        if(!myGrid && !joinedGrid) return;
+        const myRooms = window.userCreatedDrafts || [];
+        const joinedRooms = window.userJoinedDrafts || [];
+        // Self-healing: if grids exist but no rooms data yet AND user is
+        // authed, immediately fire cdForceLoadRooms. Gated by in-flight lock.
+        if(!window.userCreatedDrafts && window.user && window.user.uid){
+          if(typeof window.cdForceLoadRooms === 'function' && !window._cdForceLoadInFlight){
+            window._cdForceLoadInFlight = true;
+            window.cdForceLoadRooms().finally(() => {
+              setTimeout(() => { window._cdForceLoadInFlight = false; }, 800);
+            });
+          }
         }
+        // Diff-guard: only skip re-render when data key unchanged AND grid
+        // wasn't just re-mounted. Freshly-mounted grids contain the
+        // "Loading rooms…" placeholder — detecting that triggers a rewrite
+        // even if data hasn't changed since last tick on the old DOM.
+        const gridKey = myRooms.map(r=>r.id+':'+(r.name||'')+':'+(r.maxTeams||'')+':'+(r.maxPlayers||'')).join('|')
+          + '##' + joinedRooms.map(r=>r.id+':'+(r.name||'')+':'+(r.maxTeams||'')+':'+(r.maxPlayers||'')).join('|');
+        const gridIsFresh = myGrid && /Loading rooms/i.test(myGrid.textContent || '');
+        if(!gridIsFresh && gridKey === _lastGridKey) return;
+        _lastGridKey = gridKey;
         const buildCards = (rooms, isOwner) => {
           if(!rooms.length) return '<div style="padding:20px;color:var(--mute);grid-column:1/-1;text-align:center;background:var(--glass);border:1px dashed var(--line-2);border-radius:14px;">' + (isOwner ? 'No rooms yet — create one above.' : 'No joined rooms yet.') + '</div>';
           return rooms.map(r => {
