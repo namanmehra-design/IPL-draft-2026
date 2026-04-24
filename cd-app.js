@@ -430,7 +430,7 @@
             <div style="display:flex;flex-direction:column;gap:14px;">
               <div>
                 <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--mute);margin-bottom:6px;">Email</div>
-                <input id="authEmail" type="email" placeholder="you@example.com" style="width:100%;padding:12px 16px;font-size:14px;color:var(--ink);background:var(--glass);border:1px solid var(--line-2);border-radius:8px;outline:none;font-family:var(--sans);" />
+                <input id="authEmail" type="email" placeholder="you@example.com" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('authPassword')?.focus();}" style="width:100%;padding:12px 16px;font-size:14px;color:var(--ink);background:var(--glass);border:1px solid var(--line-2);border-radius:8px;outline:none;font-family:var(--sans);" />
               </div>
               <div>
                 <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--mute);margin-bottom:6px;">Password</div>
@@ -880,7 +880,7 @@
       <div class="adm-row" style="margin-bottom:10px;">
         <div style="flex:1;">
           <label class="adm-lbl">Select Room</label>
-          <select id="saOsRoomSelect" class="adm-sel"><option value="">— Click Load Rooms first —</option></select>
+          <select id="saOsRoomSelect" class="adm-sel">${window._saOsRoomsCacheHTML || '<option value="">— Click Load Rooms first —</option>'}</select>
         </div>
         <div class="adm-sm"><label class="adm-lbl">Max Overseas</label><input type="number" id="saOsLimit" class="adm-inp" min="1" max="15" value="8"></div>
       </div>
@@ -896,7 +896,7 @@
       <div class="adm-row" style="margin-bottom:10px;">
         <div style="flex:1;">
           <label class="adm-lbl">Select Room</label>
-          <select id="saMultRoomSelect" class="adm-sel"><option value="">— Click Load Rooms first —</option></select>
+          <select id="saMultRoomSelect" class="adm-sel">${window._saMultRoomsCacheHTML || '<option value="">— Click Load Rooms first —</option>'}</select>
         </div>
         <div class="adm-sm"><label class="adm-lbl" title="Changing the multiplier re-applies retroactively across the season.">XI Multiplier <span style="color:var(--mute);font-weight:500;font-size:10px;cursor:help;" title="Changing the multiplier re-applies retroactively across the season.">(?)</span></label><input type="number" id="saMultValue" class="adm-inp" min="0.5" max="5" step="0.1" value="1" title="Changing the multiplier re-applies retroactively across the season."></div>
       </div>
