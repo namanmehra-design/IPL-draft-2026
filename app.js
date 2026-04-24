@@ -5346,27 +5346,37 @@ window._cdForceRoomRefresh = async function(){
     // silently detaches in the SDK and CD gets stuck on its splash screen.
     unsubCreated = onValue(ref(db, `users/${u.uid}/drafts`), snap => {
       try {
-        const val = snap.val() || {};
-        window.userCreatedDrafts = Object.entries(val).map(([rid, r]) => ({
+        const raw = snap.val();
+        const val = raw || {};
+        const newVal = Object.entries(val).map(([rid, r]) => ({
           id: rid, type: 'draft', isOwner: true,
           roomName: r?.name || r?.roomName || '',
           name: r?.name || r?.roomName || '',
           maxTeams: r?.maxTeams, picksPerTeam: r?.picksPerTeam,
           createdAt: r?.createdAt || 0
         }));
+        // Null-overwrite guard: if snap is null (initial Firebase race) but
+        // cdForceLoadRooms already populated data, don't blank it out.
+        if(raw || !window.userCreatedDrafts || window.userCreatedDrafts.length === 0){
+          window.userCreatedDrafts = newVal;
+        }
         push();
       } catch(e){ console.warn('publishRoomsForCD/drafts:', e); }
     });
     unsubJoined = onValue(ref(db, `users/${u.uid}/joinedDrafts`), snap => {
       try {
-        const val = snap.val() || {};
-        window.userJoinedDrafts = Object.entries(val).map(([rid, r]) => ({
+        const raw = snap.val();
+        const val = raw || {};
+        const newVal = Object.entries(val).map(([rid, r]) => ({
           id: rid, type: 'draft', isOwner: false,
           roomName: r?.name || r?.roomName || '',
           name: r?.name || r?.roomName || '',
           teamName: r?.teamName, maxTeams: r?.maxTeams, picksPerTeam: r?.picksPerTeam,
           joinedAt: r?.joinedAt || 0
         }));
+        if(raw || !window.userJoinedDrafts || window.userJoinedDrafts.length === 0){
+          window.userJoinedDrafts = newVal;
+        }
         push();
       } catch(e){ console.warn('publishRoomsForCD/joinedDrafts:', e); }
     });
