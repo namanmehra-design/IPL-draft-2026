@@ -3805,22 +3805,12 @@
     if(CD._shouldBlockRender()){
       return;
     }
-    // If the user is actively typing in a form, defer. A single follow-up
-    // render is queued to run ~3.5s after last input — that catches any
-    // state drift that accumulated while they were editing. Re-checks the
-    // guard on fire; if still editing, pushes the timer forward.
-    if(CD._isUserEditing()){
-      if(!_deferredRenderTimer){
-        _deferredRenderTimer = setTimeout(() => {
-          _deferredRenderTimer = null;
-          // If they're still editing OR the scorecard form is still live,
-          // don't wipe the DOM; keep deferring.
-          if(CD._isUserEditing() || CD._shouldBlockRender()){ CD.scheduleRender(); return; }
-          try { CD.render(); } catch(e){ console.error('CD deferred render:', e); }
-        }, 3500);
-      }
-      return;
-    }
+    // Previously also deferred renders while the user typed in ANY input
+    // (to protect non-scorecard forms from innerHTML wipes). That broke
+    // search/filter UX — the analytics search couldn't apply the filter
+    // because its own debounced CD.render() was getting deferred. Form
+    // state across legitimate renders is already handled via
+    // _captureFormState / _restoreFormState, so just let it through.
     if(_renderTimer) clearTimeout(_renderTimer);
     _renderTimer = setTimeout(() => {
       _renderTimer = null;
@@ -3871,11 +3861,11 @@
       // widgets will refresh on the next user navigation.
       return;
     }
-    // Soft guard: user typing + same view/sub → defer.
-    if(!isNavTransition && CD._isUserEditing()){
-      CD.scheduleRender();
-      return;
-    }
+    // Previously also deferred for _isUserEditing on any input — but that
+    // broke search/filter UX (the debounced CD.render() call was deferred
+    // indefinitely because the user was typing in the search). Removed.
+    // _captureFormState / _restoreFormState already preserve input state
+    // across legitimate renders, so search boxes are safe.
     // Capture form state (values + focus + selection) before the wipe.
     // This is a belt-and-suspenders backup for non-scorecard fields
     // (search boxes, filters) that survive the wipe because their DOMs
