@@ -414,10 +414,14 @@ function loadDash(){
    // Null-overwrite guard — only write if we actually got data OR current is empty.
    const cNew = cRooms ? Object.entries(cRooms).map(([k,r])=>({id:k,name:r.name||'Draft Room',maxTeams:r.maxTeams,maxPlayers:r.maxPlayers,createdAt:r.createdAt,isOwner:true})).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)) : [];
    const jNew = jRooms ? Object.entries(jRooms).map(([k,r])=>({id:k,name:r.name||'Draft Room',joinedAt:r.joinedAt,isOwner:false})).sort((a,b)=>(b.joinedAt||0)-(a.joinedAt||0)) : [];
-   if(cRooms || !window.userCreatedDrafts || window.userCreatedDrafts.length === 0){
+   // Stronger guard: check for actual keys, not just truthiness.
+   // Firebase sometimes returns {} instead of null in transient states.
+   const cHasData = cRooms && typeof cRooms === 'object' && Object.keys(cRooms).length > 0;
+   const jHasData = jRooms && typeof jRooms === 'object' && Object.keys(jRooms).length > 0;
+   if(cHasData || !window.userCreatedDrafts || window.userCreatedDrafts.length === 0){
      window.userCreatedDrafts = cNew;
    }
-   if(jRooms || !window.userJoinedDrafts || window.userJoinedDrafts.length === 0){
+   if(jHasData || !window.userJoinedDrafts || window.userJoinedDrafts.length === 0){
      window.userJoinedDrafts = jNew;
    }
    window.dispatchEvent(new CustomEvent('cd-drafts-update'));
@@ -5362,9 +5366,10 @@ window._cdForceRoomRefresh = async function(){
           maxTeams: r?.maxTeams, picksPerTeam: r?.picksPerTeam,
           createdAt: r?.createdAt || 0
         }));
-        // Null-overwrite guard: if snap is null (initial Firebase race) but
-        // cdForceLoadRooms already populated data, don't blank it out.
-        if(raw || !window.userCreatedDrafts || window.userCreatedDrafts.length === 0){
+        // Stronger guard: treat both null AND empty-object {} as "no data"
+        // so neither wipes populated state.
+        const hasData = raw && typeof raw === 'object' && Object.keys(raw).length > 0;
+        if(hasData || !window.userCreatedDrafts || window.userCreatedDrafts.length === 0){
           window.userCreatedDrafts = newVal;
         }
         push();
@@ -5381,7 +5386,8 @@ window._cdForceRoomRefresh = async function(){
           teamName: r?.teamName, maxTeams: r?.maxTeams, picksPerTeam: r?.picksPerTeam,
           joinedAt: r?.joinedAt || 0
         }));
-        if(raw || !window.userJoinedDrafts || window.userJoinedDrafts.length === 0){
+        const hasData = raw && typeof raw === 'object' && Object.keys(raw).length > 0;
+        if(hasData || !window.userJoinedDrafts || window.userJoinedDrafts.length === 0){
           window.userJoinedDrafts = newVal;
         }
         push();
