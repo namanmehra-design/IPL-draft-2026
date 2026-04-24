@@ -4142,10 +4142,35 @@
       } catch(e){ console.error('CD updateRoomGrids:', e); }
     };
     window.addEventListener('cd-drafts-update', updateRoomGrids);
-    // Also poll every 800ms as a backup, in case the event was missed
+    // Poll every 800ms as a backup, in case the event was missed
     setInterval(updateRoomGrids, 800);
-    // Initial call after a moment, to catch already-loaded data
-    setTimeout(updateRoomGrids, 200);
+    // Initial call immediately
+    updateRoomGrids();
+    // Fire cdForceLoadRooms as soon as user is available — poll up to 5s
+    (() => {
+      let tries = 0;
+      const tick = () => {
+        if(window.user?.uid && typeof window.cdForceLoadRooms === 'function'){
+          window.cdForceLoadRooms();
+          return;
+        }
+        tries++;
+        if(tries < 50) setTimeout(tick, 100);
+      };
+      tick();
+    })();
+    // Fallback after 4s if grid still on "Loading rooms…"
+    setTimeout(() => {
+      try {
+        const myGrid = document.getElementById('cd-my-rooms-grid');
+        const hasRooms = (window.userCreatedDrafts || []).length > 0;
+        if(myGrid && /Loading rooms/i.test(myGrid.textContent) && !hasRooms){
+          console.warn('[CD] draft rooms stuck after 4s — showing retry button');
+          myGrid.innerHTML = '<div style="padding:20px;color:var(--mute);grid-column:1/-1;text-align:center;background:var(--glass);border:1px dashed var(--line-2);border-radius:14px;">Couldn\'t load rooms — <button type="button" onclick="window.cdForceLoadRooms && window.cdForceLoadRooms()" style="background:none;border:none;color:var(--electric);text-decoration:underline;cursor:pointer;padding:0;font:inherit;">tap to retry</button></div>';
+          if(typeof window.cdForceLoadRooms === 'function') window.cdForceLoadRooms();
+        }
+      } catch(e){ console.warn('rooms-fallback:', e); }
+    }, 4000);
   };
 
   // ── BOOT ───────────────────────────────────────────────────────
