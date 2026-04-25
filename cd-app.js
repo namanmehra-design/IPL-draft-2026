@@ -961,11 +961,11 @@
         <div style="font-size:9px;color:var(--mute);letter-spacing:0.18em;text-transform:uppercase;font-weight:700;padding:0 10px 10px;">Navigate</div>
         <div style="display:flex;flex-direction:column;gap:4px;">
           ${NAV.map(n => `
-            <div onclick="CD.go('${n.id}')" style="display:flex;align-items:flex-start;gap:12px;padding:10px 12px;border-radius:8px;cursor:pointer;transition:all 0.2s;${CD.state.activeNav === n.id ? 'background:rgba(255,255,255,0.1);color:var(--ink);box-shadow:inset 0 1px 0 rgba(255,255,255,0.05);' : 'color:var(--mute);'}" onmouseover="if(!this.dataset.active)this.style.background='rgba(255,255,255,0.05)';" onmouseout="if('${CD.state.activeNav}'!=='${n.id}')this.style.background='transparent';">
-              <div style="margin-top:2px;color:${CD.state.activeNav === n.id ? 'var(--ink)' : 'var(--mute)'};">${I(n.icon, 16)}</div>
+            <div class="cd-side-item${CD.state.activeNav === n.id ? ' is-active' : ''}" onclick="CD.go('${n.id}')">
+              <div class="cd-side-icon">${I(n.icon, 16)}</div>
               <div style="flex:1;min-width:0;">
-                <div style="display:flex;align-items:center;gap:6px;font-weight:600;font-size:13px;color:${CD.state.activeNav === n.id ? 'var(--ink)' : 'var(--ink-2)'};">${n.label}${n.live ? CD.LiveDot() : ''}</div>
-                <div style="font-size:10px;color:var(--mute);margin-top:1px;font-weight:400;">${n.sub}</div>
+                <div class="cd-side-label">${n.label}${n.live ? CD.LiveDot() : ''}</div>
+                <div class="cd-side-sub">${n.sub}</div>
               </div>
             </div>
           `).join('')}
@@ -1024,12 +1024,12 @@
   };
 
   CD.renderMobileBottomNav = () => `
-    <div style="position:fixed;bottom:10px;left:10px;right:10px;z-index:100;padding:5px;border-radius:9999px;background:var(--glass-2);backdrop-filter:blur(40px) saturate(1.6);-webkit-backdrop-filter:blur(40px) saturate(1.6);border:1px solid var(--line-2);box-shadow:var(--sh-2);display:flex;gap:2px;overflow-x:auto;">
+    <div class="cd-bn" id="cd-bn" style="position:fixed;bottom:10px;left:10px;right:10px;z-index:100;padding:5px;border-radius:9999px;background:var(--glass-2);backdrop-filter:blur(40px) saturate(1.6);-webkit-backdrop-filter:blur(40px) saturate(1.6);border:1px solid var(--line-2);box-shadow:var(--sh-2);display:flex;gap:2px;overflow-x:auto;">
       ${NAV.map(n => `
-        <div onclick="CD.go('${n.id}')" style="flex:1;min-width:54px;padding:7px 3px;display:flex;flex-direction:column;align-items:center;gap:2px;color:${CD.state.activeNav === n.id ? '#fff' : 'var(--mute)'};background:${CD.state.activeNav === n.id ? 'linear-gradient(180deg,var(--electric-2),var(--electric))' : 'transparent'};border-radius:9999px;cursor:pointer;position:relative;">
-          ${I(n.icon, 14)}
+        <div class="cd-bn-item${CD.state.activeNav === n.id ? ' is-active' : ''}" data-bn-id="${n.id}" onclick="CD.go('${n.id}')">
+          <span class="cd-bn-icon">${I(n.icon, 14)}</span>
           <div style="font-size:8.5px;font-weight:600;letter-spacing:0.04em;">${n.label}</div>
-          ${n.live ? `<div style="position:absolute;top:5px;right:30%;width:5px;height:5px;border-radius:50%;background:var(--pink);"></div>` : ''}
+          ${n.live ? `<div class="cd-bn-live"></div>` : ''}
         </div>
       `).join('')}
     </div>
@@ -3520,7 +3520,7 @@
       <div style="padding:20px;border-radius:18px;background:var(--glass-2,rgba(22,24,38,0.72));backdrop-filter:blur(32px);border:1px solid var(--line-2);margin-bottom:18px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
           <div class="ed" style="font-size:24px;">Propose a <span class="ed-i" style="color:var(--pink);">trade</span></div>
-          <button onclick="window.switchTab && window.switchTab('trades');setTimeout(()=>{document.getElementById('trades-tab')?.scrollIntoView({behavior:'smooth'});},200);" style="padding:8px 14px;border-radius:9999px;background:linear-gradient(180deg,var(--pink-2),var(--pink));color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">${I('swap',12)} Open proposer</button>
+          <button onclick="window.switchTab && window.switchTab('trades');setTimeout(()=>{var _t=document.getElementById('trades-tab');if(_t){_t.scrollIntoView({behavior:'smooth',block:'start'});CD._pulseTarget && CD._pulseTarget(_t);}},220);" style="padding:8px 14px;border-radius:9999px;background:linear-gradient(180deg,var(--pink-2),var(--pink));color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">${I('swap',12)} Open proposer</button>
         </div>
         <div style="font-size:13px;color:var(--ink-2);line-height:1.5;">
           The full trade proposer (multi-player, partner selector) is in the classic Trades tab. Click "Open proposer" above to compose a trade.
@@ -3564,10 +3564,90 @@
   };
   CD.handleRoomClick = (el) => {
     const rid = el.getAttribute('data-rid');
-    if(rid) {
-      window.location.search = '?draft=' + encodeURIComponent(rid);
-    }
+    if(!rid) return;
+    const goNow = () => { window.location.search = '?draft=' + encodeURIComponent(rid); };
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if(reduce) return goNow();
+    try { CD._heroZoomFromCard(el, goNow); }
+    catch(_) { goNow(); }
   };
+  CD._heroZoomFromCard = (el, after) => {
+    const r = el.getBoundingClientRect();
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const grid = el.parentElement;
+    if(grid) {
+      const sibs = Array.from(grid.querySelectorAll('[data-rid]')).filter(s => s !== el);
+      const cx = vw/2, cy = vh/2;
+      sibs.forEach(s => {
+        const sr = s.getBoundingClientRect();
+        const dx = (sr.left + sr.width/2) - cx;
+        const dy = (sr.top  + sr.height/2) - cy;
+        const mag = Math.max(120, Math.hypot(dx, dy));
+        s.style.setProperty('--drift-x', (dx / mag * 240).toFixed(1) + 'px');
+        s.style.setProperty('--drift-y', (dy / mag * 240).toFixed(1) + 'px');
+        s.classList.add('cd-hero-drift');
+      });
+    }
+    const clone = el.cloneNode(true);
+    clone.removeAttribute('onclick');
+    clone.removeAttribute('onmouseover');
+    clone.removeAttribute('onmouseout');
+    clone.querySelectorAll('[onclick],[onmouseover],[onmouseout]').forEach(n => {
+      n.removeAttribute('onclick'); n.removeAttribute('onmouseover'); n.removeAttribute('onmouseout');
+    });
+    clone.classList.add('cd-hero-zoom-clone');
+    clone.style.left   = r.left + 'px';
+    clone.style.top    = r.top  + 'px';
+    clone.style.width  = r.width  + 'px';
+    clone.style.height = r.height + 'px';
+    const sx = (vw / r.width)  * 1.04;
+    const sy = (vh / r.height) * 1.04;
+    clone.style.setProperty('--hero-sx', sx.toFixed(3));
+    clone.style.setProperty('--hero-sy', sy.toFixed(3));
+    document.body.appendChild(clone);
+    setTimeout(after, 360);
+    setTimeout(() => { try { clone.remove(); } catch(_){} }, 1500);
+  };
+  CD._positionSubtabIndicator = () => {
+    const bar = document.querySelector('#cd-root .cd-subtab-bar');
+    if(!bar) return;
+    const active = bar.querySelector('button[data-sub-active="1"]');
+    if(!active) { bar.removeAttribute('data-sub-ready'); return; }
+    const br = bar.getBoundingClientRect();
+    const ar = active.getBoundingClientRect();
+    const x = (ar.left - br.left) + bar.scrollLeft;
+    bar.style.setProperty('--sub-x', x.toFixed(1) + 'px');
+    bar.style.setProperty('--sub-w', ar.width.toFixed(1) + 'px');
+    requestAnimationFrame(() => bar.setAttribute('data-sub-ready', '1'));
+  };
+  CD._positionBottomNavPill = () => {
+    const bn = document.getElementById('cd-bn');
+    if(!bn) return;
+    const active = bn.querySelector('.cd-bn-item.is-active');
+    if(!active) { bn.removeAttribute('data-bn-ready'); return; }
+    const br = bn.getBoundingClientRect();
+    const ar = active.getBoundingClientRect();
+    const x = (ar.left - br.left) + bn.scrollLeft;
+    bn.style.setProperty('--bn-x', x.toFixed(1) + 'px');
+    bn.style.setProperty('--bn-w', ar.width.toFixed(1) + 'px');
+    requestAnimationFrame(() => bn.setAttribute('data-bn-ready', '1'));
+  };
+  CD._pulseTarget = (el) => {
+    if(!el || !el.classList) return;
+    el.classList.remove('cd-target-pulse');
+    void el.offsetWidth;
+    el.classList.add('cd-target-pulse');
+    setTimeout(() => { try { el.classList.remove('cd-target-pulse'); } catch(_){} }, 1300);
+  };
+  if(!CD._navListeners){
+    CD._navListeners = true;
+    window.addEventListener('resize', () => {
+      try {
+        CD._positionSubtabIndicator && CD._positionSubtabIndicator();
+        CD._positionBottomNavPill   && CD._positionBottomNavPill();
+      } catch(_) {}
+    });
+  }
   CD.goDashboard = () => {
     if(window.location.search) {
       window.location.search = '';
@@ -3917,6 +3997,13 @@
         });
       } catch(e){ /* rAF unavailable — silently skip, baseline fade still runs */ }
     }
+    // Position the sub-tab indicator and bottom-nav pill (FLIP-style).
+    try {
+      requestAnimationFrame(() => {
+        CD._positionSubtabIndicator && CD._positionSubtabIndicator();
+        CD._positionBottomNavPill   && CD._positionBottomNavPill();
+      });
+    } catch(_) {}
     // Restore captured form state (values + focus + selection).
     CD._restoreFormState(_formSnap);
     // (Re-)wire the delegate listeners; cheap no-op if already wired.
@@ -4541,6 +4628,191 @@
       will-change: transform;
     }
 
+    /* ── A1: View-transition curve polish (Linear-style "Material You" easing) ───── */
+    :root {
+      --cd-ease-out:     cubic-bezier(0.16, 1, 0.3, 1);
+      --cd-ease-spring:  cubic-bezier(0.34, 1.56, 0.64, 1);
+      --cd-ease-soft:    cubic-bezier(0.22, 1, 0.36, 1);
+      --cd-ease-hover:   cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    .cd-enter-dashboard           { animation: cd-enter-dashboard      360ms var(--cd-ease-out) both; }
+    .cd-enter-dashboard-back      { animation: cd-enter-dashboard-back 280ms var(--cd-ease-out) both; transform-origin: center 50%; }
+    .cd-enter-auth                { animation: cd-enter-auth           260ms var(--cd-ease-out) both; }
+    .cd-view-enter.cd-enter-dashboard       { animation: cd-enter-dashboard      360ms var(--cd-ease-out) both; }
+    .cd-view-enter.cd-enter-dashboard-back  { animation: cd-enter-dashboard-back 280ms var(--cd-ease-out) both; }
+    .cd-view-enter.cd-enter-auth            { animation: cd-enter-auth           260ms var(--cd-ease-out) both; }
+
+    /* ── A2: Hero zoom — Dashboard → Room (Apple App Store / Music style) ───────── */
+    @keyframes cd-hero-zoom-in {
+      0%   { opacity: 1; transform: translate(var(--hero-x,0px), var(--hero-y,0px)) scale(1);    border-radius: 14px; }
+      55%  { opacity: 1; transform: translate(0,0) scale(1.04); border-radius: 8px; }
+      100% { opacity: 0.96; transform: translate(0,0) scale(var(--hero-sx,1.6), var(--hero-sy,1.6)); border-radius: 0; }
+    }
+    @keyframes cd-hero-drift-out {
+      0%   { opacity: 1; transform: translate(0,0) scale(1); }
+      100% { opacity: 0; transform: translate(var(--drift-x,0), var(--drift-y,0)) scale(0.86); filter: blur(6px); }
+    }
+    .cd-hero-zoom-clone {
+      position: fixed; z-index: 9999;
+      pointer-events: none;
+      will-change: transform, opacity, border-radius;
+      box-shadow: 0 24px 80px rgba(46,91,255,0.45), 0 0 0 1px rgba(255,255,255,0.12) inset;
+      transform-origin: top left;
+      animation: cd-hero-zoom-in 540ms cubic-bezier(0.32, 0.72, 0, 1) both;
+    }
+    .cd-hero-drift {
+      animation: cd-hero-drift-out 420ms var(--cd-ease-out) both;
+      will-change: transform, opacity, filter;
+    }
+
+    /* ── A3: Sidebar item — pure CSS hover + animated active rail indicator ─────── */
+    #cd-root .cd-side-item {
+      position: relative;
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 10px 12px 10px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--mute);
+      background: transparent;
+      transition: background 220ms var(--cd-ease-hover),
+                  color      180ms var(--cd-ease-hover),
+                  transform  180ms var(--cd-ease-hover);
+      overflow: hidden;
+    }
+    #cd-root .cd-side-item::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 8px; bottom: 8px;
+      width: 3px;
+      border-radius: 0 3px 3px 0;
+      background: linear-gradient(180deg, var(--pink, #ff2d87), var(--electric, #2e5bff));
+      transform: scaleY(0);
+      transform-origin: center;
+      opacity: 0;
+      transition: transform 280ms var(--cd-ease-spring),
+                  opacity   200ms var(--cd-ease-hover);
+      pointer-events: none;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      #cd-root .cd-side-item:hover {
+        background: rgba(255,255,255,0.05);
+        color: var(--ink-2);
+        transform: translateX(2px);
+      }
+      #cd-root .cd-side-item:hover::before {
+        transform: scaleY(0.45);
+        opacity: 0.55;
+      }
+    }
+    #cd-root .cd-side-item:active { transform: translateX(2px) scale(0.985); transition: transform 90ms ease-out; }
+    #cd-root .cd-side-item.is-active {
+      background: rgba(255,255,255,0.10);
+      color: var(--ink);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+    }
+    #cd-root .cd-side-item.is-active::before { transform: scaleY(1); opacity: 1; }
+    #cd-root .cd-side-item .cd-side-icon { margin-top: 2px; color: inherit; transition: color 180ms var(--cd-ease-hover); }
+    #cd-root .cd-side-item .cd-side-label { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; color: var(--ink-2); }
+    #cd-root .cd-side-item.is-active .cd-side-label { color: var(--ink); }
+    #cd-root .cd-side-item .cd-side-sub { font-size: 10px; color: var(--mute); margin-top: 1px; font-weight: 400; }
+
+    /* ── A4: Sub-tab pill underline morph — sliding indicator (FLIP-style) ──────── */
+    #cd-root .cd-subtab-bar { position: relative; }
+    #cd-root .cd-subtab-bar::after {
+      content: '';
+      position: absolute;
+      left: 0; bottom: -1px;
+      width: var(--sub-w, 0px);
+      transform: translateX(var(--sub-x, 0px));
+      height: 2px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, var(--pink, #ff2d87), var(--electric, #2e5bff));
+      box-shadow: 0 0 12px rgba(255,45,135,0.55), 0 0 24px rgba(46,91,255,0.35);
+      transition: transform 380ms var(--cd-ease-out),
+                  width     380ms var(--cd-ease-out),
+                  opacity   180ms var(--cd-ease-hover);
+      opacity: 1;
+      pointer-events: none;
+    }
+    #cd-root .cd-subtab-bar:not([data-sub-ready="1"])::after { opacity: 0; }
+    #cd-root .cd-subtab-bar button { transition: color 200ms var(--cd-ease-hover); }
+    #cd-root .cd-subtab-bar button[data-sub-active="1"]::after {
+      animation: none;
+      content: none;
+      background: none;
+    }
+
+    /* ── A5: Mobile bottom-nav — animated active pill (iOS tab bar feel) ────────── */
+    @keyframes cd-bn-icon-pop {
+      0%   { transform: scale(1); }
+      45%  { transform: scale(1.18); }
+      100% { transform: scale(1); }
+    }
+    #cd-root .cd-bn { position: relative; }
+    #cd-root .cd-bn-item {
+      flex: 1; min-width: 54px;
+      padding: 7px 3px;
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+      color: var(--mute);
+      border-radius: 9999px;
+      cursor: pointer;
+      position: relative;
+      background: transparent;
+      transition: color 220ms var(--cd-ease-hover);
+      -webkit-tap-highlight-color: transparent;
+    }
+    #cd-root .cd-bn::before {
+      content: '';
+      position: absolute;
+      top: 5px; bottom: 5px; left: 0;
+      width: var(--bn-w, 0px);
+      transform: translateX(var(--bn-x, 0px));
+      background: linear-gradient(180deg, var(--electric-2), var(--electric));
+      border-radius: 9999px;
+      box-shadow: 0 4px 14px rgba(46,91,255,0.45), inset 0 1px 0 rgba(255,255,255,0.25);
+      transition: transform 420ms var(--cd-ease-out),
+                  width     420ms var(--cd-ease-out),
+                  opacity   180ms var(--cd-ease-hover);
+      opacity: 1;
+      pointer-events: none;
+      z-index: 0;
+    }
+    #cd-root .cd-bn:not([data-bn-ready="1"])::before { opacity: 0; }
+    #cd-root .cd-bn-item > * { position: relative; z-index: 1; }
+    #cd-root .cd-bn-item.is-active { color: #fff; }
+    #cd-root .cd-bn-item.is-active .cd-bn-icon { animation: cd-bn-icon-pop 480ms var(--cd-ease-spring) both; }
+    #cd-root .cd-bn-item:active { transform: scale(0.94); transition: transform 100ms ease-out; }
+    #cd-root .cd-bn-live {
+      position: absolute; top: 5px; right: 30%;
+      width: 5px; height: 5px; border-radius: 50%;
+      background: var(--pink);
+      z-index: 2;
+    }
+
+    /* ── A6: Cross-tab jump arrival highlight pulse ─────────────────────────────── */
+    @keyframes cd-target-pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(255,45,135,0.55), 0 0 0 0 rgba(46,91,255,0.45); background-color: rgba(255,45,135,0.12); }
+      40%  { box-shadow: 0 0 0 6px rgba(255,45,135,0.18), 0 0 24px 4px rgba(46,91,255,0.25); background-color: rgba(255,45,135,0.08); }
+      100% { box-shadow: 0 0 0 0 rgba(255,45,135,0.0),  0 0 0 0 rgba(46,91,255,0.0);  background-color: transparent; }
+    }
+    .cd-target-pulse { animation: cd-target-pulse 1100ms var(--cd-ease-out) both; }
+
+    /* ── A7: Hover/focus polish — table rows, nav-btn, btn :active spring ───────── */
+    #cd-root .nav-btn { transition: color 180ms var(--cd-ease-hover), background 220ms var(--cd-ease-hover), box-shadow 220ms var(--cd-ease-hover), transform 180ms var(--cd-ease-spring); }
+    @media (hover: hover) and (pointer: fine) {
+      #cd-root .nav-btn:not(.active):hover { background: rgba(255,255,255,0.06); color: var(--ink); }
+    }
+    #cd-root .nav-btn:active { transform: scale(0.97); transition: transform 100ms ease-out; }
+    #cd-root .tbl tbody tr { transition: background 180ms var(--cd-ease-hover), transform 180ms var(--cd-ease-hover); }
+    @media (hover: hover) and (pointer: fine) {
+      #cd-root .tbl tbody tr:hover { transform: translateX(2px); }
+    }
+    #cd-root .adm-btn:active,
+    #cd-root .btn:active {
+      transform: scale(0.97);
+      transition: transform 120ms var(--cd-ease-spring);
+    }
+
     /* Keep legacy helpers around for callers elsewhere. */
     .cd-sub-enter  { animation: cd-sub-in 140ms ease-out both; }
 
@@ -4565,8 +4837,16 @@
       .modal-bg.open, .modal-bg.active,
       .modal-bg.open > .modal, .modal-bg.active > .modal,
       .cd-pts-pop,
+      .cd-hero-zoom-clone, .cd-hero-drift,
+      .cd-target-pulse,
+      #cd-root .cd-bn-item.is-active .cd-bn-icon,
       #cd-root .cd-ticker-track::after {
         animation: cd-view-in 1ms linear both !important;
+      }
+      #cd-root .cd-side-item, #cd-root .cd-side-item::before,
+      #cd-root .cd-subtab-bar::after, #cd-root .cd-bn::before,
+      #cd-root .nav-btn, #cd-root .tbl tbody tr {
+        transition: none !important;
       }
       #cd-root #cd-my-rooms-grid .rc,
       #cd-root #cd-joined-rooms-grid .rc,
