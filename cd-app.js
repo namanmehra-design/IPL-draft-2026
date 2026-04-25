@@ -3471,7 +3471,7 @@
       const statusTone = t.status === 'accepted' ? 'lime' : t.status === 'rejected' || t.status === 'cancelled' ? 'red' : 'electric';
       const when = t.timestamp ? new Date(t.timestamp).toLocaleDateString() : '';
       return `
-        <div style="border-radius:16px;background:var(--glass);border:1px solid var(--line);overflow:hidden;backdrop-filter:blur(20px);">
+        <div class="cd-trade-card" data-trade-id="${esc(t.id)}" style="border-radius:16px;background:var(--glass);border:1px solid var(--line);overflow:hidden;backdrop-filter:blur(20px);">
           <div style="padding:14px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
               <div style="display:flex;align-items:center;gap:6px;">${CD.Avatar({name: t.from, size: 28})}<span style="font-weight:600;font-size:13px;">${esc(t.from)}</span></div>
