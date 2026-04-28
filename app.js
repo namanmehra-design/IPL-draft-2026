@@ -1,5 +1,5 @@
 import{initializeApp}from"https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
-import{getDatabase,ref,set,onValue,update,push,get,remove}from"https://www.gstatic.com/firebasejs/12.3.0/firebase-database.js";
+import{getDatabase,ref,set,onValue,update,push,get,remove,runTransaction}from"https://www.gstatic.com/firebasejs/12.3.0/firebase-database.js";
 import{getAI,getGenerativeModel,GoogleAIBackend}from"https://www.gstatic.com/firebasejs/12.3.0/firebase-ai.js";
 import{getAuth,signInWithEmailAndPassword,createUserWithEmailAndPassword,sendPasswordResetEmail,onAuthStateChanged,signOut,GoogleAuthProvider,signInWithPopup,signInWithRedirect,getRedirectResult}from"https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
 
@@ -23,6 +23,26 @@ onValue(ref(db,'.info/connected'),s=>{
  const d=document.getElementById('connDot');if(!d)return;
  d.className=s.val()?'conn-dot live':'conn-dot dead';
  d.title=s.val()?'Live':'Reconnecting...';
+});
+
+// B5: Interval registry + visibilitychange suspend.
+// Backgrounded tabs still tick setInterval -- on iOS Safari and Android Chrome
+// that means our 500ms mirror keeps firing while the user is in another tab,
+// burning battery and (more importantly) churning Firebase reads when the
+// listener fires on a write. Wrap every setInterval through _registerInterval
+// so we can pause them all when the page hides and resume when it returns.
+const _intervals = [];
+window._registerInterval = function(fn, ms){
+  const id = setInterval(fn, ms);
+  _intervals.push({fn, ms, id});
+  return id;
+};
+document.addEventListener('visibilitychange', () => {
+  if(document.hidden){
+    _intervals.forEach(i => { if(i.id !== null){ clearInterval(i.id); i.id = null; } });
+  } else {
+    _intervals.forEach(i => { if(i.id === null){ i.id = setInterval(i.fn, i.ms); } });
+  }
 });
 
 // -- Team Color Shift --
@@ -122,7 +142,7 @@ function migrateOverseasFlags(rid,data){
    }
   });
  }
- if(needsWrite) update(ref(db),upd).catch(e=>console.warn('Overseas migration:',e));
+ if(needsWrite) update(ref(db),upd).catch(e=>console.error('Overseas migration:',e));
 }
 
 // -- One-time migration: backfill missing squad snapshots for historical matches --
@@ -142,7 +162,7 @@ function migrateSquadSnapshots(rid,data){
    needsWrite=true;
   }
  });
- if(needsWrite) update(ref(db),upd).then(()=>console.log('Backfilled squad snapshots for',rid)).catch(e=>console.warn('Snapshot migration:',e));
+ if(needsWrite) update(ref(db),upd).catch(e=>console.error('Snapshot migration:',e));
 }
 
 // -- One-time migration: fix duck points retroactively --
@@ -193,7 +213,7 @@ function migrateDuckPoints(rid,data){
    }
   });
  });
- if(needsWrite) update(ref(db),upd).then(()=>{console.log('Duck points corrected for',rid);window.showAlert('Duck penalties corrected.','ok');}).catch(e=>console.warn('Duck migration:',e));
+ if(needsWrite) update(ref(db),upd).then(()=>{window.showAlert('Duck penalties corrected.','ok');}).catch(e=>console.error('Duck migration:',e));
 }
 
 let isAdmin=false,myTeamName='',isSignup=false,pendingJoinId='',roomToDelete='';
@@ -314,9 +334,9 @@ onAuthStateChanged(auth,u=>{
   // the auth screen. Guarded with a dedupe flag so the handler doesn't double-call.
   if(!window._cdSignOutCleanupInFlight){
    window._cdSignOutCleanupInFlight=true;
-   try{ if(draftListener){draftListener();draftListener=null;} }catch(e){ console.warn('detach draftListener:', e); }
-   try{ if(window._dashListenerD1){window._dashListenerD1();window._dashListenerD1=null;} }catch(e){ console.warn('detach _dashListenerD1:', e); }
-   try{ if(window._dashListenerD2){window._dashListenerD2();window._dashListenerD2=null;} }catch(e){ console.warn('detach _dashListenerD2:', e); }
+   try{ if(draftListener){draftListener();draftListener=null;} }catch(e){ console.error('detach draftListener:', e); }
+   try{ if(window._dashListenerD1){window._dashListenerD1();window._dashListenerD1=null;} }catch(e){ console.error('detach _dashListenerD1:', e); }
+   try{ if(window._dashListenerD2){window._dashListenerD2();window._dashListenerD2=null;} }catch(e){ console.error('detach _dashListenerD2:', e); }
    draftState=null; myTeamName=''; isAdmin=false;
    window.roomState=null; window.myTeamName=''; window.isAdmin=false; window.roomId=null;
    // Clear CD-side super admin / edit state so it can't leak into the next session.
@@ -330,7 +350,7 @@ onAuthStateChanged(auth,u=>{
      window.CD.state.rosterStaleTeams=[];
     }
     if(window.CD){ window.CD._replaceA=null; }
-   }catch(e){ console.warn('clear CD.state on signout:', e); }
+   }catch(e){ console.error('clear CD.state on signout:', e); }
    setTimeout(()=>{ window._cdSignOutCleanupInFlight=false; }, 300);
   }
   showAuth();
@@ -425,8 +445,7 @@ function loadDash(){
      window.userJoinedDrafts = jNew;
    }
    window.dispatchEvent(new CustomEvent('cd-drafts-update'));
-   console.log('[CD] forceLoadRooms — drafts:', (window.userCreatedDrafts||[]).length, 'joined:', (window.userJoinedDrafts||[]).length);
-  }catch(e){ console.warn('cdForceLoadRooms:', e); }
+  }catch(e){ console.error('cdForceLoadRooms:', e); }
  };
  // Unsubscribe previous dashboard listeners to prevent memory leak / lag
  if(window._dashListenerD1){window._dashListenerD1();window._dashListenerD1=null;}
@@ -436,7 +455,7 @@ function loadDash(){
  // races, token refresh, or Safari's aggressive caching.
  (async()=>{
   try{ if(typeof window.cdForceLoadRooms==='function') await window.cdForceLoadRooms(); }
-  catch(e){ console.warn('eager rooms fetch:',e); }
+  catch(e){ console.error('eager rooms fetch:',e); }
  })();
  // Wrap every onValue callback in try/catch — a single thrown error
  // inside the handler silently detaches the listener in Firebase SDK,
@@ -450,7 +469,7 @@ function loadDash(){
  // Build HTML once then assign (avoid innerHTML += in loop)
  const _entries=Object.entries(rooms).sort((a,b)=>(b[1]?.createdAt||0)-(a[1]?.createdAt||0));
  c.innerHTML=_entries.map(([k,r])=>draftCardHTML(k,r||{},true)).join('');
- }catch(e){ console.warn('dashListenerD1:', e); }
+ }catch(e){ console.error('dashListenerD1:', e); }
  });
  window._dashListenerD2=onValue(ref(db,`users/${user.uid}/joinedDrafts`),snap=>{
  try{
@@ -459,7 +478,7 @@ function loadDash(){
  if(!rooms){c.innerHTML='<div class="empty">No joined rooms yet.</div>';return;}
  const _entries=Object.entries(rooms).sort((a,b)=>(b[1]?.joinedAt||0)-(a[1]?.joinedAt||0));
  c.innerHTML=_entries.map(([k,r])=>draftCardHTML(k,r||{},false)).join('');
- }catch(e){ console.warn('dashListenerD2:', e); }
+ }catch(e){ console.error('dashListenerD2:', e); }
  });
 }
 // Expose module-scoped loadDash so the sidebar "Dashboard" link
@@ -680,8 +699,8 @@ function loadDraftRoom(rid){
  }
 
  if(!isAdmin){
- document.getElementById('btn-setup').style.display='none';
- document.getElementById('setup-tab').style.display='none';
+ // btn-setup removed with legacy anav strip; setup-tab still exists in DOM.
+ document.getElementById('setup-tab')?.style.setProperty('display','none');
  window.switchTab('draft');
  }
  // Re-render now that myTeamName is known -- wait for draftState if needed.
@@ -728,7 +747,7 @@ function loadDraftRoom(rid){
  // loadRoom session (not on every onValue tick).
  if(!window._recalcLBDDone||window._recalcLBDDone!==rid){
   window._recalcLBDDone=rid;
-  setTimeout(()=>{ try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){ console.warn('recalc leaderboard (draft, deferred):', e); } }, 400);
+  setTimeout(()=>{ try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){ console.error('recalc leaderboard (draft, deferred):', e); } }, 400);
  }
 
  const cfg=data.config||{};
@@ -737,11 +756,9 @@ function loadDraftRoom(rid){
  document.getElementById('draftTitleDisplay').textContent=roomName;
 
  if(setup.isStarted){
- document.getElementById('btn-setup').style.display='none';
- document.getElementById('setup-tab').style.display='none';
- document.getElementById('statsRow').style.display='flex';
- const _draftTabActive=document.getElementById('btn-draft')?.classList.contains('active');
- if(!_draftTabActive) window.switchTab('draft');
+ // btn-setup/btn-draft removed with legacy anav strip; CD nav owns tab state.
+ document.getElementById('setup-tab')?.style.setProperty('display','none');
+ document.getElementById('statsRow')?.style.setProperty('display','flex');
  }
 
  // -- Join progress (Setup tab, admin view) --
@@ -902,8 +919,10 @@ function loadDraftRoom(rid){
  // One-time auto-fix: Digvesh Rathi + Dasun Shanaka (only runs once per session)
  if(!window._autoFixDoneD){
   window._autoFixDoneD=true;
-  if(data.teams){ var _df={}; Object.entries(data.teams).forEach(function(e){ var tn=e[0],t=e[1]; var r=Array.isArray(t.roster)?t.roster:(t.roster?Object.values(t.roster):[]); r.forEach(function(p,i){ if((p.name||'').indexOf('Digvesh Rathi')>=0&&(p.role||'')!=='Bowler'){ p.role='Bowler'; _df['drafts/'+draftId+'/teams/'+tn+'/roster/'+i+'/role']='Bowler'; }}); }); if(Object.keys(_df).length>0) update(ref(db),_df).catch(function(){}); }
-  if(data.players&&draftId){ var _ap=Array.isArray(data.players)?data.players:Object.values(data.players||{}); if(!_ap.some(function(p){return(p.name||'').indexOf('Dasun Shanaka')>=0;})){ _ap.push({id:_ap.length,name:"Dasun Shanaka",iplTeam:"RR",role:"All-Rounder",isOverseas:true,draftedBy:null}); data.players=_ap; set(ref(db,'drafts/'+draftId+'/players'),_ap).catch(function(){}); } _ap.forEach(function(p,i){ if((p.name||'').indexOf('Digvesh Rathi')>=0&&(p.role||'').toLowerCase()==='batter'){ p.role='Bowler'; update(ref(db),{['drafts/'+draftId+'/players/'+i+'/role']:'Bowler'}).catch(function(){}); }}); }
+  // Migrations are best-effort -- failures get logged for debugging
+  // but don't bother the user (next session will retry).
+  if(data.teams){ var _df={}; Object.entries(data.teams).forEach(function(e){ var tn=e[0],t=e[1]; var r=Array.isArray(t.roster)?t.roster:(t.roster?Object.values(t.roster):[]); r.forEach(function(p,i){ if((p.name||'').indexOf('Digvesh Rathi')>=0&&(p.role||'')!=='Bowler'){ p.role='Bowler'; _df['drafts/'+draftId+'/teams/'+tn+'/roster/'+i+'/role']='Bowler'; }}); }); if(Object.keys(_df).length>0) update(ref(db),_df).catch(function(e){console.error('Digvesh role-fix (teams) write failed:',e);}); }
+  if(data.players&&draftId){ var _ap=Array.isArray(data.players)?data.players:Object.values(data.players||{}); if(!_ap.some(function(p){return(p.name||'').indexOf('Dasun Shanaka')>=0;})){ _ap.push({id:_ap.length,name:"Dasun Shanaka",iplTeam:"RR",role:"All-Rounder",isOverseas:true,draftedBy:null}); data.players=_ap; set(ref(db,'drafts/'+draftId+'/players'),_ap).catch(function(e){console.error('Dasun migration (draft) write failed:',e);}); } _ap.forEach(function(p,i){ if((p.name||'').indexOf('Digvesh Rathi')>=0&&(p.role||'').toLowerCase()==='batter'){ p.role='Bowler'; update(ref(db),{['drafts/'+draftId+'/players/'+i+'/role']:'Bowler'}).catch(function(e){console.error('Digvesh role-fix (players) write failed:',e);}); }}); }
  }
   renderDraftTab(data,_tcnt,picksPerTeam);
   // If myTeamName not yet set (Promise.all still pending), retry shortly
@@ -914,7 +933,7 @@ function loadDraftRoom(rid){
    setTimeout(function(){if(myTeamName)renderDraftTab(_rdata,_rlen,_rppt);},1500);
   }
  }
- } catch(e){ console.warn('draftListener onValue:', e); }
+ } catch(e){ console.error('draftListener onValue:', e); }
  });
 }
 
@@ -1203,6 +1222,14 @@ window.refreshDropdown=function(){
 };
 
 // -- Lock in pick --
+// B1: Atomic claim on currentPickIndex via runTransaction. Two clients can't
+// both lock-in for the same slot — Firebase serializes the index increment,
+// and the loser's transaction sees a fresher value and aborts. The follow-up
+// multi-path write (player.draftedBy / roster / overseasCount) only runs
+// after the index claim commits, so a stale-data multi-path overwrite is
+// no longer possible. Pre-transaction guards (turn check, quota, overseas)
+// stay outside for instant UI feedback; the transaction is the atomicity
+// guarantee, not the validator.
 window.lockInPick=function(){
  if(!draftState||!draftId)return;
  const order=Array.isArray(draftState.draftOrder)?draftState.draftOrder:Object.values(draftState.draftOrder||[]);
@@ -1235,23 +1262,38 @@ window.lockInPick=function(){
  const _osMax=draftState?.config?.maxOverseas||draftState?.setup?.maxOverseas||8;
 if((team?.overseasCount||0)>=_osMax)return window.showAlert(`Max ${_osMax} overseas players per team!`);
  }
- player.draftedBy=current.teamName;
- const oldRoster=draftState.teams?.[current.teamName]?.roster;
- const roster=Array.isArray(oldRoster)?[...oldRoster]:(oldRoster?Object.values(oldRoster):[]);
- roster.push({id:player.id,name:player.name,iplTeam:player.iplTeam,role:player.role,isOverseas:player.isOverseas});
- const upd={};
- upd[`drafts/${draftId}/players`]=players;
- upd[`drafts/${draftId}/teams/${current.teamName}/roster`]=roster;
- if(player.isOverseas)upd[`drafts/${draftId}/teams/${current.teamName}/overseasCount`]=(draftState.teams?.[current.teamName]?.overseasCount||0)+1;
- upd[`drafts/${draftId}/currentPickIndex`]=idx+1;
- update(ref(db),upd)
-  .then(()=>window.showAlert(`${player.name} drafted to ${current.teamName}!`,'ok'))
-  .catch(e=>{
-    const msg=(e.message||'').includes('PERMISSION_DENIED')
-      ? 'Permission denied -- ask the room admin to update the Firebase database rules to allow all authenticated users to write to draft rooms. See the setup guide.'
-      : e.message;
-    window.showAlert(msg);
-  });
+ // Atomic compare-and-set on currentPickIndex. If another client already
+ // bumped past `idx` (someone else locked-in for this slot first), our
+ // transaction returns undefined and the multi-path write below is skipped.
+ runTransaction(ref(db,`drafts/${draftId}/currentPickIndex`),(curIdx)=>{
+  // Treat null as 0 (fresh draft, no prior pick).
+  const seen=(curIdx==null)?0:curIdx;
+  if(seen!==idx)return; // someone beat us to this slot -- abort.
+  return idx+1;
+ }).then((res)=>{
+  // res.committed === false when we aborted the transaction above.
+  if(!res||!res.committed){
+   window.showAlert('Pick collided with another team. Refreshed -- try again.','info');
+   return;
+  }
+  // We own this slot. Apply the rest of the multi-path write.
+  player.draftedBy=current.teamName;
+  const oldRoster=draftState.teams?.[current.teamName]?.roster;
+  const roster=Array.isArray(oldRoster)?[...oldRoster]:(oldRoster?Object.values(oldRoster):[]);
+  roster.push({id:player.id,name:player.name,iplTeam:player.iplTeam,role:player.role,isOverseas:player.isOverseas});
+  const upd={};
+  upd[`drafts/${draftId}/players`]=players;
+  upd[`drafts/${draftId}/teams/${current.teamName}/roster`]=roster;
+  if(player.isOverseas)upd[`drafts/${draftId}/teams/${current.teamName}/overseasCount`]=(draftState.teams?.[current.teamName]?.overseasCount||0)+1;
+  // Note: currentPickIndex was already advanced by the transaction.
+  return update(ref(db),upd)
+   .then(()=>window.showAlert(`${player.name} drafted to ${current.teamName}!`,'ok'));
+ }).catch(e=>{
+  const msg=(e.message||'').includes('PERMISSION_DENIED')
+   ? 'Permission denied -- ask the room admin to update the Firebase database rules to allow all authenticated users to write to draft rooms. See the setup guide.'
+   : 'Pick failed: '+e.message+' -- try again';
+  window.showAlert(msg,'err');
+ });
 };
 
 // -- Player dropdown change: update team color wash --
@@ -1376,9 +1418,9 @@ window.confirmRelease=function(){
   window.closeReleaseModal();
   window.showAlert(releasePlayerName+' released. Compensatory pick added at end.','ok');
   // Auto-heal stored leaderboardTotals so future reads can't drift.
-  try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){ console.warn('recalc leaderboard (draft):', e); }
+  try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){ console.error('recalc leaderboard (draft):', e); }
   // Notify CD: any open match-entry form should surface a soft Resync banner.
-  try{ window.dispatchEvent(new CustomEvent('_cdRosterChanged',{detail:{team:releaseTeam}})); }catch(e){ console.warn('dispatch _cdRosterChanged:', e); }
+  try{ window.dispatchEvent(new CustomEvent('_cdRosterChanged',{detail:{team:releaseTeam}})); }catch(e){ console.error('dispatch _cdRosterChanged:', e); }
  }).catch(function(e){window.showAlert('Release failed: '+e.message);});
  }).catch(function(e){window.showAlert('Error: '+e.message);});
 };
@@ -1444,8 +1486,8 @@ window.confirmReplace=function(){
  update(ref(db),upd).then(function(){
   window.closeReplaceModal();
   window.showAlert(oldPlayer.name+' replaced with '+newPlayer.name,'ok');
-  try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){ console.warn('recalc leaderboard (draft):', e); }
-  try{ window.dispatchEvent(new CustomEvent('_cdRosterChanged',{detail:{team:replaceTeam}})); }catch(e){ console.warn('dispatch _cdRosterChanged:', e); }
+  try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){ console.error('recalc leaderboard (draft):', e); }
+  try{ window.dispatchEvent(new CustomEvent('_cdRosterChanged',{detail:{team:replaceTeam}})); }catch(e){ console.error('dispatch _cdRosterChanged:', e); }
  }).catch(function(e){window.showAlert('Replace failed: '+e.message);});
  }).catch(function(e){window.showAlert('Error: '+e.message);});
 };
@@ -2260,7 +2302,6 @@ async function _recalcLeaderboardDCore(){
   }
   if(!matchSnaps){
    // No way to know who owned what for this match. Skip — don't credit anyone.
-   console.warn('Skipping match', me[0], '— no snapshot and no ownedBy data');
    return;
   }
   var contrib=computeMatchContribution(m, matchSnaps, teams, xiMult);
@@ -3272,6 +3313,8 @@ window.saveGlobalScorecard=async function(){
  const dupCleanPromises=[];
  const matchLabel=data.label.toLowerCase().trim();
  var _gscOverwriteCount=0; var _gscRoomsTouched=0;
+ // Per-room failures get logged but don't abort the Promise.all -- a
+ // single bad room shouldn't block the rest of the fan-out.
  Object.keys(aRooms).forEach(function(rid){
   dupCleanPromises.push(get(ref(db,'auctions/'+rid+'/matches')).then(function(mSnap){
    var matches=mSnap.val()||{}; var delWrites={}; var n=0;
@@ -3279,7 +3322,7 @@ window.saveGlobalScorecard=async function(){
     if((me[1].label||'').toLowerCase().trim()===matchLabel){ delWrites['auctions/'+rid+'/matches/'+me[0]]=null; n++; }
    });
    if(n>0){ _gscOverwriteCount+=n; _gscRoomsTouched++; return update(ref(db),delWrites); }
-  }).catch(function(){}));
+  }).catch(function(e){console.error('GSC duplicate cleanup (auction '+rid+') failed:',e);}));
  });
  Object.keys(dRooms).forEach(function(rid){
   dupCleanPromises.push(get(ref(db,'drafts/'+rid+'/matches')).then(function(mSnap){
@@ -3288,7 +3331,7 @@ window.saveGlobalScorecard=async function(){
     if((me[1].label||'').toLowerCase().trim()===matchLabel){ delWrites['drafts/'+rid+'/matches/'+me[0]]=null; n++; }
    });
    if(n>0){ _gscOverwriteCount+=n; _gscRoomsTouched++; return update(ref(db),delWrites); }
-  }).catch(function(){}));
+  }).catch(function(e){console.error('GSC duplicate cleanup (draft '+rid+') failed:',e);}));
  });
  await Promise.all(dupCleanPromises);
 
@@ -3329,7 +3372,7 @@ window.saveGlobalScorecard=async function(){
    var storedNew={}; Object.entries(totals).forEach(function(te){var tn4=te[0],tt=te[1],topP='--',topPts=0,pCount=0;Object.entries(tt._players).forEach(function(pe){if(pe[1]!==0)pCount++;if(pe[1]>topPts){topPts=pe[1];topP=pe[0];}});storedNew[tn4]={pts:Math.round(tt.pts*100)/100,topPlayer:topP,topPts:Math.round(topPts*100)/100,playerCount:pCount};});
    writes['auctions/'+rid+'/leaderboardTotals']=storedNew;
    return update(ref(db),writes);
-  }).catch(function(){}));
+  }).catch(function(e){console.error('GSC fan-out enrich (auction '+rid+') failed:',e);}));
  });
  Object.keys(dRooms).forEach(function(rid){
   _snapPromises.push(get(ref(db,'drafts/'+rid)).then(function(roomSnap){
@@ -3355,7 +3398,7 @@ window.saveGlobalScorecard=async function(){
    var storedNew={}; Object.entries(totals).forEach(function(te){var tn4=te[0],tt=te[1],topP='--',topPts=0,pCount=0;Object.entries(tt._players).forEach(function(pe){if(pe[1]!==0)pCount++;if(pe[1]>topPts){topPts=pe[1];topP=pe[0];}});storedNew[tn4]={pts:Math.round(tt.pts*100)/100,topPlayer:topP,topPts:Math.round(topPts*100)/100,playerCount:pCount};});
    writes['drafts/'+rid+'/leaderboardTotals']=storedNew;
    return update(ref(db),writes);
-  }).catch(function(){}));
+  }).catch(function(e){console.error('GSC fan-out enrich (draft '+rid+') failed:',e);}));
  });
  await Promise.all(_snapPromises);
  }
@@ -3460,7 +3503,7 @@ window.repushScorecard=async function(mid){
    Object.entries(snaps).forEach(function(se){writes['auctions/'+rid+'/matches/'+mid+'/squadSnapshots/'+se[0]]=se[1];});
    writes['auctions/'+rid+'/leaderboardTotals']=storedNew;
    return update(ref(db),writes);
-  }).catch(function(){}));
+  }).catch(function(e){console.error('Re-push (auction '+rid+') failed:',e);}));
  });
  dRoomKeys.forEach(function(rid){
   _rpPromises.push(get(ref(db,'drafts/'+rid)).then(function(roomSnap){
@@ -3483,7 +3526,7 @@ window.repushScorecard=async function(mid){
    Object.entries(snaps).forEach(function(se){writes['drafts/'+rid+'/matches/'+mid+'/squadSnapshots/'+se[0]]=se[1];});
    writes['drafts/'+rid+'/leaderboardTotals']=storedNew;
    return update(ref(db),writes);
-  }).catch(function(){}));
+  }).catch(function(e){console.error('Re-push (draft '+rid+') failed:',e);}));
  });
  await Promise.all(_rpPromises);
  const total=aRoomKeys.length+dRoomKeys.length;
@@ -3746,7 +3789,7 @@ window.saPushToAll=async function(){
    var storedNew={}; Object.entries(totals).forEach(function(te){var tn4=te[0],tt=te[1],topP='--',topPts=0,pCount=0;Object.entries(tt._players).forEach(function(pe){if(pe[1]!==0)pCount++;if(pe[1]>topPts){topPts=pe[1];topP=pe[0];}});storedNew[tn4]={pts:Math.round(tt.pts*100)/100,topPlayer:topP,topPts:Math.round(topPts*100)/100,playerCount:pCount};});
    upd['auctions/'+rid+'/leaderboardTotals']=storedNew;
    return update(ref(db),upd);
-  }).catch(function(){}));
+  }).catch(function(e){console.error('GSC post fan-out (auction '+rid+') failed:',e);}));
  });
  draftRids.forEach(function(rid){
   postPromises.push(get(ref(db,'drafts/'+rid)).then(function(roomSnap){
@@ -3769,7 +3812,7 @@ window.saPushToAll=async function(){
    var storedNew={}; Object.entries(totals).forEach(function(te){var tn4=te[0],tt=te[1],topP='--',topPts=0,pCount=0;Object.entries(tt._players).forEach(function(pe){if(pe[1]!==0)pCount++;if(pe[1]>topPts){topPts=pe[1];topP=pe[0];}});storedNew[tn4]={pts:Math.round(tt.pts*100)/100,topPlayer:topP,topPts:Math.round(topPts*100)/100,playerCount:pCount};});
    upd['drafts/'+rid+'/leaderboardTotals']=storedNew;
    return update(ref(db),upd);
-  }).catch(function(){}));
+  }).catch(function(e){console.error('GSC post fan-out (draft '+rid+') failed:',e);}));
  });
  await Promise.all(postPromises);
 
@@ -4808,11 +4851,11 @@ window.mt_save_D = async function(){
   if(p16Os>6) msgs.push('Playing 16 has '+p16Os+' overseas (max 6)');
   if(sq.xi.length===_xiTarget&&_xiTarget>=5&&xiBowl<5) msgs.push('XI needs 5+ bowlers/all-rounders (has '+xiBowl+')');
   if(sq.xi.length===_xiTarget&&xiWk<1) msgs.push('XI needs at least 1 wicketkeeper (has '+xiWk+')');
-  if(msgs.length){if(myTeamName)update(ref(db,'drafts/'+draftId+'/teams/'+myTeamName),{squadValid:false,activeSquad:null}).catch(function(){});window.showAlert(msgs.join(' \u00b7 '));return;}
+  if(msgs.length){if(myTeamName)update(ref(db,'drafts/'+draftId+'/teams/'+myTeamName),{squadValid:false,activeSquad:null}).catch(function(e){console.error('squadValid:false mirror write failed:',e);});window.showAlert(msgs.join(' \u00b7 '));return;}
   try{
     await set(ref(db,'users/'+user.uid+'/squads/drafts/'+draftId),{xi:sq.xi,bench:sq.bench,savedAt:Date.now()});
     window.showAlert('Squad saved!','ok');
-    if(myTeamName)update(ref(db,'drafts/'+draftId+'/teams/'+myTeamName),{squadValid:true,activeSquad:sq.xi.concat(sq.bench)}).catch(function(){});
+    if(myTeamName)update(ref(db,'drafts/'+draftId+'/teams/'+myTeamName),{squadValid:true,activeSquad:sq.xi.concat(sq.bench)}).catch(function(e){console.error('squadValid:true mirror write failed:',e);});
     _sqHistD=[];
     var ub=document.getElementById('mt_undo_D');if(ub)ub.style.display='none';
   }catch(e){window.showAlert('Save failed: '+e.message);}
@@ -5414,7 +5457,8 @@ window.IPL_SCHEDULE = typeof IPL_SCHEDULE !== 'undefined' ? IPL_SCHEDULE : [];
     window.myTeamName = myTeamName || '';
     window.isAdmin = !!isAdmin;
   }
-  setInterval(sync, 500);
+  // B5: routed through registry so visibilitychange can pause it
+  window._registerInterval(sync, 500);
   sync();
 })();
 
@@ -5434,7 +5478,7 @@ window._cdForceRoomRefresh = async function(){
       // Nudge the CD layer to redraw with the fresh data.
       try{ window.CD && typeof window.CD.scheduleRender === 'function' && window.CD.scheduleRender(); }catch(_){}
     }
-  }catch(e){ console.warn('_cdForceRoomRefresh:', e); }
+  }catch(e){ console.error('_cdForceRoomRefresh:', e); }
 };
 
 // Room lists for the CD dashboard. The CD layer listens for a
@@ -5442,10 +5486,10 @@ window._cdForceRoomRefresh = async function(){
 (function publishRoomsForCD(){
   if(!auth) return;
   let unsubCreated = null, unsubJoined = null;
-  const push = () => { try { window.dispatchEvent(new CustomEvent('cd-drafts-update')); } catch(e){ console.warn('cd-drafts-update dispatch:', e); } };
+  const push = () => { try { window.dispatchEvent(new CustomEvent('cd-drafts-update')); } catch(e){ console.error('cd-drafts-update dispatch:', e); } };
   onAuthStateChanged(auth, u => {
-    try { unsubCreated && unsubCreated(); } catch(e){ console.warn('unsubCreated:', e); }
-    try { unsubJoined && unsubJoined(); } catch(e){ console.warn('unsubJoined:', e); }
+    try { unsubCreated && unsubCreated(); } catch(e){ console.error('unsubCreated:', e); }
+    try { unsubJoined && unsubJoined(); } catch(e){ console.error('unsubJoined:', e); }
     window.userCreatedDrafts = [];
     window.userJoinedDrafts = [];
     if(!u){ push(); return; }
@@ -5469,7 +5513,7 @@ window._cdForceRoomRefresh = async function(){
           window.userCreatedDrafts = newVal;
         }
         push();
-      } catch(e){ console.warn('publishRoomsForCD/drafts:', e); }
+      } catch(e){ console.error('publishRoomsForCD/drafts:', e); }
     });
     unsubJoined = onValue(ref(db, `users/${u.uid}/joinedDrafts`), snap => {
       try {
@@ -5487,7 +5531,7 @@ window._cdForceRoomRefresh = async function(){
           window.userJoinedDrafts = newVal;
         }
         push();
-      } catch(e){ console.warn('publishRoomsForCD/joinedDrafts:', e); }
+      } catch(e){ console.error('publishRoomsForCD/joinedDrafts:', e); }
     });
   });
 })();

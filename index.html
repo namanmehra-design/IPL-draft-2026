@@ -7,8 +7,8 @@
   <meta http-equiv="Expires" content="0">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>IPL 2026 Fantasy Draft</title>
-  <link rel="stylesheet" href="cd-styles.css?v=20260424n">
-  <link rel="stylesheet" href="styles.css?v=20260424n">
+  <link rel="stylesheet" href="cd-styles.css?v=20260424o">
+  <link rel="stylesheet" href="styles.css?v=20260424o">
   <style>
     /* CD is the only view. The classic draft chrome stays in the DOM so
        classic window.* handlers can still read form elements and modals,
@@ -493,104 +493,6 @@
         <span class="live-ticker-label">🏏 LIVE</span>
         <div class="live-ticker-scroll"><div id="liveTickerBar"><span class="ticker-no-live">Loading scores…</span></div></div>
       </div>
-<div class="anav">
-        <button class="anav-btn active" id="btn-setup" onclick="window.switchTab('setup')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M12 2v2M12 20v2M20 12h2M2 12h2M19.07 19.07l-1.41-1.41M4.93 19.07l1.41-1.41"/>
-          </svg>
-          Setup
-        </button>
-        <button class="anav-btn" id="btn-draft" onclick="window.switchTab('draft')"><span class="anav-live-dot" id="navLiveDot"></span>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
-            <rect x="9" y="3" width="6" height="4" rx="1"/>
-            <path d="m9 12 2 2 4-4"/>
-          </svg>
-          Draft Room
-        </button>
-        <button class="anav-btn" id="btn-teams" onclick="window.switchTab('teams')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-            <circle cx="9" cy="7" r="4"/>
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-          </svg>
-          Rosters
-        </button>
-        <button class="anav-btn" id="btn-roster" onclick="window.switchTab('roster')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="2" y1="12" x2="22" y2="12"/>
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-          </svg>
-          Ledger
-        </button>
-        <button class="anav-btn" id="btn-points" onclick="window.switchTab('points')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-          </svg>
-          Points
-        </button>
-        <button class="anav-btn" id="btn-myteam" onclick="window.switchTab('myteam')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-            <circle cx="9" cy="7" r="4"/>
-            <line x1="23" y1="21" x2="23" y2="19"/>
-            <line x1="19" y1="21" x2="19" y2="19"/>
-            <line x1="21" y1="17" x2="21" y2="23"/>
-          </svg>
-          My Team
-        </button>
-        <button class="anav-btn" id="btn-leaderboard" onclick="window.switchTab('leaderboard')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-          </svg>
-          Leaderboard
-        </button>
-        <button class="anav-btn" id="btn-players-season" onclick="window.switchTab('players-season')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-            <circle cx="9" cy="7" r="4"/>
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-          </svg>
-          Players
-        </button>
-        <button class="anav-btn" id="btn-analytics" onclick="window.switchTab('analytics')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="20" x2="18" y2="10"/>
-            <line x1="12" y1="20" x2="12" y2="4"/>
-            <line x1="6" y1="20" x2="6" y2="14"/>
-          </svg>
-          Analytics
-        </button>
-        <button class="anav-btn" id="btn-matches" onclick="window.switchTab('matches')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-            <line x1="16" y1="2" x2="16" y2="6"/>
-            <line x1="8" y1="2" x2="8" y2="6"/>
-            <line x1="3" y1="10" x2="21" y2="10"/>
-          </svg>
-          Match Data
-        </button>
-        <button class="anav-btn" id="btn-schedule" onclick="window.switchTab('schedule')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-            <line x1="16" y1="2" x2="16" y2="6"/>
-            <line x1="8" y1="2" x2="8" y2="6"/>
-            <line x1="3" y1="10" x2="21" y2="10"/>
-          </svg>
-          Schedule
-        </button>
-        <button class="anav-btn" id="btn-trades" onclick="window.switchTab('trades')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/>
-          </svg>
-          Trades
-        </button>
-      </div>
-
       <!-- ── SETUP TAB ───────────────────────────────────────── -->
       <div id="setup-tab" class="card">
         <div class="card-hdr">
@@ -1104,10 +1006,10 @@
 
 <!-- Agent 4: canvas-confetti for SOLD/draft-pick bursts and leaderboard #1 celebration -->
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
-<script type="module" src="app.js?v=20260424n"></script>
+<script type="module" src="app.js?v=20260424o"></script>
 <!-- New Cricket Design UI layer (Neon Broadcast × Liquid Glass).
      Parity with the auction app. Loaded after app.js so every
      window.* handler it calls exists. -->
-<script src="cd-app.js?v=20260424n"></script>
+<script src="cd-app.js?v=20260424o"></script>
 </body>
 </html>
