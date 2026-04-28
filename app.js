@@ -5240,10 +5240,18 @@ window.renderTrades=function(data){
 };
 
 window.toggleSquadLock_D=function(){
- if(!isAdmin||!draftId) return;
- var currentLock=draftState&&draftState.squadLocked;
- var upd={}; upd['drafts/'+draftId+'/squadLocked']=!currentLock;
- update(ref(db),upd).then(function(){ window.showAlert(!currentLock?'My Team changes LOCKED.':'My Team changes UNLOCKED.','ok'); }).catch(function(e){ window.showAlert('Failed: '+e.message); });
+ if(!draftId) return window.showAlert('No draft loaded.','err');
+ if(!isAdmin) return window.showAlert('Only the draft admin can toggle squad lock.','err');
+ // Atomic toggle so concurrent clicks resolve to one final state.
+ runTransaction(ref(db,'drafts/'+draftId+'/squadLocked'),function(cur){
+  return !cur;
+ }).then(function(res){
+  if(res && res.committed){
+   var nowLocked = !!res.snapshot.val();
+   window.showAlert(nowLocked?'Squad changes LOCKED.':'Squad changes UNLOCKED.','ok');
+   try{ window.CD && window.CD.scheduleRender && window.CD.scheduleRender(); }catch(_){}
+  }
+ }).catch(function(e){ window.showAlert('Lock toggle failed: '+e.message,'err'); });
 };
 
 // Super Admin: Toggle release/replace lock
