@@ -1845,7 +1845,7 @@
       benchNames = rosterNames.slice(11, 16);
     }
     const reserveNames = rosterNames.filter(n => !xiNames.includes(n) && !benchNames.includes(n));
-    const canEdit = !squadLocked;
+    const canEdit = !squadLocked || isSuper;
 
     // squadValid: XI must have 11 and roster must have 11+ to field a side.
     // If not, surface a red-outlined banner with a CTA to rebuild. Do NOT
@@ -2082,9 +2082,12 @@
     const myTeam = window.myTeamName || '';
     const t = rs.teams?.[myTeam];
     if(!t){ window.showAlert?.('No team registered.'); return; }
-    if(rs.squadLocked){
-      window.showAlert?.('Squad changes are locked by admin.');
-      return;
+    {
+      const _su = window.user?.email && (typeof window.isSuperAdminEmail === 'function' ? window.isSuperAdminEmail(window.user.email) : false);
+      if(rs.squadLocked && !_su){
+        window.showAlert?.('Squad changes are locked by admin.');
+        return;
+      }
     }
     const roster = Array.isArray(t.roster) ? t.roster : (t.roster ? Object.values(t.roster) : []);
     const allNames = roster.map(p => p.name || p.n || '').filter(Boolean);
