@@ -350,6 +350,255 @@ async function migrateMissingWinBonuses(rid,data){
  }
 }
 
+// -- Canonical pts rebuilder --
+// Treats the breakdown text as the source of truth and re-derives pts.
+// Handles three drift cases that have shown up in the field:
+//   (a) Win bonus missing from BOTH pts and breakdown (admin typed full
+//       team name instead of code → strict-equality miss).
+//   (b) Duck doubled by an over-eager earlier migration that appended
+//       "DUCK: -5" alongside an existing implicit duck (Bat(0r Xb): -5
+//       without the "DUCK" marker).
+//   (c) Pts/breakdown drift (pts not matching the sum of breakdown
+//       entries for any reason — typically partial-write fallout).
+//
+// Logic: parse breakdown → drop duplicate DUCK and Win entries → if
+// player is on the winning team and breakdown lacks Win, add "Win: +5"
+// → re-sum entries → return the canonical pts + breakdown.
+function _isLikelyDuckBatEntryD(e){
+ // "Bat(0r Xb): -5" pattern — non-bowler duck with implicit (no "DUCK"
+ // marker) penalty. balls < 10 means no SR penalty so -5 must be duck.
+ var lblM=e.label.match(/^bat\((\d+)r\s+([\d.]+)b/i);
+ if(!lblM) return false;
+ var runs=+lblM[1], balls=+lblM[2];
+ return runs===0 && balls<10 && e.val<=-5;
+}
+function _canonicalRebuildD(p, winnerCanonical, iplMap){
+ if(!p||typeof p!=='object') return null;
+ var origPts=+p.pts||0;
+ var origBd=String(p.breakdown||'');
+ var rawParts=origBd.split('|').map(function(s){return s.trim();}).filter(Boolean);
+ var entries=[];
+ for(var i=0;i<rawParts.length;i++){
+  var part=rawParts[i];
+  var m=part.match(/^(.+?):\s*([+-]?\d+(?:\.\d+)?)\s*$/);
+  if(!m) continue;
+  entries.push({raw:part,label:m[1].trim(),val:parseFloat(m[2])});
+ }
+ // Detect implicit/explicit duck-in-bat
+ var batHasDuck=entries.some(function(e){
+  return /^bat\(.*duck.*\)/i.test(e.label) || _isLikelyDuckBatEntryD(e);
+ });
+ // Detect player's iplTeam for win-bonus eligibility
+ var pNameLow=(p.name||'').toLowerCase().trim();
+ var pNameClean=pNameLow.replace(/\*?\s*\([^)]*\)\s*$/,'').trim();
+ var pIpl=iplMap[pNameLow]||iplMap[pNameClean]||'';
+ var winEligible=!!(winnerCanonical&&pIpl===winnerCanonical);
+ // Walk entries, dedupe DUCK and Win
+ var kept=[];
+ var standaloneDuckKept=0;
+ var winKept=0;
+ var duckRemovedCount=0;
+ var winRemovedCount=0;
+ for(var j=0;j<entries.length;j++){
+  var e=entries[j];
+  var lblLow=e.label.toLowerCase();
+  if(/^duck/.test(lblLow)){
+   if(batHasDuck){ duckRemovedCount++; continue; } // already in bat
+   if(standaloneDuckKept>=1){ duckRemovedCount++; continue; } // dupe
+   kept.push(e); standaloneDuckKept++;
+  } else if(/^win/.test(lblLow)){
+   if(winKept>=1){ winRemovedCount++; continue; } // dupe
+   kept.push(e); winKept++;
+  } else {
+   kept.push(e);
+  }
+ }
+ // Add missing Win if eligible
+ var addedWin=false;
+ if(winEligible&&winKept===0){
+  kept.push({label:'Win',val:5,raw:'Win: +5'});
+  addedWin=true;
+ }
+ // Compute canonical pts
+ var canonicalPts=0;
+ for(var k=0;k<kept.length;k++) canonicalPts+=kept[k].val;
+ canonicalPts=Math.round(canonicalPts*100)/100;
+ // Build canonical breakdown
+ var canonicalBd=kept.map(function(e){
+  var sign=e.val>=0?'+':'';
+  return e.label+': '+sign+e.val;
+ }).join(' | ');
+ var ptsChanged=Math.abs(origPts-canonicalPts)>0.01;
+ var bdChanged=origBd!==canonicalBd;
+ return {
+  pts:canonicalPts, breakdown:canonicalBd,
+  ptsChanged:ptsChanged, bdChanged:bdChanged,
+  addedWin:addedWin, duckDupesRemoved:duckRemovedCount, winDupesRemoved:winRemovedCount,
+  origPts:origPts, origBd:origBd
+ };
+}
+window._canonicalRebuildD=_canonicalRebuildD;
+
+// -- One-time forced canonical rebuild migration --
+// Walks every match in the room, runs _canonicalRebuildD per player,
+// and writes back any pts/breakdown that drifted. Idempotent: re-running
+// after a clean room produces no writes. Recomputes leaderboardTotals
+// after applying fixes.
+let _canonicalRebuildDoneD={};
+async function migrateCanonicalRebuildD(rid,data){
+ if(_canonicalRebuildDoneD[rid]) return;
+ _canonicalRebuildDoneD[rid]=true;
+ if(!data?.matches) return;
+ try{
+  // Build iplMap from data.players + RAW
+  var iplMap={};
+  if(data.players){
+   var pArr=Array.isArray(data.players)?data.players:Object.values(data.players);
+   pArr.forEach(function(p){
+    var fn=(p.name||p.n||'').toLowerCase().trim();
+    var cn=fn.replace(/\*?\s*\([^)]*\)\s*$/,'').trim();
+    var t=(p.iplTeam||p.t||'').toUpperCase();
+    if(fn) iplMap[fn]=t;
+    if(cn) iplMap[cn]=t;
+   });
+  }
+  RAW.forEach(function(p){
+   var fn=(p.n||'').toLowerCase().trim();
+   var cn=fn.replace(/\*?\s*\([^)]*\)\s*$/,'').trim();
+   var t=(p.t||'').toUpperCase();
+   if(fn&&!iplMap[fn]) iplMap[fn]=t;
+   if(cn&&!iplMap[cn]) iplMap[cn]=t;
+  });
+  var upd={};
+  var fixedPlayers=0;
+  var fixedMatches={};
+  Object.entries(data.matches).forEach(function(me){
+   var mid=me[0],m=me[1];
+   if(!m||!m.players) return;
+   var rawW=(m.winner||'').trim();
+   var canonical=rawW?_normalizeIplTeamCode(rawW):'';
+   if(canonical&&rawW.toUpperCase()!==canonical){
+    upd['drafts/'+rid+'/matches/'+mid+'/winner']=canonical;
+    fixedMatches[mid]=true;
+   }
+   Object.entries(m.players).forEach(function(pe){
+    var pkey=pe[0],p=pe[1];
+    var rebuilt=_canonicalRebuildD(p,canonical,iplMap);
+    if(!rebuilt) return;
+    if(rebuilt.ptsChanged) upd['drafts/'+rid+'/matches/'+mid+'/players/'+pkey+'/pts']=rebuilt.pts;
+    if(rebuilt.bdChanged) upd['drafts/'+rid+'/matches/'+mid+'/players/'+pkey+'/breakdown']=rebuilt.breakdown;
+    if(rebuilt.ptsChanged||rebuilt.bdChanged){
+     fixedPlayers++; fixedMatches[mid]=true;
+    }
+   });
+  });
+  if(Object.keys(upd).length){
+   await update(ref(db),upd);
+   try{ await _recalcLeaderboardDCore(); }catch(e){ console.error('canonical rebuild: recalc failed:',e); }
+   try{ window.showAlert('Pts rebuild: '+fixedPlayers+' player(s) across '+Object.keys(fixedMatches).length+' match(es) corrected.','ok'); }catch(_e){}
+   console.info('canonical rebuild:',{rid:rid,fixedPlayers:fixedPlayers,fixedMatches:Object.keys(fixedMatches).length});
+  }
+ }catch(e){ console.error('migrateCanonicalRebuildD:',e); }
+}
+
+// -- Super-admin: forced canonical rebuild across all draft rooms --
+// Console: await window.saRebuildAllPtsD(true)  -> apply fixes
+//          await window.saRebuildAllPtsD()      -> dry-run summary
+window.saRebuildAllPtsD=async function(autoFix){
+ if(!isSuperAdminEmail(user?.email)){ window.showAlert('Super admin only.','err'); return; }
+ console.group('🔧 Cross-room canonical rebuild — DRAFT');
+ console.info('Mode:',autoFix?'REBUILD + WRITE':'DRY-RUN (pass true to write)');
+ try{
+  var usersSnap=await get(ref(db,'users'));
+  var usersData=usersSnap.val()||{};
+  var allDraftIds={};
+  Object.entries(usersData).forEach(function(e){
+   var uid=e[0],u=e[1];
+   if(u&&u.drafts) Object.keys(u.drafts).forEach(function(rid){ allDraftIds[rid]=u.email||uid; });
+  });
+  var ridList=Object.keys(allDraftIds);
+  console.info('Discovered',ridList.length,'draft room(s).');
+  var globalIplMap={};
+  RAW.forEach(function(p){
+   var fn=(p.n||'').toLowerCase().trim();
+   var cn=fn.replace(/\*?\s*\([^)]*\)\s*$/,'').trim();
+   var t=(p.t||'').toUpperCase();
+   if(fn) globalIplMap[fn]=t;
+   if(cn) globalIplMap[cn]=t;
+  });
+  var summary=[];
+  var totalFixedPlayers=0;
+  for(var i=0;i<ridList.length;i++){
+   var rid=ridList[i];
+   try{
+    var snap=await get(ref(db,'drafts/'+rid));
+    var data=snap.val();
+    if(!data){ summary.push({roomId:rid.substring(0,8),owner:allDraftIds[rid],status:'EMPTY'}); continue; }
+    var matches=data.matches||{};
+    var iplMap={};
+    Object.assign(iplMap,globalIplMap);
+    if(data.players){
+     var pArr=Array.isArray(data.players)?data.players:Object.values(data.players);
+     pArr.forEach(function(p){
+      var fn=(p.name||p.n||'').toLowerCase().trim();
+      var cn=fn.replace(/\*?\s*\([^)]*\)\s*$/,'').trim();
+      var t=(p.iplTeam||p.t||'').toUpperCase();
+      if(fn&&t) iplMap[fn]=t;
+      if(cn&&t) iplMap[cn]=t;
+     });
+    }
+    var upd={};
+    var roomFixed=0;
+    var roomTouched={};
+    Object.entries(matches).forEach(function(me){
+     var mid=me[0],m=me[1];
+     if(!m||!m.players) return;
+     var rawW=(m.winner||'').trim();
+     var canonical=rawW?_normalizeIplTeamCode(rawW):'';
+     if(canonical&&rawW.toUpperCase()!==canonical&&autoFix){
+      upd['drafts/'+rid+'/matches/'+mid+'/winner']=canonical;
+      roomTouched[mid]=true;
+     }
+     Object.entries(m.players).forEach(function(pe){
+      var pkey=pe[0],p=pe[1];
+      var rebuilt=_canonicalRebuildD(p,canonical,iplMap);
+      if(!rebuilt) return;
+      if(rebuilt.ptsChanged||rebuilt.bdChanged){
+       roomFixed++;
+       roomTouched[mid]=true;
+       if(autoFix){
+        if(rebuilt.ptsChanged) upd['drafts/'+rid+'/matches/'+mid+'/players/'+pkey+'/pts']=rebuilt.pts;
+        if(rebuilt.bdChanged) upd['drafts/'+rid+'/matches/'+mid+'/players/'+pkey+'/breakdown']=rebuilt.breakdown;
+       }
+      }
+     });
+    });
+    if(autoFix&&Object.keys(upd).length){
+     await update(ref(db),upd);
+     totalFixedPlayers+=roomFixed;
+    }
+    summary.push({roomId:rid.substring(0,8),name:data.roomName||'?',owner:allDraftIds[rid],matches:Object.keys(matches).length,playersFixed:roomFixed,matchesTouched:Object.keys(roomTouched).length});
+   }catch(e){
+    console.error('Room',rid,'rebuild failed:',e);
+    summary.push({roomId:rid.substring(0,8),owner:allDraftIds[rid],status:'ERROR',error:e.message});
+   }
+  }
+  console.table(summary);
+  if(autoFix&&totalFixedPlayers>0){
+   try{ window.showAlert('Cross-room rebuild: fixed '+totalFixedPlayers+' player record(s). See console.','ok'); }catch(_e){}
+  } else if(!autoFix){
+   var anyFix=summary.some(function(r){return r.playersFixed>0;});
+   try{ window.showAlert(anyFix?'Rebuild dry-run found fixes. Pass true to apply.':'No fixes needed.', anyFix?'err':'ok'); }catch(_e){}
+  }
+  console.groupEnd();
+  return summary;
+ }catch(e){
+  console.error('saRebuildAllPtsD failed:',e);
+  console.groupEnd();
+  throw e;
+ }
+};
+
 // -- Admin/super-admin audit helper: report on win-bonus + scoring data --
 // Walks every match in the current room and prints:
 //   - the raw winner string vs. its normalized code
@@ -1060,6 +1309,13 @@ function loadDraftRoom(rid){
  // silently lost their +5. Idempotent — checks the breakdown for an
  // existing "Win:" / "Winning team:" marker before adding.
  migrateMissingWinBonuses(rid,data);
+ // Final canonical rebuild: derives pts from breakdown text, dedupes
+ // any stray DUCK / Win entries from earlier buggy migrations, adds
+ // missing win bonus, writes back if anything drifted. This is the
+ // self-healing pass — runs once per session per room.
+ setTimeout(function(){
+  try{ migrateCanonicalRebuildD(rid,data); }catch(e){ console.error('canonical rebuild trigger:',e); }
+ }, 1500);
 
  // Self-heal: silently recalc leaderboardTotals once per room load so stored
  // values never drift from what computeMatchContribution would produce right
