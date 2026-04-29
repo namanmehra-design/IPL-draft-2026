@@ -944,7 +944,35 @@ function loadDraftRoom(rid){
   // Migrations are best-effort -- failures get logged for debugging
   // but don't bother the user (next session will retry).
   if(data.teams){ var _df={}; Object.entries(data.teams).forEach(function(e){ var tn=e[0],t=e[1]; var r=Array.isArray(t.roster)?t.roster:(t.roster?Object.values(t.roster):[]); r.forEach(function(p,i){ if((p.name||'').indexOf('Digvesh Rathi')>=0&&(p.role||'')!=='Bowler'){ p.role='Bowler'; _df['drafts/'+draftId+'/teams/'+tn+'/roster/'+i+'/role']='Bowler'; }}); }); if(Object.keys(_df).length>0) update(ref(db),_df).catch(function(e){console.error('Digvesh role-fix (teams) write failed:',e);}); }
-  if(data.players&&draftId){ var _ap=Array.isArray(data.players)?data.players:Object.values(data.players||{}); if(!_ap.some(function(p){return(p.name||'').indexOf('Dasun Shanaka')>=0;})){ _ap.push({id:_ap.length,name:"Dasun Shanaka",iplTeam:"RR",role:"All-Rounder",isOverseas:true,draftedBy:null}); data.players=_ap; set(ref(db,'drafts/'+draftId+'/players'),_ap).catch(function(e){console.error('Dasun migration (draft) write failed:',e);}); } _ap.forEach(function(p,i){ if((p.name||'').indexOf('Digvesh Rathi')>=0&&(p.role||'').toLowerCase()==='batter'){ p.role='Bowler'; update(ref(db),{['drafts/'+draftId+'/players/'+i+'/role']:'Bowler'}).catch(function(e){console.error('Digvesh role-fix (players) write failed:',e);}); }}); }
+  if(data.players&&draftId){
+   var _ap=Array.isArray(data.players)?data.players:Object.values(data.players||{});
+   // Backfill any seed players added after the room was first initialized.
+   // Each entry: {match: string, add: {name, iplTeam, role, isOverseas}}
+   // Idempotent — only pushes if name not already present.
+   var _missingSeed=[
+    {match:'Dasun Shanaka',  add:{name:"Dasun Shanaka",  iplTeam:"RR", role:"All-Rounder", isOverseas:true}},
+    {match:'Keshav Maharaj', add:{name:"Keshav Maharaj", iplTeam:"MI", role:"Bowler",      isOverseas:true}},
+    {match:'George Linde',   add:{name:"George Linde",   iplTeam:"LSG",role:"All-Rounder", isOverseas:true}}
+   ];
+   var _addedAny=false;
+   _missingSeed.forEach(function(m){
+    if(!_ap.some(function(p){return(p.name||'').indexOf(m.match)>=0;})){
+     _ap.push(Object.assign({id:_ap.length,draftedBy:null}, m.add));
+     _addedAny=true;
+    }
+   });
+   if(_addedAny){
+    data.players=_ap;
+    set(ref(db,'drafts/'+draftId+'/players'),_ap).catch(function(e){console.error('seed backfill (draft) write failed:',e);});
+   }
+   // Digvesh Rathi role-fix (was: 'Batter' should be 'Bowler')
+   _ap.forEach(function(p,i){
+    if((p.name||'').indexOf('Digvesh Rathi')>=0&&(p.role||'').toLowerCase()==='batter'){
+     p.role='Bowler';
+     update(ref(db),{['drafts/'+draftId+'/players/'+i+'/role']:'Bowler'}).catch(function(e){console.error('Digvesh role-fix (players) write failed:',e);});
+    }
+   });
+  }
  }
   renderDraftTab(data,_tcnt,picksPerTeam);
   // If myTeamName not yet set (Promise.all still pending), retry shortly
