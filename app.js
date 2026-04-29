@@ -238,6 +238,108 @@ function migrateDuckPoints(rid,data){
  if(needsWrite) update(ref(db),upd).then(()=>{window.showAlert('Duck penalties corrected.','ok');}).catch(e=>console.error('Duck migration:',e));
 }
 
+// -- Seed-backfill: add late-additions (Linde, Maharaj, Shanaka) to a room --
+// Replaces the old gated/array-overwriting migration. Key differences:
+//   - No isAdmin gate (Firebase rules will reject if write isn't allowed)
+//   - Path-specific writes (drafts/{rid}/players/{newId}) instead of
+//     overwriting the entire players collection
+//   - Computes newId as max(existing IDs) + 1 to avoid collisions when
+//     pool is sparse-keyed
+//   - Returns a summary so callers can surface a useful toast
+//
+// Used by:
+//   1. loadDraftRoom on every load (silent — only toasts on success)
+//   2. window.addMissingPlayersD() — manual console trigger
+//   3. window.saAddMissingPlayersAllRoomsD() — super-admin batch
+const _DRAFT_LATE_ADDITIONS=[
+ {match:'Dasun Shanaka',  add:{name:"Dasun Shanaka",  iplTeam:"RR", role:"All-Rounder", isOverseas:true}},
+ {match:'Keshav Maharaj', add:{name:"Keshav Maharaj", iplTeam:"MI", role:"Bowler",      isOverseas:true}},
+ {match:'George Linde',   add:{name:"George Linde",   iplTeam:"LSG",role:"All-Rounder", isOverseas:true}}
+];
+async function _addMissingSeedPlayersD(rid){
+ var result={rid:rid,added:0,skipped:0,addedNames:[],skippedNames:[],error:null};
+ if(!rid){ result.error='No rid'; return result; }
+ try{
+  var snap=await get(ref(db,'drafts/'+rid+'/players'));
+  var pdata=snap.val();
+  // Normalize to array of {id, name, ...} entries with both index and stored id
+  var entries=[];
+  if(Array.isArray(pdata)){
+   pdata.forEach(function(p,i){ if(p) entries.push({key:i,p:p}); });
+  } else if(pdata && typeof pdata === 'object'){
+   Object.entries(pdata).forEach(function(e){
+    var k=e[0],v=e[1];
+    if(v) entries.push({key:isNaN(+k)?k:+k,p:v});
+   });
+  }
+  // Determine next-free numeric ID. Looks at both array indices and stored .id
+  var maxId=-1;
+  entries.forEach(function(e){
+   if(typeof e.key==='number' && e.key>maxId) maxId=e.key;
+   if(typeof e.p.id==='number' && e.p.id>maxId) maxId=e.p.id;
+  });
+  var upd={};
+  for(var i=0;i<_DRAFT_LATE_ADDITIONS.length;i++){
+   var seed=_DRAFT_LATE_ADDITIONS[i];
+   var present=entries.some(function(e){return(e.p.name||'').indexOf(seed.match)>=0;});
+   if(present){ result.skipped++; result.skippedNames.push(seed.match); continue; }
+   maxId++;
+   upd['drafts/'+rid+'/players/'+maxId]=Object.assign({id:maxId,draftedBy:null},seed.add);
+   result.added++; result.addedNames.push(seed.match);
+  }
+  if(result.added>0){
+   await update(ref(db),upd);
+   console.info('[seed-backfill draft]',rid,'added:',result.addedNames);
+  }
+ }catch(e){
+  console.error('[seed-backfill draft]',rid,'failed:',e);
+  result.error=e.message;
+ }
+ return result;
+}
+window._addMissingSeedPlayersD=_addMissingSeedPlayersD;
+
+// Manual trigger for the currently-loaded room
+window.addMissingPlayersD=async function(){
+ if(!draftId){ window.showAlert('Load a draft room first.','err'); return; }
+ var r=await _addMissingSeedPlayersD(draftId);
+ if(r.error){ window.showAlert('Backfill failed: '+r.error,'err'); }
+ else if(r.added>0){ window.showAlert('Added '+r.addedNames.join(', ')+' to player pool.','ok'); }
+ else { window.showAlert('All seed players already present.','ok'); }
+ return r;
+};
+
+// Super-admin batch: walk every draft room and force-add missing seeds.
+// Console: await window.saAddMissingPlayersAllRoomsD()
+window.saAddMissingPlayersAllRoomsD=async function(){
+ if(!isSuperAdminEmail(user?.email)){ window.showAlert('Super admin only.','err'); return; }
+ console.group('🔧 Seed-backfill — all draft rooms');
+ try{
+  var usersSnap=await get(ref(db,'users'));
+  var usersData=usersSnap.val()||{};
+  var ridSet=new Set();
+  Object.values(usersData).forEach(function(u){
+   if(u&&u.drafts) Object.keys(u.drafts).forEach(function(r){ ridSet.add(r); });
+  });
+  var summary=[];
+  var totalAdded=0;
+  for(var rid of ridSet){
+   var r=await _addMissingSeedPlayersD(rid);
+   summary.push({roomId:rid.substring(0,8),added:r.added,skipped:r.skipped,addedNames:r.addedNames.join(',')||'-',error:r.error||''});
+   totalAdded+=r.added;
+  }
+  console.table(summary);
+  console.info('Total players added across rooms:',totalAdded);
+  try{ window.showAlert('Cross-room seed backfill: added '+totalAdded+' player record(s). See console.','ok'); }catch(_e){}
+  console.groupEnd();
+  return summary;
+ }catch(e){
+  console.error('saAddMissingPlayersAllRoomsD failed:',e);
+  console.groupEnd();
+  throw e;
+ }
+};
+
 // -- Normalize an arbitrary winner string to its canonical IPL team code --
 // Used by the retroactive win-bonus migration so historical match records
 // where the admin typed "Sunrisers Hyderabad" instead of "SRH" can still
@@ -1309,6 +1411,20 @@ function loadDraftRoom(rid){
  // silently lost their +5. Idempotent — checks the breakdown for an
  // existing "Win:" / "Winning team:" marker before adding.
  migrateMissingWinBonuses(rid,data);
+ // Seed-backfill: ensure late-additions (Linde, Maharaj, Shanaka) are
+ // in the player pool so admins can pick them as replacements. Runs on
+ // every room load, idempotent (skips if already present), uses
+ // path-specific writes so it can't clobber concurrent edits. Once-per-
+ // session-per-room flag prevents repeat writes within the same tab.
+ if(!window._seedBackfillDoneD) window._seedBackfillDoneD={};
+ if(!window._seedBackfillDoneD[rid]){
+  window._seedBackfillDoneD[rid]=true;
+  setTimeout(function(){
+   _addMissingSeedPlayersD(rid).then(function(r){
+    if(r.added>0){ try{ window.showAlert('Player pool updated: added '+r.addedNames.join(', '),'ok'); }catch(_){} }
+   });
+  }, 600);
+ }
  // Final canonical rebuild: derives pts from breakdown text, dedupes
  // any stray DUCK / Win entries from earlier buggy migrations, adds
  // missing win bonus, writes back if anything drifted. This is the
@@ -1492,31 +1608,11 @@ function loadDraftRoom(rid){
  if(setup.isStarted&&data.draftOrder){
   const _tcnt=members.length||Math.round((Array.isArray(data.draftOrder)?data.draftOrder:Object.values(data.draftOrder||[])).length/(cfg.picksPerTeam||setup.picksPerTeam||picksPerTeam||15))||7;
 
- // Seed-backfill — runs on EVERY onValue (idempotent, self-stopping).
- // After write, listener re-fires with updated players, check finds them, no push.
- // Removed session flag because first onValue may arrive before data.players is
- // populated, then flag was already true and migration never ran.
- if(data.players&&draftId&&isAdmin){
-  var _ap=Array.isArray(data.players)?data.players:Object.values(data.players||{});
-  var _missingSeed=[
-   {match:'Dasun Shanaka',  add:{name:"Dasun Shanaka",  iplTeam:"RR", role:"All-Rounder", isOverseas:true}},
-   {match:'Keshav Maharaj', add:{name:"Keshav Maharaj", iplTeam:"MI", role:"Bowler",      isOverseas:true}},
-   {match:'George Linde',   add:{name:"George Linde",   iplTeam:"LSG",role:"All-Rounder", isOverseas:true}}
-  ];
-  var _addedAny=false;
-  _missingSeed.forEach(function(m){
-   if(!_ap.some(function(p){return(p.name||'').indexOf(m.match)>=0;})){
-    _ap.push(Object.assign({id:_ap.length,draftedBy:null}, m.add));
-    _addedAny=true;
-   }
-  });
-  if(_addedAny){
-   data.players=_ap;
-   set(ref(db,'drafts/'+draftId+'/players'),_ap)
-    .then(function(){ try{window.showAlert&&window.showAlert('Player pool updated: added '+_missingSeed.length+' missing players.','ok');}catch(_){}})
-    .catch(function(e){console.error('seed backfill (draft) write failed:',e); try{window.showAlert&&window.showAlert('Player backfill failed: '+e.message,'err');}catch(_){}});
-  }
- }
+ // Seed-backfill is now invoked unconditionally below via
+ // window.addMissingSeedPlayersD() — moved out of this block so it
+ // runs even when isAdmin === false (super admin viewing someone
+ // else's room) and even before draft has started. Path-specific
+ // writes replace the previous full-array overwrite that lost data.
  // One-time auto-fix: Digvesh role correction (only runs once per session)
  if(!window._autoFixDoneD){
   window._autoFixDoneD=true;
