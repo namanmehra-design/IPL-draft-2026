@@ -1522,7 +1522,18 @@ window.openReplaceModal=function(teamName,playerName,wasOverseas){
  replaceWasOverseas=!!wasOverseas;
  document.getElementById('replacePlayerDesc').textContent=
  `Replacing: ${playerName} from ${teamName}`;
- document.getElementById('replaceModal').classList.add('open');
+ var _rm=document.getElementById('replaceModal');
+ if(_rm){
+  // HANG FIX: kill backdrop-filter on the modal-bg before .open. Multiple
+  // overlapping animations (modalIn + cd-modal-in + a3-modal-pop +
+  // a3-backdrop-in) animating blur on a viewport-sized element over the
+  // heavy pitch scene caused a GPU compositor stall on mobile/low-end.
+  // The modal still gets a solid dim-bg via background colour; just no
+  // animated blur. Inline style beats class rules.
+  _rm.style.backdropFilter='none';
+  _rm.style.webkitBackdropFilter='none';
+  _rm.classList.add('open');
+ }
  window.refreshReplaceList();
 };
 window.closeReplaceModal=function(){
