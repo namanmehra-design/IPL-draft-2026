@@ -2181,9 +2181,12 @@
       isOs = btnOrCtx.getAttribute('data-os') === '1';
     } else if(btnOrCtx && typeof btnOrCtx === 'object'){
       team = btnOrCtx.team; name = btnOrCtx.name; idx = btnOrCtx.idx; isOs = !!btnOrCtx.isOs;
-    } else { return; }
-    if(!team || !name){ console.error('openReleaseConfirm: missing team/name'); return; }
-    const rs = window.roomState || {};
+    } else { console.error('openReleaseConfirm: no input'); return; }
+    console.log('[Release] click', { name, team, idx, isOs });
+    window.showAlert?.('Opening release for ' + name + '...', 'ok');
+    if(!team || !name){ console.error('openReleaseConfirm: missing team/name'); window.showAlert?.('Release failed: missing team/name', 'err'); return; }
+    // Use draftState (or roomState alias, which the draft app mirrors to draftState).
+    const rs = window.draftState || window.roomState || {};
     if(rs.releaseLocked){
       window.showAlert?.('Player releases are locked by the super admin.','err');
       return;
@@ -3988,6 +3991,10 @@
   };
   // Draft Replace handler — data-attributes pattern (apostrophe-safe).
   CD.handleReplaceD = (btn) => {
+    const _diagName = btn?.getAttribute?.('data-name') || '?';
+    const _diagTeam = btn?.getAttribute?.('data-team') || '?';
+    console.log('[Replace] click', { name: _diagName, team: _diagTeam });
+    window.showAlert?.('Opening replace for ' + _diagName + '...', 'ok');
     if(typeof window.openReplaceModal !== 'function') {
       console.error('handleReplaceD: window.openReplaceModal missing');
       window.showAlert?.('Replace handler not available — reload the page.','err');
