@@ -938,35 +938,38 @@ function loadDraftRoom(rid){
  if(setup.isStarted&&data.draftOrder){
   const _tcnt=members.length||Math.round((Array.isArray(data.draftOrder)?data.draftOrder:Object.values(data.draftOrder||[])).length/(cfg.picksPerTeam||setup.picksPerTeam||picksPerTeam||15))||7;
 
- // One-time auto-fix: Digvesh Rathi + Dasun Shanaka (only runs once per session)
+ // Seed-backfill — runs on EVERY onValue (idempotent, self-stopping).
+ // After write, listener re-fires with updated players, check finds them, no push.
+ // Removed session flag because first onValue may arrive before data.players is
+ // populated, then flag was already true and migration never ran.
+ if(data.players&&draftId&&isAdmin){
+  var _ap=Array.isArray(data.players)?data.players:Object.values(data.players||{});
+  var _missingSeed=[
+   {match:'Dasun Shanaka',  add:{name:"Dasun Shanaka",  iplTeam:"RR", role:"All-Rounder", isOverseas:true}},
+   {match:'Keshav Maharaj', add:{name:"Keshav Maharaj", iplTeam:"MI", role:"Bowler",      isOverseas:true}},
+   {match:'George Linde',   add:{name:"George Linde",   iplTeam:"LSG",role:"All-Rounder", isOverseas:true}}
+  ];
+  var _addedAny=false;
+  _missingSeed.forEach(function(m){
+   if(!_ap.some(function(p){return(p.name||'').indexOf(m.match)>=0;})){
+    _ap.push(Object.assign({id:_ap.length,draftedBy:null}, m.add));
+    _addedAny=true;
+   }
+  });
+  if(_addedAny){
+   data.players=_ap;
+   set(ref(db,'drafts/'+draftId+'/players'),_ap)
+    .then(function(){ try{window.showAlert&&window.showAlert('Player pool updated: added '+_missingSeed.length+' missing players.','ok');}catch(_){}})
+    .catch(function(e){console.error('seed backfill (draft) write failed:',e); try{window.showAlert&&window.showAlert('Player backfill failed: '+e.message,'err');}catch(_){}});
+  }
+ }
+ // One-time auto-fix: Digvesh role correction (only runs once per session)
  if(!window._autoFixDoneD){
   window._autoFixDoneD=true;
-  // Migrations are best-effort -- failures get logged for debugging
-  // but don't bother the user (next session will retry).
   if(data.teams){ var _df={}; Object.entries(data.teams).forEach(function(e){ var tn=e[0],t=e[1]; var r=Array.isArray(t.roster)?t.roster:(t.roster?Object.values(t.roster):[]); r.forEach(function(p,i){ if((p.name||'').indexOf('Digvesh Rathi')>=0&&(p.role||'')!=='Bowler'){ p.role='Bowler'; _df['drafts/'+draftId+'/teams/'+tn+'/roster/'+i+'/role']='Bowler'; }}); }); if(Object.keys(_df).length>0) update(ref(db),_df).catch(function(e){console.error('Digvesh role-fix (teams) write failed:',e);}); }
   if(data.players&&draftId){
-   var _ap=Array.isArray(data.players)?data.players:Object.values(data.players||{});
-   // Backfill any seed players added after the room was first initialized.
-   // Each entry: {match: string, add: {name, iplTeam, role, isOverseas}}
-   // Idempotent — only pushes if name not already present.
-   var _missingSeed=[
-    {match:'Dasun Shanaka',  add:{name:"Dasun Shanaka",  iplTeam:"RR", role:"All-Rounder", isOverseas:true}},
-    {match:'Keshav Maharaj', add:{name:"Keshav Maharaj", iplTeam:"MI", role:"Bowler",      isOverseas:true}},
-    {match:'George Linde',   add:{name:"George Linde",   iplTeam:"LSG",role:"All-Rounder", isOverseas:true}}
-   ];
-   var _addedAny=false;
-   _missingSeed.forEach(function(m){
-    if(!_ap.some(function(p){return(p.name||'').indexOf(m.match)>=0;})){
-     _ap.push(Object.assign({id:_ap.length,draftedBy:null}, m.add));
-     _addedAny=true;
-    }
-   });
-   if(_addedAny){
-    data.players=_ap;
-    set(ref(db,'drafts/'+draftId+'/players'),_ap).catch(function(e){console.error('seed backfill (draft) write failed:',e);});
-   }
-   // Digvesh Rathi role-fix (was: 'Batter' should be 'Bowler')
-   _ap.forEach(function(p,i){
+   var _apx=Array.isArray(data.players)?data.players:Object.values(data.players||{});
+   _apx.forEach(function(p,i){
     if((p.name||'').indexOf('Digvesh Rathi')>=0&&(p.role||'').toLowerCase()==='batter'){
      p.role='Bowler';
      update(ref(db),{['drafts/'+draftId+'/players/'+i+'/role']:'Bowler'}).catch(function(e){console.error('Digvesh role-fix (players) write failed:',e);});
