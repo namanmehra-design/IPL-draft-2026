@@ -1482,17 +1482,23 @@ window.confirmRelease=function(){
  update(ref(db),upd).then(function(){
   window.closeReleaseModal();
   window.showAlert(_playerName+' released. Compensatory pick added at end.','ok');
-  // Audit log (best-effort)
-  _writeAuditLog('release', {
-   team: _team,
-   oldName: _playerName,
-   oldRosterIdx: matchIdx,
-   wasInXI: wasInXI
-  });
-  // Auto-heal stored leaderboardTotals so future reads can't drift.
-  try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){ console.error('recalc leaderboard (draft):', e); }
   // Notify CD: any open match-entry form should surface a soft Resync banner.
   try{ window.dispatchEvent(new CustomEvent('_cdRosterChanged',{detail:{team:_team}})); }catch(e){ console.error('dispatch _cdRosterChanged:', e); }
+  // Defer audit log + leaderboard recalc so the listener doesn't fire 3
+  // back-to-back times (main write → audit write → leaderboardTotals write),
+  // each triggering a full re-render. 250ms gap lets the toast + first
+  // re-render paint before the next write hits.
+  setTimeout(function(){
+   _writeAuditLog('release', {
+    team: _team,
+    oldName: _playerName,
+    oldRosterIdx: matchIdx,
+    wasInXI: wasInXI
+   });
+  }, 250);
+  setTimeout(function(){
+   try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){ console.error('recalc leaderboard (draft):', e); }
+  }, 500);
  }).catch(function(e){ console.error('confirmRelease: write failed', e); window.showAlert('Release failed: '+e.message,'err'); });
  }).catch(function(e){ console.error('confirmRelease: read failed', e); window.showAlert('Error: '+e.message,'err'); });
 };
@@ -1621,19 +1627,23 @@ window.confirmReplace=function(){
  update(ref(db),upd).then(function(){
   window.closeReplaceModal();
   window.showAlert(oldPlayer.name+' replaced with '+newPlayer.name,'ok');
-  // Audit log (best-effort)
-  _writeAuditLog('replace', {
-   team: _team,
-   oldName: oldPlayer.name||_playerName,
-   newName: newPlayer.name,
-   oldRosterIdx: matchIdx,
-   wasInXI: wasInXI
-  });
+  try{ window.dispatchEvent(new CustomEvent('_cdRosterChanged',{detail:{team:_team}})); }catch(e){ console.error('dispatch _cdRosterChanged:', e); }
+  // Defer follow-up writes so listener doesn't fire 3x back-to-back.
+  setTimeout(function(){
+   _writeAuditLog('replace', {
+    team: _team,
+    oldName: oldPlayer.name||_playerName,
+    newName: newPlayer.name,
+    oldRosterIdx: matchIdx,
+    wasInXI: wasInXI
+   });
+  }, 250);
+  setTimeout(function(){
+   try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){ console.error('recalc leaderboard (draft):', e); }
+  }, 500);
   if(newOsCount>maxOs){
    setTimeout(function(){ window.showAlert('\u26a0\ufe0f Overseas cap breached: '+newOsCount+' / '+maxOs+'. Resolve before next match.','err'); }, 1800);
   }
-  try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){ console.error('recalc leaderboard (draft):', e); }
-  try{ window.dispatchEvent(new CustomEvent('_cdRosterChanged',{detail:{team:_team}})); }catch(e){ console.error('dispatch _cdRosterChanged:', e); }
  }).catch(function(e){ console.error('confirmReplace: write failed', e); window.showAlert('Replace failed: '+e.message,'err'); });
  }).catch(function(e){ console.error('confirmReplace: read failed', e); window.showAlert('Error: '+e.message,'err'); });
 };
