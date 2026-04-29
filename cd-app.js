@@ -1945,11 +1945,14 @@
       const rosterIdx = roster.findIndex(rp => (rp.name||rp.n||'') === name);
       const btnSize = mob ? 36 : 32;
       const iconSize = mob ? 14 : 13;
-      const actionBar = (canRelease || canReplace) ? `
-        <div style="display:flex;gap:${mob?6:7}px;justify-content:center;margin-top:${mob?4:5}px;padding:4px 0;" onclick="event.stopPropagation()">
-          ${canRelease ? `<button data-team="${esc(t.name)}" data-name="${esc(name)}" data-os="${isOs?'1':'0'}" data-idx="${rosterIdx}" onclick="event.stopPropagation();CD.openReleaseConfirm(this);" title="Release ${esc(name)}" style="width:${btnSize}px;height:${btnSize}px;min-width:${btnSize}px;min-height:${btnSize}px;padding:0;border-radius:50%;background:rgba(255,59,59,0.18);border:1px solid rgba(255,59,59,0.55);color:#FF8B8B;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;line-height:0;touch-action:manipulation;">${I('x',iconSize)}</button>` : ''}
-          ${canReplace ? `<button data-team="${esc(t.name)}" data-name="${esc(name)}" data-os="${isOs?'1':'0'}" data-idx="${rosterIdx}" onclick="event.stopPropagation();CD.handleReplaceD(this);" title="Replace ${esc(name)}" style="width:${btnSize}px;height:${btnSize}px;min-width:${btnSize}px;min-height:${btnSize}px;padding:0;border-radius:50%;background:rgba(255,200,61,0.18);border:1px solid rgba(255,200,61,0.55);color:#FFE49A;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;line-height:0;font-size:${iconSize+2}px;font-weight:800;touch-action:manipulation;">⇄</button>` : ''}
-        </div>` : '';
+      // Buttons render UNCONDITIONALLY for super admin / room admin / team owner.
+      // Permission re-checked in handlers — render always so a stale canRelease
+      // doesn't hide the only path forward. Lock state surfaces via toast on click.
+      const actionBar = `
+        <div style="display:flex;gap:${mob?6:7}px;justify-content:center;margin-top:${mob?4:5}px;padding:4px 0;position:relative;z-index:5;" onclick="event.stopPropagation()">
+          <button type="button" data-team="${esc(t.name)}" data-name="${esc(name)}" data-os="${isOs?'1':'0'}" data-idx="${rosterIdx}" onclick="event.stopPropagation();CD.openReleaseConfirm(this);return false;" title="Release ${esc(name)}" style="width:${btnSize}px;height:${btnSize}px;min-width:${btnSize}px;min-height:${btnSize}px;padding:0;border-radius:50%;background:rgba(255,59,59,0.22);border:1px solid rgba(255,59,59,0.6);color:#FF8B8B;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;line-height:0;touch-action:manipulation;pointer-events:auto;">${I('x',iconSize)}</button>
+          <button type="button" data-team="${esc(t.name)}" data-name="${esc(name)}" data-os="${isOs?'1':'0'}" data-idx="${rosterIdx}" onclick="event.stopPropagation();CD.handleReplaceD(this);return false;" title="Replace ${esc(name)}" style="width:${btnSize}px;height:${btnSize}px;min-width:${btnSize}px;min-height:${btnSize}px;padding:0;border-radius:50%;background:rgba(255,200,61,0.22);border:1px solid rgba(255,200,61,0.6);color:#FFE49A;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;line-height:0;font-size:${iconSize+2}px;font-weight:800;touch-action:manipulation;pointer-events:auto;">⇄</button>
+        </div>`;
       return `
         <div style="display:flex;flex-direction:column;align-items:center;gap:${pp.gap}px;min-width:${pp.minW}px;cursor:pointer;position:relative;" onclick="window.showPlayerModal && window.showPlayerModal('${esc(name)}')">
           <div style="position:relative;filter:drop-shadow(0 3px 8px rgba(0,0,0,0.7));">
