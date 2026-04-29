@@ -1362,7 +1362,7 @@ window.exportCSV=function(){
 // -- Release Player (Draft) --
 window.openReleaseModal=function(teamName,playerName,wasOverseas){
  // Super admin release lock check
- if(draftState&&draftState.releaseLocked&&!isSuperAdminEmail(user?.email)){
+ if(draftState&&draftState.releaseLocked){
   return window.showAlert('Player releases are locked by the super admin. Contact the super admin to unlock.','error');
  }
  releaseTeam=teamName;
@@ -1379,7 +1379,7 @@ window.closeReleaseModal=function(){
 window.confirmRelease=function(){
  if(!draftId||!releaseTeam||!releasePlayerName)return;
  // Re-check super admin release lock
- if(draftState&&draftState.releaseLocked&&!isSuperAdminEmail(user?.email)){
+ if(draftState&&draftState.releaseLocked){
   window.closeReleaseModal();
   return window.showAlert('Player releases are locked by the super admin.','error');
  }
@@ -1388,7 +1388,7 @@ window.confirmRelease=function(){
  var data=snap.val();
  if(!data)return window.showAlert('Draft data not found.');
  // Final lock check from fresh data
- if(data.releaseLocked&&!isSuperAdminEmail(user?.email)){
+ if(data.releaseLocked){
   window.closeReleaseModal();
   return window.showAlert('Player releases are locked by the super admin.','error');
  }
@@ -4812,7 +4812,7 @@ function _mtRenderD(){
 
 
 window.mt_move_D = function(name, from, to){
-  if(draftState&&draftState.squadLocked&&!isSuperAdminEmail(user?.email)){window.showAlert('Squad changes are locked by admin.');return;}
+  if(draftState&&draftState.squadLocked){window.showAlert('Squad changes are locked by admin.');return;}
   const sq = _sqSavedD || {xi:[],bench:[],reserves:[]};
   _sqHistD.push(JSON.parse(JSON.stringify(sq)));
   var ub=document.getElementById('mt_undo_D'); if(ub) ub.style.display='flex';
@@ -4831,7 +4831,7 @@ window.mt_undo_D = function(){
 };
 
 window.mt_save_D = async function(){
-  if(draftState&&draftState.squadLocked&&!isSuperAdminEmail(user?.email)){window.showAlert("Squad changes are locked by admin.");return;}
+  if(draftState&&draftState.squadLocked){window.showAlert("Squad changes are locked by admin.");return;}
   if(!user||!draftId) return;
   const sq=_sqSavedD;
   if(!sq){window.showAlert('No squad to save.');return;}
@@ -5241,7 +5241,7 @@ window.renderTrades=function(data){
 
 window.toggleSquadLock_D=function(){
  if(!draftId) return window.showAlert('No draft loaded.','err');
- if(!isAdmin) return window.showAlert('Only the draft admin can toggle squad lock.','err');
+ if(!isAdmin && !isSuperAdminEmail(user?.email)) return window.showAlert('Only the draft admin or super admin can toggle squad lock.','err');
  // Atomic toggle so concurrent clicks resolve to one final state.
  runTransaction(ref(db,'drafts/'+draftId+'/squadLocked'),function(cur){
   return !cur;
@@ -5551,7 +5551,7 @@ window.saveSquadCD = async function(xiNames, benchNames){
   if(!user || !user.uid) return { ok:false, error:'Not signed in' };
   if(!draftId) return { ok:false, error:'No active draft' };
   if(!myTeamName) return { ok:false, error:'No team registered' };
-  if(draftState && draftState.squadLocked && !isSuperAdminEmail(user?.email)){
+  if(draftState && draftState.squadLocked){
     return { ok:false, error:'Squad changes are locked by admin' };
   }
   const team = draftState?.teams?.[myTeamName];
