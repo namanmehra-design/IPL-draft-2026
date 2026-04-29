@@ -238,6 +238,299 @@ function migrateDuckPoints(rid,data){
  if(needsWrite) update(ref(db),upd).then(()=>{window.showAlert('Duck penalties corrected.','ok');}).catch(e=>console.error('Duck migration:',e));
 }
 
+// -- Normalize an arbitrary winner string to its canonical IPL team code --
+// Used by the retroactive win-bonus migration so historical match records
+// where the admin typed "Sunrisers Hyderabad" instead of "SRH" can still
+// be fixed. Returns '' if no confident match.
+function _normalizeIplTeamCode(raw){
+ var s=(raw||'').trim().toUpperCase();
+ if(!s) return '';
+ // Already a canonical short code?
+ var codes=['CSK','MI','KKR','RCB','PBKS','GT','RR','SRH','LSG','DC'];
+ if(codes.indexOf(s)>=0) return s;
+ // Substring keywords (RCB checked before RR because "Royal Challengers" contains "ROYAL")
+ if(s.indexOf('CHENNAI')>=0||s.indexOf('SUPER KING')>=0) return 'CSK';
+ if(s.indexOf('MUMBAI')>=0||s.indexOf('INDIANS')>=0) return 'MI';
+ if(s.indexOf('KOLKATA')>=0||s.indexOf('KNIGHT')>=0) return 'KKR';
+ if(s.indexOf('BENGAL')>=0||s.indexOf('BANGAL')>=0||s.indexOf('CHALLENG')>=0) return 'RCB';
+ if(s.indexOf('PUNJAB')>=0) return 'PBKS';
+ if(s.indexOf('GUJARAT')>=0||s.indexOf('TITAN')>=0) return 'GT';
+ if(s.indexOf('RAJASTHAN')>=0||s.indexOf('ROYALS')>=0) return 'RR';
+ if(s.indexOf('HYDER')>=0||s.indexOf('SUNRISER')>=0) return 'SRH';
+ if(s.indexOf('LUCKNOW')>=0||s.indexOf('GIANT')>=0) return 'LSG';
+ if(s.indexOf('DELHI')>=0||s.indexOf('CAPITAL')>=0) return 'DC';
+ return '';
+}
+window._normalizeIplTeamCode=_normalizeIplTeamCode;
+
+// -- One-time retroactive migration: fix missing win bonuses --
+// History: until the winner input was a dropdown, admins could type
+// the full team name ("Sunrisers Hyderabad") instead of the short code
+// ("SRH"). The win-bonus loop in collectMatchDraftData uses strict
+// uppercase equality against player.iplTeam (which is always the short
+// code), so any mistyped winner silently dropped every player's +5.
+//
+// This migration walks every saved match for the room. For each match:
+//   1. Normalize the stored `winner` string to a canonical IPL code.
+//   2. If normalization succeeds, write the canonical code back so the
+//      code path matches forward.
+//   3. For every player in the match whose iplTeam matches the
+//      canonical winner code AND whose breakdown does NOT already
+//      contain "Win:" or "Winning team:", add +5 to their stored pts
+//      and append "Win: +5 (retro)" to the breakdown.
+// After fixing match records, leaderboardTotals are recomputed via
+// _recalcLeaderboardDCore so cumulative team totals catch up.
+let _winBonusMigrationDone={};
+async function migrateMissingWinBonuses(rid,data){
+ if(_winBonusMigrationDone[rid]) return;
+ _winBonusMigrationDone[rid]=true;
+ if(!data?.matches) return;
+ try{
+  // Build name->iplTeam map from current player pool
+  var iplMap={};
+  if(data.players){
+   var pArr=Array.isArray(data.players)?data.players:Object.values(data.players);
+   pArr.forEach(function(p){
+    var fn=(p.name||p.n||'').toLowerCase().trim();
+    var cn=fn.replace(/\*?\s*\([^)]*\)\s*$/,'').trim();
+    var t=(p.iplTeam||p.t||'').toUpperCase();
+    if(fn) iplMap[fn]=t;
+    if(cn) iplMap[cn]=t;
+   });
+  }
+  // RAW fallback for players that may have been removed from the pool
+  RAW.forEach(function(p){
+   var fn=(p.n||'').toLowerCase().trim();
+   var cn=fn.replace(/\*?\s*\([^)]*\)\s*$/,'').trim();
+   var t=(p.t||'').toUpperCase();
+   if(fn&&!iplMap[fn]) iplMap[fn]=t;
+   if(cn&&!iplMap[cn]) iplMap[cn]=t;
+  });
+  var upd={};
+  var fixedMatches=0,fixedPlayers=0;
+  Object.entries(data.matches).forEach(function(entry){
+   var mid=entry[0],m=entry[1];
+   if(!m||!m.players) return;
+   var rawWinner=(m.winner||'').trim();
+   if(!rawWinner) return; // No-result or no winner stored
+   var canonical=_normalizeIplTeamCode(rawWinner);
+   if(!canonical) return; // Unknown — leave alone, surface in audit
+   var winnerNeedsRewrite=rawWinner.toUpperCase()!==canonical;
+   var matchHadAnyFix=false;
+   Object.entries(m.players).forEach(function(pe){
+    var pkey=pe[0],p=pe[1];
+    if(!p) return;
+    var pNameLow=(p.name||'').toLowerCase().trim();
+    var pNameClean=pNameLow.replace(/\*?\s*\([^)]*\)\s*$/,'').trim();
+    var pIpl=iplMap[pNameLow]||iplMap[pNameClean]||'';
+    if(!pIpl||pIpl!==canonical) return; // Player wasn't on winning team
+    var bd=p.breakdown||'';
+    var hasWin=/win(?:ning team)?:\s*\+?5/i.test(bd);
+    if(hasWin) return; // Already has win bonus, skip
+    upd['drafts/'+rid+'/matches/'+mid+'/players/'+pkey+'/pts']=(p.pts||0)+5;
+    upd['drafts/'+rid+'/matches/'+mid+'/players/'+pkey+'/breakdown']=(bd?bd+' | ':'')+'Win: +5 (retro)';
+    fixedPlayers++;
+    matchHadAnyFix=true;
+   });
+   if(winnerNeedsRewrite){
+    upd['drafts/'+rid+'/matches/'+mid+'/winner']=canonical;
+    matchHadAnyFix=true;
+   }
+   if(matchHadAnyFix) fixedMatches++;
+  });
+  if(Object.keys(upd).length){
+   await update(ref(db),upd);
+   // Recompute leaderboardTotals so the leaderboard catches up
+   try{ await _recalcLeaderboardDCore(); }catch(e){ console.error('Win-bonus migration: recalc failed:',e); }
+   try{ window.showAlert('Win-bonus migration: '+fixedPlayers+' player(s) across '+fixedMatches+' match(es) corrected.','ok'); }catch(_e){}
+   console.info('Win-bonus migration:',{rid:rid,fixedMatches:fixedMatches,fixedPlayers:fixedPlayers});
+  }
+ }catch(e){
+  console.error('migrateMissingWinBonuses:',e);
+ }
+}
+
+// -- Admin/super-admin audit helper: report on win-bonus + scoring data --
+// Walks every match in the current room and prints:
+//   - the raw winner string vs. its normalized code
+//   - players who got the +5 win bonus (breakdown contains "Win:")
+//   - players who SHOULD have but didn't (winning team, no Win bonus)
+//   - any match with an unrecognized winner string
+// Output goes to console.table for easy inspection. Triggered manually
+// via window.auditPointsD() — not a cron, since scoring data is rarely
+// expected to be wrong in steady state.
+window.auditPointsD=async function(){
+ if(!draftId||!draftState){ window.showAlert('Load a draft room first.','err'); return; }
+ var matches=draftState.matches||{};
+ var iplMap={};
+ if(draftState.players){
+  var pArr=Array.isArray(draftState.players)?draftState.players:Object.values(draftState.players);
+  pArr.forEach(function(p){
+   var fn=(p.name||p.n||'').toLowerCase().trim();
+   var cn=fn.replace(/\*?\s*\([^)]*\)\s*$/,'').trim();
+   var t=(p.iplTeam||p.t||'').toUpperCase();
+   if(fn) iplMap[fn]=t; if(cn) iplMap[cn]=t;
+  });
+ }
+ RAW.forEach(function(p){
+  var fn=(p.n||'').toLowerCase().trim();
+  var cn=fn.replace(/\*?\s*\([^)]*\)\s*$/,'').trim();
+  var t=(p.t||'').toUpperCase();
+  if(fn&&!iplMap[fn]) iplMap[fn]=t;
+  if(cn&&!iplMap[cn]) iplMap[cn]=t;
+ });
+ var rows=[];
+ var unknownWinners=[];
+ var missing=[];
+ Object.entries(matches).forEach(function(entry){
+  var mid=entry[0],m=entry[1];
+  if(!m||!m.players) return;
+  var rawW=(m.winner||'').trim();
+  var canon=_normalizeIplTeamCode(rawW);
+  if(rawW&&!canon) unknownWinners.push({matchId:mid,label:m.label||mid,storedWinner:rawW});
+  var withBonus=0,withoutBonus=0;
+  Object.values(m.players).forEach(function(p){
+   var pNameLow=(p.name||'').toLowerCase().trim();
+   var pNameClean=pNameLow.replace(/\*?\s*\([^)]*\)\s*$/,'').trim();
+   var pIpl=iplMap[pNameLow]||iplMap[pNameClean]||'';
+   var bd=p.breakdown||'';
+   var hasWin=/win(?:ning team)?:\s*\+?5/i.test(bd);
+   if(canon&&pIpl===canon){
+    if(hasWin) withBonus++;
+    else { withoutBonus++; missing.push({matchId:mid,label:m.label||mid,player:p.name,iplTeam:pIpl,storedPts:p.pts,breakdown:bd}); }
+   }
+  });
+  rows.push({matchId:mid,label:m.label||mid,storedWinner:rawW||'(none)',canonical:canon||'(unknown)',playersWithBonus:withBonus,playersMissing:withoutBonus});
+ });
+ console.group('🔍 Points audit — draft room '+draftId);
+ console.info('Total matches:',Object.keys(matches).length);
+ console.table(rows);
+ if(unknownWinners.length){ console.warn('Unrecognized winner strings (need manual review):'); console.table(unknownWinners); }
+ if(missing.length){ console.warn('Players missing win bonus (will be fixed by migrateMissingWinBonuses):'); console.table(missing); }
+ else if(rows.length){ console.info('✅ No missing win bonuses detected.'); }
+ console.groupEnd();
+ try{ window.showAlert('Audit complete: '+rows.length+' match(es), '+missing.length+' missing win bonus(es). See console.','ok'); }catch(_e){}
+ return {rows:rows,unknownWinners:unknownWinners,missing:missing};
+};
+
+// -- Super-admin: audit + auto-fix every draft room on the platform --
+// Walks `users/*/drafts` to enumerate every room ID, fetches each
+// `drafts/{rid}` snapshot, runs the same win-bonus audit logic, and
+// (if `autoFix` is true) applies the +5 retro fixes directly to
+// Firebase. Recomputes `leaderboardTotals` on rooms that were modified.
+//
+// Usage from the browser console (super admin only):
+//   await window.saAuditAllRoomsD()           // dry-run, prints summary
+//   await window.saAuditAllRoomsD(true)       // dry-run + auto-fix
+//
+// Output: a per-room summary table on the console showing matches,
+// players missing win bonuses, unknown winner strings, and (if
+// autoFix) the count of players patched.
+window.saAuditAllRoomsD=async function(autoFix){
+ if(!isSuperAdminEmail(user?.email)){ window.showAlert('Super admin only.','err'); return; }
+ console.group('🔍 Cross-room audit — DRAFT');
+ console.info('Mode:',autoFix?'AUDIT + AUTO-FIX':'AUDIT ONLY (pass true to fix)');
+ try{
+  var usersSnap=await get(ref(db,'users'));
+  var usersData=usersSnap.val()||{};
+  var allDraftIds={};
+  Object.entries(usersData).forEach(function(e){
+   var uid=e[0],u=e[1];
+   if(u&&u.drafts) Object.keys(u.drafts).forEach(function(rid){ allDraftIds[rid]=u.email||uid; });
+  });
+  var ridList=Object.keys(allDraftIds);
+  console.info('Discovered',ridList.length,'draft room(s).');
+  // Build a global IPL team map from RAW (works even if a room has no
+  // draftState.players because nothing has been drafted yet).
+  var globalIplMap={};
+  RAW.forEach(function(p){
+   var fn=(p.n||'').toLowerCase().trim();
+   var cn=fn.replace(/\*?\s*\([^)]*\)\s*$/,'').trim();
+   var t=(p.t||'').toUpperCase();
+   if(fn) globalIplMap[fn]=t;
+   if(cn) globalIplMap[cn]=t;
+  });
+  var summary=[];
+  var totalFixed=0;
+  for(var i=0;i<ridList.length;i++){
+   var rid=ridList[i];
+   try{
+    var snap=await get(ref(db,'drafts/'+rid));
+    var data=snap.val();
+    if(!data){ summary.push({roomId:rid.substring(0,8),owner:allDraftIds[rid],status:'EMPTY'}); continue; }
+    var matches=data.matches||{};
+    // Build per-room ipl map (room players take precedence)
+    var iplMap={};
+    Object.assign(iplMap,globalIplMap);
+    if(data.players){
+     var pArr=Array.isArray(data.players)?data.players:Object.values(data.players);
+     pArr.forEach(function(p){
+      var fn=(p.name||p.n||'').toLowerCase().trim();
+      var cn=fn.replace(/\*?\s*\([^)]*\)\s*$/,'').trim();
+      var t=(p.iplTeam||p.t||'').toUpperCase();
+      if(fn&&t) iplMap[fn]=t;
+      if(cn&&t) iplMap[cn]=t;
+     });
+    }
+    var matchCount=Object.keys(matches).length;
+    var missingCount=0;
+    var unknownWinners=0;
+    var upd={};
+    Object.entries(matches).forEach(function(me){
+     var mid=me[0],m=me[1];
+     if(!m||!m.players) return;
+     var rawW=(m.winner||'').trim();
+     if(!rawW) return;
+     var canon=_normalizeIplTeamCode(rawW);
+     if(!canon){ unknownWinners++; return; }
+     var winnerNeedsRewrite=rawW.toUpperCase()!==canon;
+     Object.entries(m.players).forEach(function(pe){
+      var pkey=pe[0],p=pe[1];
+      if(!p) return;
+      var pNameLow=(p.name||'').toLowerCase().trim();
+      var pNameClean=pNameLow.replace(/\*?\s*\([^)]*\)\s*$/,'').trim();
+      var pIpl=iplMap[pNameLow]||iplMap[pNameClean]||'';
+      if(!pIpl||pIpl!==canon) return;
+      var bd=p.breakdown||'';
+      var hasWin=/win(?:ning team)?:\s*\+?5/i.test(bd);
+      if(hasWin) return;
+      missingCount++;
+      if(autoFix){
+       upd['drafts/'+rid+'/matches/'+mid+'/players/'+pkey+'/pts']=(p.pts||0)+5;
+       upd['drafts/'+rid+'/matches/'+mid+'/players/'+pkey+'/breakdown']=(bd?bd+' | ':'')+'Win: +5 (retro)';
+      }
+     });
+     if(autoFix&&winnerNeedsRewrite){
+      upd['drafts/'+rid+'/matches/'+mid+'/winner']=canon;
+     }
+    });
+    if(autoFix&&Object.keys(upd).length){
+     await update(ref(db),upd);
+     totalFixed+=missingCount;
+    }
+    summary.push({roomId:rid.substring(0,8),name:data.roomName||'?',owner:allDraftIds[rid],matches:matchCount,missingWinBonus:missingCount,unknownWinners:unknownWinners,fixed:autoFix?missingCount:0});
+   }catch(e){
+    console.error('Room',rid,'audit failed:',e);
+    summary.push({roomId:rid.substring(0,8),owner:allDraftIds[rid],status:'ERROR',error:e.message});
+   }
+  }
+  console.table(summary);
+  if(autoFix&&totalFixed>0){
+   console.info('Wrote +5 fix to '+totalFixed+' player record(s) across rooms. Each affected room will recompute its leaderboardTotals on next load.');
+   try{ window.showAlert('Cross-room audit: fixed '+totalFixed+' missing win bonus(es). See console.','ok'); }catch(_e){}
+  } else if(!autoFix){
+   var anyMissing=summary.some(function(r){return r.missingWinBonus>0;});
+   try{ window.showAlert(anyMissing?'Audit found missing win bonuses. Pass true to fix.':'No fixes needed.', anyMissing?'err':'ok'); }catch(_e){}
+  }
+  console.groupEnd();
+  return summary;
+ }catch(e){
+  console.error('saAuditAllRoomsD failed:',e);
+  console.groupEnd();
+  throw e;
+ }
+};
+
 let isAdmin=false,myTeamName='',isSignup=false,pendingJoinId='',roomToDelete='';
 let cachedPlayers=null;
 let releaseTeam='',releasePlayerName='',releaseWasOverseas=false;
@@ -762,6 +1055,11 @@ function loadDraftRoom(rid){
  migrateOverseasFlags(rid,data);
  migrateSquadSnapshots(rid,data);
  migrateDuckPoints(rid,data);
+ // Retroactively repair matches where the admin typed the full team
+ // name (e.g. "Sunrisers Hyderabad") and every winning-team player
+ // silently lost their +5. Idempotent — checks the breakdown for an
+ // existing "Win:" / "Winning team:" marker before adding.
+ migrateMissingWinBonuses(rid,data);
 
  // Self-heal: silently recalc leaderboardTotals once per room load so stored
  // values never drift from what computeMatchContribution would produce right
@@ -2154,6 +2452,79 @@ function buildSquadSnapshots(teamsData,maxPlayers){
  return snapshots;
 }
 
+// -- Snapshot-aware per-player season total --
+// Returns { total, perMatch, owner, xiMult } for one player. The total
+// is the sum across all matches of (raw × multiplier), where the
+// multiplier comes from THAT match's frozen squad snapshot:
+//   XI         -> draftState.xiMultiplier (default 1×, e.g. 1.5×)
+//   Bench      -> 1×
+//   Reserves   -> 0×  (player was on roster but not in XI/bench that match)
+//   No snap    -> 1×  (legacy fallback so historical matches still count)
+//
+// This mirrors `computeMatchContribution` so every UI surface that
+// shows per-player season points (modal, All-Squads, Points tab,
+// Analytics, etc.) agrees with the leaderboard's team total.
+function _playerSeasonContribD(playerName){
+ var out = { total: 0, perMatch: {}, owner: '', xiMult: 1 };
+ if(!draftState) return out;
+ var matches = draftState.matches || {};
+ var teams = draftState.teams || {};
+ var xiMult = parseFloat(draftState.xiMultiplier) || 1;
+ out.xiMult = xiMult;
+ var nameLow = (playerName||'').toLowerCase().trim();
+ var nameClean = nameLow.replace(/\*?\s*\([^)]*\)\s*$/,'').trim();
+ if(!nameLow) return out;
+ // Build owner map from current rosters (used as fallback when
+ // p.ownedBy is missing on legacy match records).
+ var rosterOwnerMap = {};
+ Object.values(teams).forEach(function(t){
+  var roster = Array.isArray(t.roster)?t.roster:Object.values(t.roster||{});
+  roster.forEach(function(p){
+   var fn = (p.name||p.n||'').toLowerCase().trim();
+   var cn = fn.replace(/\*?\s*\([^)]*\)\s*$/,'').trim();
+   rosterOwnerMap[fn] = t.name;
+   rosterOwnerMap[cn] = t.name;
+  });
+ });
+ out.owner = rosterOwnerMap[nameLow] || rosterOwnerMap[nameClean] || '';
+ Object.entries(matches).forEach(function(entry){
+  var mid = entry[0], m = entry[1];
+  if(!m || !m.players) return;
+  var pData = Object.values(m.players).find(function(p){
+   var pn = (p.name||'').toLowerCase().trim();
+   return pn === nameLow || pn.replace(/\*?\s*\([^)]*\)\s*$/,'').trim() === nameClean;
+  });
+  if(!pData) return;
+  var raw = pData.pts || 0;
+  var matchOwner = pData.ownedBy || rosterOwnerMap[nameLow] || rosterOwnerMap[nameClean] || '';
+  var hasStoredSnaps = !!m.squadSnapshots;
+  var mult = 0;
+  if(matchOwner){
+   var snap = m.squadSnapshots ? m.squadSnapshots[matchOwner] : null;
+   if(snap){
+    var inXI = (snap.xi||[]).some(function(n){
+     var fn = (n||'').toLowerCase().trim();
+     return fn === nameLow || fn.replace(/\*?\s*\([^)]*\)\s*$/,'').trim() === nameClean;
+    });
+    var inBench = (snap.bench||[]).some(function(n){
+     var fn = (n||'').toLowerCase().trim();
+     return fn === nameLow || fn.replace(/\*?\s*\([^)]*\)\s*$/,'').trim() === nameClean;
+    });
+    if(inXI) mult = xiMult;
+    else if(inBench) mult = 1;
+    // else: reserves / not in snap → 0×
+   } else if(!hasStoredSnaps){
+    mult = 1; // legacy fallback (matches computeMatchContribution)
+   }
+  }
+  var contrib = raw * mult;
+  out.total += contrib;
+  out.perMatch[mid] = { raw: raw, mult: mult, contrib: contrib, breakdown: pData.breakdown||'' };
+ });
+ return out;
+}
+window._playerSeasonContribD = _playerSeasonContribD;
+
 // -- Player Performance Modal --
 window.showPlayerModal=function(playerName){
  if(!draftState||!playerName) return;
@@ -2198,29 +2569,40 @@ window.showPlayerModal=function(playerName){
   +(isOs?'<span class="badge pm-overseas-badge">Overseas</span>':'<span class="badge bb">Indian</span>')
   +'<span class="pm-owner-info">'+(owner?'Owned by: '+owner:'Unowned')+'</span>';
 
- // Build match-by-match breakdown
+ // Build match-by-match breakdown using the snapshot-aware helper
+ // so the modal agrees with leaderboard team totals (i.e. raw × mult,
+ // where mult is per-match XI/Bench/Reserves position).
+ var contrib = _playerSeasonContribD(playerName);
  var matches=draftState.matches||{};
  var matchList=Object.entries(matches).sort(function(a,b){return(a[1].timestamp||0)-(b[1].timestamp||0);});
- var totalPts=0;
  var rows='';
  matchList.forEach(function(entry){
   var mid=entry[0],m=entry[1];
-  if(!m.players) return;
-  var pData=Object.values(m.players).find(function(p){var pn=(p.name||'').toLowerCase().trim();return pn===nLow||pn.replace(/\*?\s*\([^)]*\)\s*$/,'').trim()===nClean;});
-  if(!pData) return;
-  totalPts+=(pData.pts||0);
-  var ptsColCls=(pData.pts||0)>=0?'md-td-pts-pos':'md-td-pts-neg';
+  var pm=contrib.perMatch[mid];
+  if(!pm) return;
+  var raw=pm.raw||0;
+  var mult=pm.mult||0;
+  var cVal=Math.round(pm.contrib||0);
+  var ptsColCls=cVal>=0?'md-td-pts-pos':'md-td-pts-neg';
+  // Show position pill so it's obvious why the multiplier is 1.5×/1×/0×
+  var pos=mult===contrib.xiMult&&contrib.xiMult!==1?'XI':mult===1?(contrib.xiMult!==1?'Bench':'Played'):'Out';
+  var posPill='<span class="pm-pos pm-pos-'+pos.toLowerCase()+'">'+pos+(mult>0&&mult!==1?' · '+mult+'×':'')+'</span>';
+  // Breakdown shows raw + multiplier math when applicable
+  var bdText=(pm.breakdown||'').replace(/\|/g,' | ');
+  var multNote=mult>0&&mult!==1?'<span class="pm-mult-note"> &rarr; '+raw+' × '+mult+' = '+cVal+'</span>':(mult===0?'<span class="pm-mult-note"> &rarr; not in XI/Bench (0×)</span>':'');
   rows+='<tr class="pm-row">'
-   +'<td class="pm-td pm-td-match">'+escapeHtml(m.label||mid)+'</td>'
-   +'<td class="pm-td pm-td-pts '+ptsColCls+'">'+((pData.pts||0)>=0?'+':'')+pData.pts+'</td>'
-   +'<td class="pm-td pm-td-bd">'+((pData.breakdown||'').replace(/\|/g,' | '))+'</td></tr>';
+   +'<td class="pm-td pm-td-match">'+escapeHtml(m.label||mid)+' '+posPill+'</td>'
+   +'<td class="pm-td pm-td-pts '+ptsColCls+'">'+(cVal>=0?'+':'')+cVal+'</td>'
+   +'<td class="pm-td pm-td-bd">'+bdText+multNote+'</td></tr>';
  });
 
  if(!rows){
   bodyEl.innerHTML='<div class="pm-no-data">No match data for this player yet.</div>';
  } else {
+  var totalPts=Math.round(contrib.total);
   var totalColCls=totalPts>=0?'md-td-pts-pos':'md-td-pts-neg';
-  bodyEl.innerHTML='<div class="pm-season-total"><span class="pm-season-label">Season Total</span><span class="pm-season-val '+totalColCls+'">'+(totalPts>=0?'+':'')+totalPts+'</span></div>'
+  var multBadge=contrib.xiMult!==1?'<span class="pm-mult-badge">XI ×'+contrib.xiMult+'</span>':'';
+  bodyEl.innerHTML='<div class="pm-season-total"><span class="pm-season-label">Season Total</span>'+multBadge+'<span class="pm-season-val '+totalColCls+'">'+(totalPts>=0?'+':'')+totalPts+'</span></div>'
    +'<div class="md-overflow"><table class="pm-table">'
    +'<thead><tr><th class="pm-th">Match</th><th class="pm-th pm-th-right">Points</th><th class="pm-th">Breakdown</th></tr></thead>'
    +'<tbody>'+rows+'</tbody></table></div>';
@@ -2432,15 +2814,19 @@ window.renderAllSquads=function(){
 
  if(!body||!draftState||!draftState.teams) return;
 
- var matches=draftState.matches||{};
- var pts={};
- Object.values(matches).forEach(function(m){
-  if(!m.players) return;
-  Object.values(m.players).forEach(function(p){
-   var k=(p.name||'').toLowerCase();
-   pts[k]=(pts[k]||0)+(p.pts||0);
-  });
- });
+ var xiMult=parseFloat(draftState.xiMultiplier)||1;
+ // Snapshot-aware per-player season contribution. Mirrors
+ // computeMatchContribution / leaderboardTotals so this view's numbers
+ // match the leaderboard exactly. Cached per name so we don't re-walk
+ // every match for every roster row.
+ var contribCache={};
+ function ptsForPlayer(name){
+  var key=(name||'').toLowerCase().trim();
+  if(contribCache[key]!=null) return contribCache[key];
+  var c=_playerSeasonContribD(name);
+  contribCache[key]=Math.round(c.total);
+  return contribCache[key];
+ }
 
  var html='';
  Object.values(draftState.teams).forEach(function(team){
@@ -2468,24 +2854,23 @@ window.renderAllSquads=function(){
    var iplTeam=(p.iplTeam||p.t||'').toUpperCase();
    var role=(p.role||p.r||'');
    var isOs=!!(p.isOverseas||p.o||(name.indexOf('* (')>=0));
-   var k=name.toLowerCase().trim();
-   var kc=k.replace(/\*?\s*\([^)]*\)\s*$/,'').trim();
-   var playerPts=pts[k]||pts[kc]||0;
+   var playerPts=ptsForPlayer(name);
    var ptsCls=playerPts>0?'sq-p-pts-pos':playerPts<0?'sq-p-pts-neg':'sq-p-pts-zero';
    return '<tr><td class="sq-p-name" onclick="window.showPlayerModal(\''+escapeHtml(name)+'\')">'+(isOs?'<span class="sq-p-os-dot">\u25cf</span>':'')+escapeHtml(name)+'</td><td class="sq-p-ipl">'+iplTeam+'</td><td class="sq-p-role">'+role+'</td><td class="sq-p-pts '+ptsCls+'">'+(playerPts>=0?'+':'')+playerPts+'</td></tr>';
   }
 
+  // Team total = sum of every player's snapshot-aware contribution
+  // (matches the leaderboard's stored total). Reserves can still
+  // contribute if they were XI/bench in past matches, so include the
+  // entire roster.
   var teamTotal=0;
-  xi.concat(bench).forEach(function(n){
-   var k=n.toLowerCase().trim();
-   var kc=k.replace(/\*?\s*\([^)]*\)\s*$/,'').trim();
-   teamTotal+=(pts[k]||pts[kc]||0);
-  });
+  allNames.forEach(function(n){ teamTotal+=ptsForPlayer(n); });
 
+  var multBadge=xiMult!==1?' <span class="sq-mult-badge" style="font-size:10px;color:var(--gold);font-weight:700;letter-spacing:0.06em;margin-left:6px;">XI ×'+xiMult+'</span>':'';
   html+='<div class="sq-card">';
-  html+='<div class="sq-card-hdr"><strong class="sq-card-name">'+team.name+'</strong><span class="sq-card-pts">'+(teamTotal>=0?'+':'')+teamTotal+'</span></div>';
+  html+='<div class="sq-card-hdr"><strong class="sq-card-name">'+team.name+'</strong>'+multBadge+'<span class="sq-card-pts">'+(teamTotal>=0?'+':'')+teamTotal+'</span></div>';
   html+='<table class="sq-table">';
-  html+='<tr><td colspan="4" class="sq-section-hdr sq-section-xi">Playing XI ('+xi.length+')</td></tr>';
+  html+='<tr><td colspan="4" class="sq-section-hdr sq-section-xi">Playing XI ('+xi.length+')'+(xiMult!==1?' · ×'+xiMult:'')+'</td></tr>';
   xi.forEach(function(n){html+=pRow(n);});
   html+='<tr><td colspan="4" class="sq-section-hdr sq-section-bench">Bench ('+bench.length+')</td></tr>';
   bench.forEach(function(n){html+=pRow(n);});

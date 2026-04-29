@@ -1867,26 +1867,37 @@
     const benchPlayers = benchNames.map(findP).filter(Boolean);
     const reservePlayers = reserveNames.map(findP).filter(Boolean);
 
-    // Season points per player (aggregated from matches)
+    // Season points per player — snapshot-aware. Uses the canonical
+    // _teamContribBreakdown helper so per-match XI/Bench/Reserves
+    // multipliers come from each match's frozen squad snapshot. This
+    // is the SAME math the leaderboard team total uses, which means
+    // (a) numbers on the pitch agree with the leaderboard, and (b) a
+    // player who was XI in match 1 (×1.5) and bench in match 2 (×1)
+    // gets credited correctly for both.
     const matches = rs.matches || {};
-    const playerPts = {};
+    const breakdown = CD._teamContribBreakdown(t.name);
+    const ptsFor = (name) => {
+      // _teamContribBreakdown stores under the cleanKey (nationality stripped)
+      const ck = _cdCleanName(name);
+      return Math.round(breakdown.playerPts[ck] || 0);
+    };
+    // Match-count is independent of multiplier — kept raw.
     const playerMc = {};
     Object.values(matches).forEach(m => {
       if(!m.players) return;
       Object.values(m.players).forEach(p => {
         const k = (p.name||'').toLowerCase().trim();
         if(!k) return;
-        playerPts[k] = (playerPts[k] || 0) + (p.pts || 0);
         playerMc[k] = (playerMc[k] || 0) + 1;
       });
     });
-    const ptsFor = (name) => Math.round(playerPts[(name||'').toLowerCase().trim()] || 0);
     const mcFor = (name) => playerMc[(name||'').toLowerCase().trim()] || 0;
 
-    // Compute season totals for this team
-    const xiTotal = xiPlayers.reduce((s,p) => s + ptsFor(p.name||p.n||'') * xiMult, 0);
-    const benchTotal = benchPlayers.reduce((s,p) => s + ptsFor(p.name||p.n||''), 0);
-    const seasonTotal = Math.round(xiTotal + benchTotal);
+    // Team season totals come from the same breakdown — guarantees
+    // pitch & header always match the leaderboard.
+    const xiTotal = breakdown.xi;
+    const benchTotal = breakdown.bench;
+    const seasonTotal = Math.round(breakdown.total);
 
     // Group XI by role for pitch positioning (realistic field layout)
     const byRole = { wk: [], bat: [], ar: [], bowl: [] };
@@ -1928,7 +1939,11 @@
       const first = name.split(' ')[0];
       const last = name.split(' ').slice(1).join(' ');
       const displayName = last || first;
-      const pts = ptsFor(name) * (pos === 'xi' ? xiMult : 1);
+      // ptsFor() now returns the snapshot-aware total (multiplier already
+      // baked in per match via _teamContribBreakdown), so DO NOT multiply
+      // again here — that would double-apply for current-XI players who
+      // were also XI in past matches.
+      const pts = ptsFor(name);
       const code = teamCode(p.iplTeam || p.t);
       const isOs = !!(p.isOverseas || p.o);
       const ptsColor = pts > 0 ? 'var(--lime)' : pts < 0 ? '#FFB4B4' : 'rgba(255,255,255,0.85)';
