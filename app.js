@@ -4812,7 +4812,7 @@ function _mtRenderD(){
 
 
 window.mt_move_D = function(name, from, to){
-  if(draftState&&draftState.squadLocked&&!isAdmin){window.showAlert('Squad changes are locked by admin.');return;}
+  if(draftState&&draftState.squadLocked){window.showAlert('Squad changes are locked by admin.');return;}
   const sq = _sqSavedD || {xi:[],bench:[],reserves:[]};
   _sqHistD.push(JSON.parse(JSON.stringify(sq)));
   var ub=document.getElementById('mt_undo_D'); if(ub) ub.style.display='flex';
@@ -4831,7 +4831,7 @@ window.mt_undo_D = function(){
 };
 
 window.mt_save_D = async function(){
-  if(draftState&&draftState.squadLocked&&!isAdmin){window.showAlert("Squad changes are locked by admin.");return;}
+  if(draftState&&draftState.squadLocked){window.showAlert("Squad changes are locked by admin.");return;}
   if(!user||!draftId) return;
   const sq=_sqSavedD;
   if(!sq){window.showAlert('No squad to save.');return;}
@@ -5551,7 +5551,7 @@ window.saveSquadCD = async function(xiNames, benchNames){
   if(!user || !user.uid) return { ok:false, error:'Not signed in' };
   if(!draftId) return { ok:false, error:'No active draft' };
   if(!myTeamName) return { ok:false, error:'No team registered' };
-  if(draftState && draftState.squadLocked && !isAdmin){
+  if(draftState && draftState.squadLocked){
     return { ok:false, error:'Squad changes are locked by admin' };
   }
   const team = draftState?.teams?.[myTeamName];
