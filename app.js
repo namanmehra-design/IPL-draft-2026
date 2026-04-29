@@ -1648,6 +1648,121 @@ window.confirmReplace=function(){
  }).catch(function(e){ console.error('confirmReplace: read failed', e); window.showAlert('Error: '+e.message,'err'); });
 };
 
+// -- confirmReplaceV2D --
+// Firebase-write helper for the new CD custom-overlay Replace flow. Mirrors
+// auction's window.saExecuteReplaceA but adapted for draft semantics:
+//   auctions/{roomId}            -> drafts/{draftId}
+//   _canReplaceTeamA             -> _canReleaseTeamD
+//   roomState                    -> draftState
+//   players/.../soldTo,soldPrice -> players/.../draftedBy
+// Returns a promise that resolves with {newOsCount, maxOs, wasInXI, oldRosterIdx}
+// on success, or rejects with an Error on any failure. The legacy
+// window.confirmReplace above stays untouched (other code may call it).
+window.confirmReplaceV2D = async function(teamName, oldName, newPlayerId){
+ // 1. Validate inputs
+ if(!draftId) throw new Error('No draft loaded');
+ if(typeof teamName!=='string'||!teamName) throw new Error('teamName required');
+ if(typeof oldName!=='string'||!oldName) throw new Error('oldName required');
+ if(typeof newPlayerId!=='string'&&typeof newPlayerId!=='number') throw new Error('newPlayerId required');
+ if(!String(newPlayerId)) throw new Error('newPlayerId required');
+ // 2. Permission check
+ if(!_canReleaseTeamD(teamName)) throw new Error('Permission denied');
+ const targetName=(oldName||'').toLowerCase().trim();
+ // 3. Read fresh draftState snapshot
+ const snap=await get(ref(db,'drafts/'+draftId));
+ const data=snap.val();
+ if(!data){ console.error('confirmReplaceV2D: no draft data'); throw new Error('Draft data not found'); }
+ // 4. Re-check releaseLocked from fresh data
+ if(data.releaseLocked) throw new Error('Player releases are locked by the super admin.');
+ // 5. Get team
+ const team=data.teams&&data.teams[teamName];
+ if(!team){ console.error('confirmReplaceV2D: team not found', teamName); throw new Error('Team '+teamName+' not found'); }
+ // 6. Normalise roster, keeping explicit indices (handles array + object shapes)
+ const rawRoster=team.roster;
+ let rosterEntries=[];
+ if(Array.isArray(rawRoster)) rosterEntries=rawRoster.map((v,i)=>({key:String(i),value:v}));
+ else if(rawRoster) rosterEntries=Object.entries(rawRoster).map(([k,v])=>({key:k,value:v}));
+ else { console.error('confirmReplaceV2D: empty roster on', teamName); throw new Error(teamName+' has no roster.'); }
+ // 7. Find oldName in roster (case-insensitive)
+ const matchEntry=rosterEntries.find(e=>((e.value&&(e.value.name||e.value.n))||'').toLowerCase().trim()===targetName);
+ if(!matchEntry){ console.error('confirmReplaceV2D: oldName not in roster', oldName); throw new Error(oldName+' not in '+teamName+"'s roster"); }
+ // 8. Resolve players from pool
+ const allPlayers=Object.values(data.players||{});
+ const oldPlayer=allPlayers.find(p=>((p.name||p.n)||'').toLowerCase().trim()===targetName);
+ const newPlayer=allPlayers.find(p=>String(p.id)===String(newPlayerId));
+ // 9. Verify newPlayer exists and is not already drafted
+ if(!newPlayer){ console.error('confirmReplaceV2D: newPlayer not in pool', newPlayerId); throw new Error('Replacement player not found in pool'); }
+ if(newPlayer.draftedBy){ console.error('confirmReplaceV2D: already drafted', newPlayer.name); throw new Error(newPlayer.name+' is already drafted'); }
+ // 10. Compute overseas count
+ const currentRoster=rosterEntries.map(e=>e.value);
+ const currentOs=currentRoster.filter(p=>!!(p&&(p.isOverseas||p.o))).length;
+ const losingOs=(matchEntry.value&&(matchEntry.value.isOverseas||matchEntry.value.o))?1:0;
+ const gainingOs=newPlayer.isOverseas?1:0;
+ const newOsCount=currentOs-losingOs+gainingOs;
+ const maxOs=(data.config&&data.config.maxOverseas)||8;
+ // 11. activeSquad slot preservation: if oldName is in team.activeSquad, swap
+ //     newPlayer.name at the same index. Don't drop, don't append.
+ const rawActive=team.activeSquad;
+ const activeSquadArr=Array.isArray(rawActive)?rawActive.slice():(rawActive?Object.values(rawActive):null);
+ let newActiveSquad=null;
+ let wasInXI=false;
+ if(activeSquadArr){
+  const xiIdx=activeSquadArr.findIndex(n=>(n||'').toLowerCase().trim()===targetName);
+  if(xiIdx>=0){
+   wasInXI = xiIdx < 11;
+   newActiveSquad = activeSquadArr.slice();
+   newActiveSquad[xiIdx] = newPlayer.name;
+  }
+ }
+ // 12. Build new roster: replace at the same matchEntry.key index
+ const oldRosterIdx=parseInt(matchEntry.key,10);
+ const newRoster=currentRoster.slice();
+ newRoster[oldRosterIdx]={
+  id:newPlayer.id,
+  name:newPlayer.name,
+  iplTeam:newPlayer.iplTeam,
+  role:newPlayer.role,
+  isOverseas:!!newPlayer.isOverseas
+ };
+ // 13. Build single multi-path update
+ const upd={};
+ upd['drafts/'+draftId+'/teams/'+teamName+'/roster']=newRoster;
+ if(newActiveSquad){
+  upd['drafts/'+draftId+'/teams/'+teamName+'/activeSquad']=newActiveSquad;
+ }
+ upd['drafts/'+draftId+'/teams/'+teamName+'/overseasCount']=newOsCount;
+ if(oldPlayer&&oldPlayer.id!=null){
+  upd['drafts/'+draftId+'/players/'+oldPlayer.id+'/draftedBy']=null;
+ }
+ upd['drafts/'+draftId+'/players/'+newPlayerId+'/draftedBy']=teamName;
+ // 14. Single atomic write
+ await update(ref(db),upd);
+ // 15. Defer non-critical follow-ups via setTimeout (matches commit bb4db9d
+ //     pattern: avoids back-to-back listener fires).
+ setTimeout(function(){
+  try{
+   _writeAuditLog('replace', {
+    team: teamName,
+    oldName: oldName,
+    newName: newPlayer.name,
+    oldRosterIdx: oldRosterIdx,
+    wasInXI: wasInXI
+   });
+  }catch(e){ console.error('confirmReplaceV2D: audit log failed', e); }
+ }, 250);
+ setTimeout(function(){
+  try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){ console.error('confirmReplaceV2D: recalc leaderboard failed', e); }
+ }, 500);
+ // 16. Non-blocking overseas-cap warning (allow the breach)
+ if(newOsCount>maxOs){
+  setTimeout(function(){
+   try{ window.showAlert('\u26a0\ufe0f Overseas cap breached: '+newOsCount+' / '+maxOs+'. Resolve before next match.','err'); }catch(e){ console.error('confirmReplaceV2D: cap toast failed', e); }
+  }, 1800);
+ }
+ // 17. Resolve
+ return { newOsCount: newOsCount, maxOs: maxOs, wasInXI: wasInXI, oldRosterIdx: oldRosterIdx };
+};
+
 // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 // DRAFT POINTS ENGINE (same scoring rules, draft paths)
 // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550

@@ -2227,6 +2227,117 @@
     });
   };
 
+  // ── DRAFT · Replace player overlay ─────────────────────────────
+  // Mirror of auction's openReplaceA flow but adapted for draft:
+  //   - source state is window.draftState (with roomState alias)
+  //   - "available" filter uses !p.draftedBy (no soldTo / status sold)
+  //   - no price involved — confirm body says "via roster swap"
+  //   - on confirm, calls window.confirmReplaceV2D (added by app.js)
+  // Routes through the custom CD overlay instead of the legacy
+  // #replaceModal in index.html, which causes a GPU compositor stall.
+  CD.openReplaceD = (teamName, oldName, wasOverseas) => {
+    CD._replaceD = { teamName, oldName, wasOverseas:!!wasOverseas, filter:'All' };
+    CD._renderReplaceDOverlay();
+  };
+  CD.closeReplaceD = () => {
+    CD._replaceD = null;
+    const el = document.getElementById('cd-replace-d-overlay');
+    if(el) el.remove();
+  };
+  CD.setReplaceDFilter = (role) => {
+    if(!CD._replaceD) return;
+    CD._replaceD.filter = role;
+    CD._renderReplaceDOverlay();
+  };
+  CD.confirmReplaceD = (newId, newName) => {
+    const ctx = CD._replaceD;
+    if(!ctx){ console.error('confirmReplaceD: no _replaceD context'); return; }
+    if(typeof window.confirmReplaceV2D !== 'function'){
+      console.error('confirmReplaceD: confirmReplaceV2D missing');
+      window.showAlert?.('Replace handler not available.','err');
+      return;
+    }
+    // Compute overseas-cap warning preview (non-blocking — warn only).
+    const rs = window.draftState || window.roomState || {};
+    const team = rs.teams?.[ctx.teamName];
+    const roster = team ? (Array.isArray(team.roster)?team.roster:(team.roster?Object.values(team.roster):[])) : [];
+    const oldEntry = roster.find(p => (p.name||p.n||'').toLowerCase().trim() === (ctx.oldName||'').toLowerCase().trim());
+    const allPlayers = rs.players ? Object.values(rs.players) : [];
+    const newP = allPlayers.find(p => String(p.id) === String(newId));
+    const currentOs = roster.filter(p => !!(p.isOverseas||p.o)).length;
+    const losingOs = (oldEntry && (oldEntry.isOverseas||oldEntry.o)) ? 1 : 0;
+    const gainingOs = (newP && (newP.isOverseas||newP.o)) ? 1 : 0;
+    const newOsCount = currentOs - losingOs + gainingOs;
+    const maxOs = rs.maxOverseas || rs.setup?.maxOverseas || 8;
+    const breachOs = newOsCount > maxOs;
+
+    const body = `<ul style="list-style:none;padding:0;margin:0;font-size:12px;color:var(--ink-2);line-height:1.6;">
+      <li>• <b>${esc(newName)}</b> joins ${esc(ctx.teamName)} via roster swap. Match points already earned by ${esc(ctx.oldName)} stay with ${esc(ctx.teamName)}.</li>
+      <li>• ${esc(ctx.oldName)} returns to the available draft pool</li>
+      ${breachOs ? `<li style="color:#FFB4B4;margin-top:8px;">⚠️ This replacement breaches the overseas cap (${newOsCount} / ${maxOs}). You can still proceed.</li>` : ''}
+    </ul>`;
+    CD._showCustomConfirm({
+      title: 'Replace player?',
+      body,
+      confirmLabel: breachOs ? 'Replace anyway' : 'Replace',
+      tone: 'gold',
+      onConfirm: () => {
+        window.confirmReplaceV2D(ctx.teamName, ctx.oldName, newId)
+          .then(() => { CD.closeReplaceD(); })
+          .catch(e => { console.error('confirmReplaceV2D failed:', e); window.showAlert?.('Replace failed: ' + (e.message||e), 'err'); });
+      }
+    });
+  };
+  CD._renderReplaceDOverlay = () => {
+    const ctx = CD._replaceD;
+    if(!ctx) return;
+    const rs = window.draftState || window.roomState || {};
+    const players = rs.players ? Object.values(rs.players) : [];
+    let avail = players.filter(p => !p.draftedBy);
+    const roleSet = new Set();
+    players.forEach(p => { if(p.role) roleSet.add(p.role); });
+    const roles = ['All', ...Array.from(roleSet).sort()];
+    if(ctx.filter !== 'All') avail = avail.filter(p => (p.role||'') === ctx.filter);
+    avail.sort((a,b) => String(a.name||'').localeCompare(String(b.name||'')));
+    const existing = document.getElementById('cd-replace-d-overlay');
+    if(existing) existing.remove();
+    const rowBtn = (r) => `<button onclick="CD.setReplaceDFilter('${r.replace(/'/g,"\\'")}')" style="padding:6px 12px;border-radius:9999px;background:${ctx.filter===r?'linear-gradient(180deg,rgba(255,200,61,0.25),rgba(255,200,61,0.1))':'var(--glass)'};color:${ctx.filter===r?'#FFE49A':'var(--ink-2)'};border:1px solid ${ctx.filter===r?'rgba(255,200,61,0.55)':'var(--line-2)'};font-family:var(--sans);font-size:11px;font-weight:700;cursor:pointer;letter-spacing:0.04em;">${r}</button>`;
+    const playerBtn = (p) => {
+      const pname = p.name || p.n || '';
+      const code = p.iplTeam || p.t || '';
+      const role = p.role || '';
+      const isOs = !!(p.isOverseas || p.o);
+      return `<button onclick="CD.confirmReplaceD('${String(p.id).replace(/'/g,"\\'")}','${pname.replace(/'/g,"\\'")}')" style="display:flex;gap:10px;align-items:center;width:100%;padding:10px 12px;border-radius:12px;background:var(--glass);border:1px solid var(--line);margin-bottom:6px;cursor:pointer;text-align:left;transition:border-color .15s, background .15s;" onmouseover="this.style.borderColor='rgba(255,200,61,0.5)';this.style.background='rgba(255,200,61,0.06)'" onmouseout="this.style.borderColor='var(--line)';this.style.background='var(--glass)'">
+        ${CD.Avatar({team: code, name: pname, size: 32})}
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${pname}${isOs ? ' <span style="color:var(--gold);font-size:10px;">★</span>' : ''}</div>
+          <div style="font-size:10px;color:var(--mute);letter-spacing:0.04em;">${code || '—'} · ${role || '—'}</div>
+        </div>
+        <span style="font-family:var(--sans);font-size:10px;color:var(--electric);font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Pick</span>
+      </button>`;
+    };
+    const html = `<div id="cd-replace-d-overlay" style="position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.74);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)CD.closeReplaceD()">
+      <div style="background:var(--glass-2,rgba(22,24,38,0.92));backdrop-filter:blur(32px) saturate(1.5);-webkit-backdrop-filter:blur(32px) saturate(1.5);border:1px solid var(--line-2);border-radius:22px;max-width:680px;width:100%;max-height:86vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--sh-2);">
+        <div style="padding:20px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-start;gap:14px;">
+          <div style="flex:1;min-width:0;">
+            <div class="ed" style="font-size:24px;line-height:1;">Replace <span class="ed-i" style="color:var(--gold);">player</span></div>
+            <div style="font-size:10px;color:var(--gold);letter-spacing:0.18em;text-transform:uppercase;font-weight:700;margin-top:6px;">${ctx.oldName} · ${ctx.teamName}</div>
+            <div style="font-size:11px;color:var(--mute);margin-top:8px;line-height:1.5;">Roster swap. Points history preserved.</div>
+          </div>
+          <button onclick="CD.closeReplaceD()" style="background:var(--glass);border:1px solid var(--line-2);color:var(--mute);width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:16px;line-height:1;flex-shrink:0;">×</button>
+        </div>
+        <div style="padding:12px 24px;display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--line);">
+          ${roles.map(rowBtn).join('')}
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:14px 20px;">
+          ${avail.length===0 ? '<div style="padding:40px;text-align:center;color:var(--mute);font-size:13px;">No available players match this filter.</div>' : avail.slice(0,250).map(playerBtn).join('')}
+          ${avail.length>250 ? '<div style="padding:12px;text-align:center;color:var(--mute);font-size:11px;">Showing first 250. Use the role filter to narrow.</div>' : ''}
+        </div>
+      </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+  };
+
   // ───────────────────────────────────────────────────────────────
   // MY TEAM — Edit squad mode (click-to-move between XI/Bench/Reserves)
   // ───────────────────────────────────────────────────────────────
@@ -3993,25 +4104,33 @@
     }
   };
   // Draft Replace handler — data-attributes pattern (apostrophe-safe).
+  // Routes through the custom CD overlay (CD.openReplaceD) instead of
+  // the legacy #replaceModal in index.html, which causes a GPU
+  // compositor stall (4 overlapping backdrop-filter blur animations).
   CD.handleReplaceD = (btn) => {
     const _diagName = btn?.getAttribute?.('data-name') || '?';
     const _diagTeam = btn?.getAttribute?.('data-team') || '?';
     console.log('[Replace] click', { name: _diagName, team: _diagTeam });
     window.showAlert?.('Opening replace for ' + _diagName + '...', 'ok');
-    if(typeof window.openReplaceModal !== 'function') {
-      console.error('handleReplaceD: window.openReplaceModal missing');
-      window.showAlert?.('Replace handler not available — reload the page.','err');
-      return;
+    const team = btn.getAttribute('data-team');
+    const name = btn.getAttribute('data-name');
+    const wasOs = btn.getAttribute('data-os') === '1';
+    // Permission + lock checks
+    if(typeof window._canReleaseTeamD === 'function' && !window._canReleaseTeamD(team)) {
+      return window.showAlert?.('You do not have permission to replace players for this team.', 'err');
     }
-    try{
-      window.openReplaceModal(
-        btn.getAttribute('data-team'),
-        btn.getAttribute('data-name'),
-        btn.getAttribute('data-os') === '1'
-      );
-    }catch(e){
-      console.error('handleReplaceD: openReplaceModal threw', e);
-      window.showAlert?.('Replace failed: ' + (e.message||e), 'err');
+    const rs = window.draftState || window.roomState || {};
+    if(rs.releaseLocked) {
+      return window.showAlert?.('Player releases are locked by the super admin.', 'err');
+    }
+    if(typeof CD.openReplaceD !== 'function') {
+      return window.showAlert?.('Replace UI not loaded — reload the page.', 'err');
+    }
+    try {
+      CD.openReplaceD(team, name, wasOs);
+    } catch(e) {
+      console.error('handleReplaceD: openReplaceD threw', e);
+      window.showAlert?.('Replace UI failed: ' + (e.message||e), 'err');
     }
   };
   CD.handleRoomClick = (el) => {
