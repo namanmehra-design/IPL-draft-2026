@@ -1667,14 +1667,15 @@
                     const pName = p.name || p.n || '';
                     const pCode = teamCode(p.iplTeam || p.t);
                     const isOs = !!(p.isOverseas || p.o);
-                    const canRelease = (isAdmin || isMyTeam) && !releaseLocked;
+                    // Permission: owner | admin | super, gated by releaseLocked.
+                    const canRelease = (isAdmin || isMyTeam || isSuper) && !releaseLocked;
                     return `<div style="display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid var(--line);">
                       ${CD.Avatar({team: p.iplTeam || p.t, name: pName, size: 28})}
                       <div style="flex:1;min-width:0;overflow:hidden;">
                         <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(pName)}${isOs ? ' <span style="color:var(--gold);font-size:9px;">★</span>' : ''}</div>
                         <div style="font-size:10px;color:var(--mute);letter-spacing:0.04em;">${pCode ? esc(pCode) : '<span style="color:rgba(255,255,255,0.3);">—</span>'} · ${esc(p.role || p.r || '')}</div>
                       </div>
-                      ${canRelease ? `<button onclick="window.openReleaseModal && window.openReleaseModal('${esc(t.name).replace(/'/g,"\\'")}','${esc(pName).replace(/'/g,"\\'")}',${isOs?'true':'false'})" title="Release player" style="padding:4px 6px;border-radius:8px;background:rgba(255,59,59,0.12);border:1px solid rgba(255,59,59,0.3);color:var(--red);font-size:9px;font-weight:600;cursor:pointer;">${I('x',10)}</button>` : ''}
+                      ${canRelease ? `<button data-team="${esc(t.name)}" data-name="${esc(pName)}" data-os="${isOs?'1':'0'}" data-idx="${idx}" onclick="CD.handleRelease(this)" title="Release player" style="width:36px;height:36px;min-width:36px;min-height:36px;padding:0;border-radius:10px;background:rgba(255,59,59,0.12);border:1px solid rgba(255,59,59,0.3);color:var(--red);font-size:9px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;touch-action:manipulation;">${I('x',14)}</button>` : ''}
                     </div>`;
                   }).join('')}
                 </div>
@@ -1913,6 +1914,15 @@
       star:   mob ? 12 : 16,
       starFs: mob ? 8 : 10
     };
+    // Permissions for inline release/replace buttons. Owner of own team
+    // OR room admin OR super admin can act. releaseLocked gates both.
+    // squadLocked does NOT gate release/replace.
+    const myUid = window.user?.uid || '';
+    const ownerMember = rs.members && rs.members[myUid];
+    const isMyTeam = !!(ownerMember && ownerMember.teamName === t.name);
+    const canRelease = !releaseLocked && (isMyTeam || isAdmin || isSuper);
+    const canReplace = !releaseLocked && (isMyTeam || isAdmin || isSuper);
+
     const renderPitchPlayer = (p, pos) => {
       const name = p.name || p.n || '';
       const first = name.split(' ')[0];
@@ -1926,6 +1936,20 @@
         ? 'linear-gradient(180deg,rgba(40,60,20,0.92),rgba(20,40,10,0.95))'
         : pts < 0 ? 'rgba(70,20,20,0.92)' : 'rgba(0,0,0,0.7)';
       const ptsBorder = pts > 0 ? 'rgba(182,255,60,0.65)' : pts < 0 ? 'rgba(255,120,120,0.45)' : 'rgba(255,255,255,0.3)';
+      // Action bar — small icon-only buttons under the points pill.
+      // Each uses event.stopPropagation so clicking doesn't open the
+      // player-stats modal that fires on the parent circle.
+      // Sized to push the clickable region toward the iOS HIG 44x44
+      // minimum — visible chip is 36/32 with extra padding so the
+      // hit area is comfortable on touch.
+      const rosterIdx = roster.findIndex(rp => (rp.name||rp.n||'') === name);
+      const btnSize = mob ? 36 : 32;
+      const iconSize = mob ? 14 : 13;
+      const actionBar = (canRelease || canReplace) ? `
+        <div style="display:flex;gap:${mob?6:7}px;justify-content:center;margin-top:${mob?4:5}px;padding:4px 0;" onclick="event.stopPropagation()">
+          ${canRelease ? `<button data-team="${esc(t.name)}" data-name="${esc(name)}" data-os="${isOs?'1':'0'}" data-idx="${rosterIdx}" onclick="event.stopPropagation();CD.openReleaseConfirm(this);" title="Release ${esc(name)}" style="width:${btnSize}px;height:${btnSize}px;min-width:${btnSize}px;min-height:${btnSize}px;padding:0;border-radius:50%;background:rgba(255,59,59,0.18);border:1px solid rgba(255,59,59,0.55);color:#FF8B8B;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;line-height:0;touch-action:manipulation;">${I('x',iconSize)}</button>` : ''}
+          ${canReplace ? `<button data-team="${esc(t.name)}" data-name="${esc(name)}" data-os="${isOs?'1':'0'}" data-idx="${rosterIdx}" onclick="event.stopPropagation();CD.handleReplaceD(this);" title="Replace ${esc(name)}" style="width:${btnSize}px;height:${btnSize}px;min-width:${btnSize}px;min-height:${btnSize}px;padding:0;border-radius:50%;background:rgba(255,200,61,0.18);border:1px solid rgba(255,200,61,0.55);color:#FFE49A;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;line-height:0;font-size:${iconSize+2}px;font-weight:800;touch-action:manipulation;">⇄</button>` : ''}
+        </div>` : '';
       return `
         <div style="display:flex;flex-direction:column;align-items:center;gap:${pp.gap}px;min-width:${pp.minW}px;cursor:pointer;position:relative;" onclick="window.showPlayerModal && window.showPlayerModal('${esc(name)}')">
           <div style="position:relative;filter:drop-shadow(0 3px 8px rgba(0,0,0,0.7));">
@@ -1934,6 +1958,7 @@
           </div>
           <div style="font-size:${pp.name}px;font-weight:700;color:#fff;text-align:center;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,0.95),0 0 10px rgba(0,0,0,0.7);max-width:${pp.nameMx}px;overflow:hidden;text-overflow:ellipsis;letter-spacing:0.01em;line-height:1.1;">${esc(displayName)}</div>
           <div style="font-family:var(--display);font-size:${pp.pill}px;font-weight:800;padding:${pp.pillPy}px ${pp.pillPx}px;border-radius:9999px;background:${ptsBg};border:1px solid ${ptsBorder};color:${ptsColor};box-shadow:0 2px 6px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.08);min-width:${pp.pillMin}px;text-align:center;line-height:1;">${pts >= 0 ? '+' : ''}${Math.round(pts)}</div>
+          ${actionBar}
         </div>
       `;
     };
@@ -2024,7 +2049,7 @@
           <span style="font-family:var(--display);font-weight:800;color:${benchTotal>0?'var(--lime)':'var(--mute)'};">${benchTotal>=0?'+':''}${Math.round(benchTotal)} pts</span>
         </div>
         <div style="padding:14px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;">
-          ${benchPlayers.map((p, idx) => CD._renderRosterCard(p, 'bench', t.name, xiPlayers.length + idx, releaseLocked, isSuper, ptsFor, mcFor)).join('')}
+          ${benchPlayers.map((p, idx) => CD._renderRosterCard(p, 'bench', t.name, xiPlayers.length + idx, releaseLocked, isSuper, ptsFor, mcFor, canRelease, canReplace)).join('')}
         </div>
       </div>` : ''}
 
@@ -2035,14 +2060,21 @@
           <div class="ed" style="font-size:20px;">Reserves <span class="ed-i" style="color:var(--mute);font-size:16px;">0×</span></div>
         </div>
         <div style="padding:14px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;">
-          ${reservePlayers.map((p, idx) => CD._renderRosterCard(p, 'reserve', t.name, xiPlayers.length + benchPlayers.length + idx, releaseLocked, isSuper, ptsFor, mcFor)).join('')}
+          ${reservePlayers.map((p, idx) => CD._renderRosterCard(p, 'reserve', t.name, xiPlayers.length + benchPlayers.length + idx, releaseLocked, isSuper, ptsFor, mcFor, canRelease, canReplace)).join('')}
         </div>
       </div>` : ''}
     `;
   };
 
-  // Helper for roster cards in bench/reserve — includes small role/OS pills
-  CD._renderRosterCard = (p, section, teamName, idx, releaseLocked, isSuper, ptsFor, mcFor) => {
+  // Helper for roster cards in bench/reserve — includes small role/OS pills.
+  // Accepts canRelease/canReplace from caller so the same permission logic
+  // (owner | admin | super, gated by releaseLocked) drives every button.
+  CD._renderRosterCard = (p, section, teamName, idx, releaseLocked, isSuper, ptsFor, mcFor, canRelease, canReplace) => {
+    // Fail closed: if a legacy caller forgets the perm flags, hide the
+    // action buttons rather than show them to non-admins. The new
+    // renderTeamCard always passes them through.
+    if(typeof canRelease === 'undefined') canRelease = false;
+    if(typeof canReplace === 'undefined') canReplace = false;
     const name = p.name || p.n || '';
     const code = teamCode(p.iplTeam || p.t);
     const [c1, c2] = TEAM_COLORS[code] || ['#444','#222'];
@@ -2067,11 +2099,126 @@
       <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:11px;flex-wrap:wrap;">
         <span style="font-family:var(--display);font-weight:800;color:${pts>0?'var(--lime)':pts<0?'var(--red)':'var(--mute)'};">${pts>=0?'+':''}${pts}${mc?' <span style="color:var(--mute);font-weight:500;font-size:10px;">· '+mc+'m</span>':''}</span>
         <div style="display:flex;gap:5px;">
-          ${isSuper ? `<button data-team="${esc(teamName)}" data-name="${esc(name)}" data-os="${isOs?'1':'0'}" onclick="CD.handleReplaceD(this)" style="padding:3px 8px;border-radius:9999px;background:rgba(255,200,61,0.12);border:1px solid rgba(255,200,61,0.45);color:#FFD97D;font-size:10px;font-weight:600;cursor:pointer;">Replace</button>` : ''}
-          ${!releaseLocked ? `<button data-team="${esc(teamName)}" data-idx="${idx}" data-name="${esc(name)}" onclick="CD.handleRelease(this)" style="padding:3px 8px;border-radius:9999px;background:rgba(255,59,59,0.12);border:1px solid rgba(255,59,59,0.3);color:var(--red);font-size:10px;font-weight:600;cursor:pointer;">Release</button>` : ''}
+          ${canReplace ? `<button data-team="${esc(teamName)}" data-name="${esc(name)}" data-os="${isOs?'1':'0'}" data-idx="${idx}" onclick="CD.handleReplaceD(this)" style="padding:8px 14px;min-height:36px;border-radius:9999px;background:rgba(255,200,61,0.12);border:1px solid rgba(255,200,61,0.45);color:#FFD97D;font-size:11px;font-weight:600;cursor:pointer;touch-action:manipulation;">Replace</button>` : ''}
+          ${canRelease ? `<button data-team="${esc(teamName)}" data-idx="${idx}" data-name="${esc(name)}" data-os="${isOs?'1':'0'}" onclick="CD.openReleaseConfirm(this)" style="padding:8px 14px;min-height:36px;border-radius:9999px;background:rgba(255,59,59,0.12);border:1px solid rgba(255,59,59,0.3);color:var(--red);font-size:11px;font-weight:600;cursor:pointer;touch-action:manipulation;">Release</button>` : ''}
         </div>
       </div>
     </div>`;
+  };
+
+  // Custom in-app confirm overlay — replaces native confirm() so the
+  // confirm prompt matches the rest of the CD design system, doesn't
+  // freeze the page, and works on mobile where confirm() is awkward.
+  CD._showCustomConfirm = (opts) => {
+    const id = 'cd-custom-confirm-' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+    const tone = opts.tone || 'red';
+    const accent = tone === 'gold' ? '#FFD97D' : '#FF8B8B';
+    const accentBg = tone === 'gold'
+      ? 'linear-gradient(180deg,rgba(255,200,61,0.95),rgba(220,170,40,0.95))'
+      : 'linear-gradient(180deg,rgba(255,80,80,0.95),rgba(220,40,40,0.95))';
+    const accentBorder = tone === 'gold' ? 'rgba(255,200,61,0.65)' : 'rgba(255,120,120,0.55)';
+    const html = `<div id="${id}" style="position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.7);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px;" data-cd-confirm="1">
+      <div style="background:var(--glass-2,rgba(22,24,38,0.94));backdrop-filter:blur(32px);border:1px solid var(--line-2);border-radius:18px;max-width:440px;width:100%;padding:22px 24px;box-shadow:var(--sh-2);">
+        <div class="ed" style="font-size:22px;line-height:1.1;color:${accent};margin-bottom:8px;">${opts.title||'Confirm'}</div>
+        <div style="font-size:13px;color:var(--ink-2);line-height:1.55;margin-bottom:18px;">${opts.body||''}</div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+          <button data-act="cancel" style="padding:9px 18px;border-radius:9999px;background:var(--glass);border:1px solid var(--line-2);color:var(--ink-2);font-weight:600;font-size:12px;cursor:pointer;">${opts.cancelLabel||'Cancel'}</button>
+          <button data-act="confirm" style="padding:9px 18px;border-radius:9999px;background:${accentBg};border:1px solid ${accentBorder};color:#fff;font-weight:700;font-size:12px;cursor:pointer;letter-spacing:0.02em;">${opts.confirmLabel||'Confirm'}</button>
+        </div>
+      </div>
+    </div>`;
+    // Defensive: tear down any prior CD confirm overlays so they
+    // don't stack (rare race when a 2nd confirm opens before the
+    // first is dismissed). data-cd-confirm marks every overlay.
+    document.querySelectorAll('[data-cd-confirm="1"]').forEach(el => el.remove());
+    document.body.insertAdjacentHTML('beforeend', html);
+    const root = document.getElementById(id);
+    if(!root) return;
+    let close = () => { try{ root.remove(); }catch(e){ console.error('confirm close:', e); } };
+    root.addEventListener('click', (ev) => {
+      const tgt = ev.target;
+      if(tgt === root){ close(); return; }
+      const act = tgt && tgt.getAttribute && tgt.getAttribute('data-act');
+      if(act === 'cancel'){ close(); }
+      else if(act === 'confirm'){
+        close();
+        try{ opts.onConfirm && opts.onConfirm(); }
+        catch(e){ console.error('confirm handler threw:', e); window.showAlert?.('Action failed: ' + (e.message||e), 'err'); }
+      }
+    });
+    // Keyboard support — ESC cancels, Enter confirms. Listener is
+    // attached at capture phase so it wins over any focused control,
+    // and is removed once the modal closes (via wrapped close()).
+    const onKey = (ev) => {
+      if(ev.key === 'Escape'){
+        ev.preventDefault();
+        document.removeEventListener('keydown', onKey, true);
+        close();
+      } else if(ev.key === 'Enter'){
+        ev.preventDefault();
+        document.removeEventListener('keydown', onKey, true);
+        close();
+        try { if(typeof opts.onConfirm === 'function') opts.onConfirm(); }
+        catch(e){ console.error('confirm onConfirm:', e); window.showAlert?.('Action failed: '+(e.message||e),'err'); }
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
+    const _origClose = close;
+    close = () => { document.removeEventListener('keydown', onKey, true); _origClose(); };
+  };
+
+  // Release confirm modal — invoked from inline buttons via data-attrs.
+  // Reads team/name/idx/os off the button element so the value never has
+  // to round-trip through onclick string interpolation (apostrophe-safe).
+  // On confirm, calls window.confirmReleaseV2 which sets the legacy
+  // globals and runs the existing confirmRelease path.
+  CD.openReleaseConfirm = (btnOrCtx) => {
+    let team, name, idx, isOs;
+    if(btnOrCtx && btnOrCtx.getAttribute){
+      team = btnOrCtx.getAttribute('data-team') || '';
+      name = btnOrCtx.getAttribute('data-name') || '';
+      idx = parseInt(btnOrCtx.getAttribute('data-idx') || '-1', 10);
+      isOs = btnOrCtx.getAttribute('data-os') === '1';
+    } else if(btnOrCtx && typeof btnOrCtx === 'object'){
+      team = btnOrCtx.team; name = btnOrCtx.name; idx = btnOrCtx.idx; isOs = !!btnOrCtx.isOs;
+    } else { return; }
+    if(!team || !name){ console.error('openReleaseConfirm: missing team/name'); return; }
+    const rs = window.roomState || {};
+    if(rs.releaseLocked){
+      window.showAlert?.('Player releases are locked by the super admin.','err');
+      return;
+    }
+    const body = `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;background:var(--glass);border:1px solid var(--line);margin-bottom:12px;">
+      ${CD.Avatar({name, size: 36})}
+      <div style="min-width:0;flex:1;">
+        <div style="font-weight:700;font-size:14px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(name)}${isOs ? ' <span style="color:var(--gold);font-size:11px;">★</span>' : ''}</div>
+        <div style="font-size:11px;color:var(--mute);margin-top:2px;">${esc(team)}</div>
+      </div>
+    </div>
+    <ul style="list-style:none;padding:0;margin:0;font-size:12px;color:var(--ink-2);line-height:1.6;">
+      <li>• ${esc(name)} returns to the available draft pool</li>
+      <li>• A compensatory pick is appended to the draft order</li>
+      <li>• All match points already earned by ${esc(name)} stay with ${esc(team)}</li>
+    </ul>`;
+    CD._showCustomConfirm({
+      title: 'Release player?',
+      body,
+      confirmLabel: 'Release',
+      tone: 'red',
+      onConfirm: () => {
+        if(typeof window.confirmReleaseV2 !== 'function'){
+          console.error('openReleaseConfirm: window.confirmReleaseV2 missing');
+          window.showAlert?.('Release handler not available — reload the page.','err');
+          return;
+        }
+        try{
+          window.confirmReleaseV2(team, name, isOs);
+        }catch(e){
+          console.error('openReleaseConfirm: confirmReleaseV2 threw', e);
+          window.showAlert?.('Release failed: ' + (e.message||e), 'err');
+        }
+      }
+    });
   };
 
   // ───────────────────────────────────────────────────────────────
@@ -3824,29 +3971,38 @@
   };
 
   // ── DATA-ATTRIBUTE HANDLERS (avoid string interpolation in onclick) ──
+  // Routes through the custom CD confirm modal instead of the legacy
+  // #releaseModal in index.html. The legacy modal stays in HTML for
+  // backward-compat but isn't reached from CD code paths anymore.
   CD.handleRelease = (btn) => {
-    if(typeof window.openReleaseModal !== 'function') {
-      window.showAlert?.('Release handler not available — reload the page.','err');
+    if(!btn || typeof btn.getAttribute !== 'function'){
+      console.error('handleRelease: invalid btn');
       return;
     }
-    window.openReleaseModal(
-      btn.getAttribute('data-team'),
-      parseInt(btn.getAttribute('data-idx'), 10),
-      btn.getAttribute('data-name'),
-      parseFloat(btn.getAttribute('data-price')) || 0
-    );
+    try{
+      CD.openReleaseConfirm(btn);
+    }catch(e){
+      console.error('handleRelease: openReleaseConfirm threw', e);
+      window.showAlert?.('Release UI failed: ' + (e.message||e), 'err');
+    }
   };
   // Draft Replace handler — data-attributes pattern (apostrophe-safe).
   CD.handleReplaceD = (btn) => {
     if(typeof window.openReplaceModal !== 'function') {
+      console.error('handleReplaceD: window.openReplaceModal missing');
       window.showAlert?.('Replace handler not available — reload the page.','err');
       return;
     }
-    window.openReplaceModal(
-      btn.getAttribute('data-team'),
-      btn.getAttribute('data-name'),
-      btn.getAttribute('data-os') === '1'
-    );
+    try{
+      window.openReplaceModal(
+        btn.getAttribute('data-team'),
+        btn.getAttribute('data-name'),
+        btn.getAttribute('data-os') === '1'
+      );
+    }catch(e){
+      console.error('handleReplaceD: openReplaceModal threw', e);
+      window.showAlert?.('Replace failed: ' + (e.message||e), 'err');
+    }
   };
   CD.handleRoomClick = (el) => {
     const rid = el.getAttribute('data-rid');

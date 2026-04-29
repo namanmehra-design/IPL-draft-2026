@@ -92,6 +92,28 @@ function isSuperAdminEmail(email){ return (email||'').toLowerCase().trim()==='na
 if(typeof window !== 'undefined'){ window.isSuperAdminEmail = isSuperAdminEmail; }
 function escapeHtml(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
+// ─── Audit log helper ──────────────────────────────────────────────
+// Records every release/replace action under drafts/{draftId}/auditLog/{pushId}.
+// Best-effort: failures here must NOT break the primary action. Each call
+// awaits independently so a network blip on the audit write doesn't mask
+// a successful release/replace.
+async function _writeAuditLog(action, payload){
+ try{
+  if(!draftId) return;
+  if(!user) return;
+  const entry={
+   at: Date.now(),
+   byUid: user.uid||'',
+   byEmail: user.email||'',
+   action: String(action||''),
+   ...payload
+  };
+  const auditRef=push(ref(db,`drafts/${draftId}/auditLog`));
+  await set(auditRef, entry);
+ }catch(e){ console.error('audit log (draft):', e); }
+}
+if(typeof window !== 'undefined'){ window._writeAuditLog = _writeAuditLog; }
+
 // -- Overseas detection helper (name-based: "* (" suffix means overseas) --
 function isOverseasPlayer(p){ return !!(p.isOverseas||p.o||((p.name||p.n||'').indexOf('* (')>=0)); }
 
@@ -1359,9 +1381,26 @@ window.exportCSV=function(){
  a.click();
  window.showAlert('CSV downloaded!','ok');
 };
+// -- Release/Replace permissions (draft) --
+// Owner of own team OR room admin OR super admin can act. releaseLocked
+// gates both release and replace (replace includes release semantics).
+function _canReleaseTeamD(teamName){
+  if(!user) return false;
+  if(isSuperAdminEmail(user.email)) return true;
+  if(isAdmin) return true;
+  // Team owner check: members map keyed by uid \u2192 { teamName }
+  const members = draftState?.members || {};
+  const me = members[user.uid];
+  return !!(me && me.teamName === teamName);
+}
+if(typeof window !== 'undefined'){ window._canReleaseTeamD = _canReleaseTeamD; }
+
 // -- Release Player (Draft) --
 window.openReleaseModal=function(teamName,playerName,wasOverseas){
- // Super admin release lock check
+ // Permission + release lock checks
+ if(!_canReleaseTeamD(teamName)){
+  return window.showAlert('You do not have permission to release players for this team.','err');
+ }
  if(draftState&&draftState.releaseLocked){
   return window.showAlert('Player releases are locked by the super admin. Contact the super admin to unlock.','error');
  }
@@ -1378,26 +1417,34 @@ window.closeReleaseModal=function(){
 };
 window.confirmRelease=function(){
  if(!draftId||!releaseTeam||!releasePlayerName)return;
+ // Snapshot globals to locals so concurrent confirm clicks can't overwrite
+ // mid-flight (race fix: globals were read post-async-get).
+ var _team = releaseTeam, _playerName = releasePlayerName;
+ // Permission re-check (in case role changed since modal opened)
+ if(!_canReleaseTeamD(_team)){
+  window.closeReleaseModal();
+  return window.showAlert('You do not have permission to release players for this team.','err');
+ }
  // Re-check super admin release lock
  if(draftState&&draftState.releaseLocked){
   window.closeReleaseModal();
   return window.showAlert('Player releases are locked by the super admin.','error');
  }
- var targetName=releasePlayerName.toLowerCase().trim();
+ var targetName=_playerName.toLowerCase().trim();
  get(ref(db,'drafts/'+draftId)).then(function(snap){
  var data=snap.val();
- if(!data)return window.showAlert('Draft data not found.');
+ if(!data){ console.error('confirmRelease: no data at drafts/'+draftId); return window.showAlert('Draft data not found.'); }
  // Final lock check from fresh data
  if(data.releaseLocked){
   window.closeReleaseModal();
   return window.showAlert('Player releases are locked by the super admin.','error');
  }
- var team=data.teams&&data.teams[releaseTeam];
- if(!team)return window.showAlert('Team not found.');
+ var team=data.teams&&data.teams[_team];
+ if(!team){ console.error('confirmRelease: team not found', _team); return window.showAlert('Team not found.'); }
  var rawRoster=team.roster;
  var roster=Array.isArray(rawRoster)?rawRoster.slice():(rawRoster?Object.values(rawRoster):[]);
  var matchIdx=roster.findIndex(function(p){return(p.name||'').toLowerCase().trim()===targetName;});
- if(matchIdx<0)return window.showAlert(releasePlayerName+' not found in roster.');
+ if(matchIdx<0){ console.error('confirmRelease: player not in roster', _playerName); return window.showAlert(_playerName+' not found in roster.'); }
  var releasedPlayer=roster[matchIdx];
  var newRoster=roster.filter(function(_,i){return i!==matchIdx;});
  var newOsCount=newRoster.filter(function(p){return!!p.isOverseas;}).length;
@@ -1406,27 +1453,70 @@ window.confirmRelease=function(){
  var dbPlayer=allPlayers.find(function(p){return(p.name||'').toLowerCase().trim()===targetName;});
  var draftOrder=Array.isArray(data.draftOrder)?data.draftOrder.slice():Object.values(data.draftOrder||[]);
  var members=data.members?Object.values(data.members):[];
- var relMember=members.find(function(m){return m.teamName===releaseTeam;});
- draftOrder.push({teamName:releaseTeam,uid:relMember?relMember.uid:'',round:'comp'});
+ var relMember=members.find(function(m){return m.teamName===_team;});
+ draftOrder.push({teamName:_team,uid:relMember?relMember.uid:'',round:'comp'});
+
+ // activeSquad slot preservation: drop the released name (no replacement
+ // slot to fill on a release, so the saved squad just shrinks).
+ var rawActive=team.activeSquad;
+ var activeSquadArr=Array.isArray(rawActive)?rawActive.slice():(rawActive?Object.values(rawActive):null);
+ var newActiveSquad=null;
+ var wasInXI=false;
+ if(activeSquadArr){
+  var xiIdx=activeSquadArr.findIndex(function(n){return(n||'').toLowerCase().trim()===targetName;});
+  if(xiIdx>=0){
+   wasInXI = xiIdx < 11;
+   newActiveSquad=activeSquadArr.filter(function(n){return(n||'').toLowerCase().trim()!==targetName;});
+  }
+ }
+
  var upd={};
- upd['drafts/'+draftId+'/teams/'+releaseTeam+'/roster']=newRoster.length>0?newRoster:null;
- upd['drafts/'+draftId+'/teams/'+releaseTeam+'/overseasCount']=newOsCount;
+ upd['drafts/'+draftId+'/teams/'+_team+'/roster']=newRoster.length>0?newRoster:null;
+ upd['drafts/'+draftId+'/teams/'+_team+'/overseasCount']=newOsCount;
+ if(newActiveSquad){
+  upd['drafts/'+draftId+'/teams/'+_team+'/activeSquad'] = newActiveSquad.length ? newActiveSquad : null;
+ }
  if(dbPlayer&&dbPlayer.id!=null)upd['drafts/'+draftId+'/players/'+dbPlayer.id+'/draftedBy']=null;
  else if(releasedPlayer.id!=null)upd['drafts/'+draftId+'/players/'+releasedPlayer.id+'/draftedBy']=null;
  upd['drafts/'+draftId+'/draftOrder']=draftOrder;
  update(ref(db),upd).then(function(){
   window.closeReleaseModal();
-  window.showAlert(releasePlayerName+' released. Compensatory pick added at end.','ok');
+  window.showAlert(_playerName+' released. Compensatory pick added at end.','ok');
+  // Audit log (best-effort)
+  _writeAuditLog('release', {
+   team: _team,
+   oldName: _playerName,
+   oldRosterIdx: matchIdx,
+   wasInXI: wasInXI
+  });
   // Auto-heal stored leaderboardTotals so future reads can't drift.
   try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){ console.error('recalc leaderboard (draft):', e); }
   // Notify CD: any open match-entry form should surface a soft Resync banner.
-  try{ window.dispatchEvent(new CustomEvent('_cdRosterChanged',{detail:{team:releaseTeam}})); }catch(e){ console.error('dispatch _cdRosterChanged:', e); }
- }).catch(function(e){window.showAlert('Release failed: '+e.message);});
- }).catch(function(e){window.showAlert('Error: '+e.message);});
+  try{ window.dispatchEvent(new CustomEvent('_cdRosterChanged',{detail:{team:_team}})); }catch(e){ console.error('dispatch _cdRosterChanged:', e); }
+ }).catch(function(e){ console.error('confirmRelease: write failed', e); window.showAlert('Release failed: '+e.message,'err'); });
+ }).catch(function(e){ console.error('confirmRelease: read failed', e); window.showAlert('Error: '+e.message,'err'); });
+};
+
+// Newer entry-point used by the CD custom confirm modal. Sets the legacy
+// globals (releaseTeam/releasePlayerName/releaseWasOverseas) so the
+// existing code path runs unchanged, then defers to confirmRelease().
+window.confirmReleaseV2=function(team, name, wasOverseas){
+ if(!team||!name){ console.error('confirmReleaseV2: missing args', {team,name}); return; }
+ releaseTeam = team;
+ releasePlayerName = name;
+ releaseWasOverseas = !!wasOverseas;
+ try{ window.confirmRelease(); }
+ catch(e){ console.error('confirmReleaseV2: confirmRelease threw', e); window.showAlert('Release failed: '+(e.message||e),'err'); }
 };
 
 // -- Replace Player (Draft) --
 window.openReplaceModal=function(teamName,playerName,wasOverseas){
+ if(!_canReleaseTeamD(teamName)){
+  return window.showAlert('You do not have permission to replace players for this team.','err');
+ }
+ if(draftState&&draftState.releaseLocked){
+  return window.showAlert('Player releases are locked by the super admin. Contact the super admin to unlock.','err');
+ }
  replaceTeam=teamName;
  replacePlayerName=playerName;
  replaceWasOverseas=!!wasOverseas;
@@ -1452,44 +1542,89 @@ window.refreshReplaceList=function(){
 };
 window.confirmReplace=function(){
  if(!draftId||!replaceTeam||!replacePlayerName)return;
+ // Snapshot globals to locals so concurrent confirm clicks can't overwrite
+ // mid-flight (race fix: globals were read post-async-get).
+ var _team = replaceTeam, _playerName = replacePlayerName, _wasOs = replaceWasOverseas;
+ // Permission re-check
+ if(!_canReleaseTeamD(_team)){
+  window.closeReplaceModal();
+  return window.showAlert('You do not have permission to replace players for this team.','err');
+ }
+ if(draftState&&draftState.releaseLocked){
+  window.closeReplaceModal();
+  return window.showAlert('Player releases are locked by the super admin.','err');
+ }
  var newPid=document.getElementById('replacementSelect')&&document.getElementById('replacementSelect').value;
  if(!newPid)return window.showAlert('Select a replacement player.','err');
- var targetName=replacePlayerName.toLowerCase().trim();
+ var targetName=_playerName.toLowerCase().trim();
  get(ref(db,'drafts/'+draftId)).then(function(snap){
  var data=snap.val();
- if(!data)return window.showAlert('Draft data not found.');
- var team=data.teams&&data.teams[replaceTeam];
- if(!team)return window.showAlert('Team not found.');
+ if(!data){ console.error('confirmReplace: no draft data'); return window.showAlert('Draft data not found.'); }
+ if(data.releaseLocked){
+  window.closeReplaceModal();
+  return window.showAlert('Player releases are locked by the super admin.','err');
+ }
+ var team=data.teams&&data.teams[_team];
+ if(!team){ console.error('confirmReplace: team not found', _team); return window.showAlert('Team not found.'); }
  var rawRoster=team.roster;
  var roster=Array.isArray(rawRoster)?rawRoster.slice():(rawRoster?Object.values(rawRoster):[]);
  var matchIdx=roster.findIndex(function(p){return(p.name||'').toLowerCase().trim()===targetName;});
- if(matchIdx<0)return window.showAlert(replacePlayerName+' not found in roster.');
+ if(matchIdx<0){ console.error('confirmReplace: player not in roster', _playerName); return window.showAlert(_playerName+' not found in roster.'); }
  var rawPlayers=data.players;
  var allPlayers=Array.isArray(rawPlayers)?rawPlayers:Object.values(rawPlayers||{});
  var newPlayer=allPlayers.find(function(p){return String(p.id)===String(newPid);});
- if(!newPlayer)return window.showAlert('Replacement not found.');
- if(newPlayer.draftedBy)return window.showAlert(newPlayer.name+' is already drafted!');
+ if(!newPlayer){ console.error('confirmReplace: replacement not in pool', newPid); return window.showAlert('Replacement not found.'); }
+ if(newPlayer.draftedBy){ console.error('confirmReplace: already drafted', newPlayer.name); return window.showAlert(newPlayer.name+' is already drafted!'); }
  var oldPlayer=roster[matchIdx];
  var currentOs=roster.filter(function(p){return!!p.isOverseas;}).length;
  var losingOs=oldPlayer.isOverseas?1:0;
  var gainingOs=newPlayer.isOverseas?1:0;
  var newOsCount=currentOs-losingOs+gainingOs;
  var maxOs=(data.config&&data.config.maxOverseas)||(data.setup&&data.setup.maxOverseas)||8;
- if(newOsCount>maxOs)return window.showAlert('Overseas limit: '+newOsCount+' > '+maxOs,'err');
+ // NOTE: per requirements, overseas cap is a WARNING only \u2014 do NOT block.
  var newRoster=roster.slice();
  newRoster[matchIdx]={id:newPlayer.id,name:newPlayer.name,iplTeam:newPlayer.iplTeam,role:newPlayer.role,isOverseas:!!newPlayer.isOverseas};
+
+ // activeSquad slot preservation: swap new name in at same index.
+ var rawActive=team.activeSquad;
+ var activeSquadArr=Array.isArray(rawActive)?rawActive.slice():(rawActive?Object.values(rawActive):null);
+ var newActiveSquad=null;
+ var wasInXI=false;
+ if(activeSquadArr){
+  var xiIdx=activeSquadArr.findIndex(function(n){return(n||'').toLowerCase().trim()===targetName;});
+  if(xiIdx>=0){
+   wasInXI = xiIdx < 11;
+   newActiveSquad=activeSquadArr.slice();
+   newActiveSquad[xiIdx]=newPlayer.name;
+  }
+ }
+
  var upd={};
- upd['drafts/'+draftId+'/teams/'+replaceTeam+'/roster']=newRoster;
- upd['drafts/'+draftId+'/teams/'+replaceTeam+'/overseasCount']=newOsCount;
+ upd['drafts/'+draftId+'/teams/'+_team+'/roster']=newRoster;
+ upd['drafts/'+draftId+'/teams/'+_team+'/overseasCount']=newOsCount;
+ if(newActiveSquad){
+  upd['drafts/'+draftId+'/teams/'+_team+'/activeSquad']=newActiveSquad;
+ }
  if(oldPlayer.id!=null)upd['drafts/'+draftId+'/players/'+oldPlayer.id+'/draftedBy']=null;
- upd['drafts/'+draftId+'/players/'+newPid+'/draftedBy']=replaceTeam;
+ upd['drafts/'+draftId+'/players/'+newPid+'/draftedBy']=_team;
  update(ref(db),upd).then(function(){
   window.closeReplaceModal();
   window.showAlert(oldPlayer.name+' replaced with '+newPlayer.name,'ok');
+  // Audit log (best-effort)
+  _writeAuditLog('replace', {
+   team: _team,
+   oldName: oldPlayer.name||_playerName,
+   newName: newPlayer.name,
+   oldRosterIdx: matchIdx,
+   wasInXI: wasInXI
+  });
+  if(newOsCount>maxOs){
+   setTimeout(function(){ window.showAlert('\u26a0\ufe0f Overseas cap breached: '+newOsCount+' / '+maxOs+'. Resolve before next match.','err'); }, 1800);
+  }
   try{ window._recalcLeaderboardDSilent&&window._recalcLeaderboardDSilent(); }catch(e){ console.error('recalc leaderboard (draft):', e); }
-  try{ window.dispatchEvent(new CustomEvent('_cdRosterChanged',{detail:{team:replaceTeam}})); }catch(e){ console.error('dispatch _cdRosterChanged:', e); }
- }).catch(function(e){window.showAlert('Replace failed: '+e.message);});
- }).catch(function(e){window.showAlert('Error: '+e.message);});
+  try{ window.dispatchEvent(new CustomEvent('_cdRosterChanged',{detail:{team:_team}})); }catch(e){ console.error('dispatch _cdRosterChanged:', e); }
+ }).catch(function(e){ console.error('confirmReplace: write failed', e); window.showAlert('Replace failed: '+e.message,'err'); });
+ }).catch(function(e){ console.error('confirmReplace: read failed', e); window.showAlert('Error: '+e.message,'err'); });
 };
 
 // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
