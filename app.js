@@ -603,6 +603,161 @@ async function migrateCanonicalRebuildD(rid,data){
  }catch(e){ console.error('migrateCanonicalRebuildD:',e); }
 }
 
+// -- Normalize a match label for dedupe comparison --
+// Same idea as toLowerCase().trim() in saPushToAll's dedupe, but stricter:
+//   - collapse internal whitespace (multiple spaces → one)
+//   - normalize all dash variants (en-dash, em-dash) to plain hyphen
+//   - strip non-breaking spaces
+// Catches the cases the original dedupe missed.
+function _normalizeMatchLabel(s){
+ return String(s||'')
+  .replace(/[–—−]/g,'-')   // en-dash, em-dash, minus → hyphen
+  .replace(/ /g,' ')                  // non-breaking space → space
+  .replace(/\s+/g,' ')                     // collapse whitespace
+  .trim()
+  .toLowerCase();
+}
+window._normalizeMatchLabel=_normalizeMatchLabel;
+
+// -- Auto-dedupe migration: collapse same-label match duplicates --
+// saPushToAll's dedupe only catches exact-after-trim+lowercase label
+// matches. If any two pushes had slightly different labels (or the
+// dedupe write failed mid-flight, or a room match was created in-room
+// with a label that later got mass-pushed), the room ends up with
+// multiple records sharing the same visible label. The leaderboard
+// then iterates every mid and double-counts that match.
+//
+// Strategy: group matches by normalized label. Within each group with
+// >1 entries, keep the latest by timestamp (ties broken by mid descending,
+// since mids are `m${Date.now()}`). Delete the others, then recompute
+// leaderboardTotals so team totals catch up.
+//
+// Idempotent — re-running on a clean room finds no duplicates → no writes.
+let _dedupeMatchesDoneD={};
+async function migrateDedupeMatchesD(rid,data){
+ if(_dedupeMatchesDoneD[rid]) return;
+ _dedupeMatchesDoneD[rid]=true;
+ if(!data?.matches) return;
+ try{
+  var matches=data.matches;
+  // Group by normalized label
+  var groups={};
+  Object.entries(matches).forEach(function(me){
+   var mid=me[0],m=me[1];
+   if(!m||!m.label) return;
+   var key=_normalizeMatchLabel(m.label);
+   if(!key) return;
+   if(!groups[key]) groups[key]=[];
+   groups[key].push({mid:mid,m:m});
+  });
+  var dupes=Object.entries(groups).filter(function(e){return e[1].length>1;});
+  if(!dupes.length) return;
+  var upd={};
+  var deletedCount=0;
+  var affectedLabels=[];
+  dupes.forEach(function(de){
+   var lbl=de[0], arr=de[1];
+   // Keep the LATEST by timestamp; tie-break by mid descending
+   arr.sort(function(a,b){
+    var ta=a.m.timestamp||0, tb=b.m.timestamp||0;
+    if(ta!==tb) return tb-ta;
+    return String(b.mid).localeCompare(String(a.mid));
+   });
+   var keep=arr[0];
+   var drops=arr.slice(1);
+   affectedLabels.push((keep.m.label||lbl)+' ['+drops.length+' dropped]');
+   drops.forEach(function(d){
+    upd['drafts/'+rid+'/matches/'+d.mid]=null;
+    deletedCount++;
+   });
+  });
+  if(Object.keys(upd).length){
+   await update(ref(db),upd);
+   console.info('[dedupe-matches draft]',rid,'dropped '+deletedCount+' duplicate match record(s):',affectedLabels);
+   // Recompute leaderboard so totals reflect the dedupe
+   try{ await _recalcLeaderboardDCore(); }catch(e){ console.error('dedupe recalc failed:',e); }
+   try{ window.showAlert('Removed '+deletedCount+' duplicate match record(s). Leaderboard recomputed.','ok'); }catch(_e){}
+  }
+ }catch(e){
+  console.error('migrateDedupeMatchesD:',e);
+ }
+}
+window._migrateDedupeMatchesD=migrateDedupeMatchesD;
+
+// -- Super-admin: cross-room match dedupe --
+//   await window.saDedupeMatchesAllRoomsD()      -> dry-run summary
+//   await window.saDedupeMatchesAllRoomsD(true)  -> apply
+window.saDedupeMatchesAllRoomsD=async function(autoFix){
+ if(!isSuperAdminEmail(user?.email)){ window.showAlert('Super admin only.','err'); return; }
+ console.group('🔧 Cross-room match dedupe — DRAFT');
+ console.info('Mode:',autoFix?'DEDUPE + WRITE':'DRY-RUN (pass true to write)');
+ try{
+  var usersSnap=await get(ref(db,'users'));
+  var usersData=usersSnap.val()||{};
+  var ridSet=new Set();
+  Object.values(usersData).forEach(function(u){
+   if(u&&u.drafts) Object.keys(u.drafts).forEach(function(r){ ridSet.add(r); });
+  });
+  var summary=[];
+  var totalDropped=0;
+  for(var rid of ridSet){
+   try{
+    var snap=await get(ref(db,'drafts/'+rid+'/matches'));
+    var matches=snap.val()||{};
+    var groups={};
+    Object.entries(matches).forEach(function(me){
+     var mid=me[0],m=me[1];
+     if(!m||!m.label) return;
+     var key=_normalizeMatchLabel(m.label);
+     if(!key) return;
+     if(!groups[key]) groups[key]=[];
+     groups[key].push({mid:mid,m:m});
+    });
+    var dupes=Object.entries(groups).filter(function(e){return e[1].length>1;});
+    var roomDropped=0;
+    var roomLabels=[];
+    var upd={};
+    dupes.forEach(function(de){
+     var arr=de[1];
+     arr.sort(function(a,b){
+      var ta=a.m.timestamp||0, tb=b.m.timestamp||0;
+      if(ta!==tb) return tb-ta;
+      return String(b.mid).localeCompare(String(a.mid));
+     });
+     var drops=arr.slice(1);
+     roomLabels.push((arr[0].m.label||de[0])+' ('+drops.length+')');
+     drops.forEach(function(d){
+      if(autoFix) upd['drafts/'+rid+'/matches/'+d.mid]=null;
+      roomDropped++;
+     });
+    });
+    if(autoFix&&Object.keys(upd).length){
+     await update(ref(db),upd);
+     totalDropped+=roomDropped;
+    }
+    summary.push({roomId:rid.substring(0,8),duplicates:dupes.length,toDrop:roomDropped,labels:roomLabels.join('; ')||'-'});
+   }catch(e){
+    console.error('Room',rid,'dedupe failed:',e);
+    summary.push({roomId:rid.substring(0,8),error:e.message});
+   }
+  }
+  console.table(summary);
+  console.info('Total duplicates dropped:',autoFix?totalDropped:'(dry-run)');
+  if(autoFix&&totalDropped>0){
+   try{ window.showAlert('Cross-room dedupe: dropped '+totalDropped+' duplicate match record(s). Reload affected rooms to refresh leaderboards.','ok'); }catch(_e){}
+  } else if(!autoFix){
+   var anyFix=summary.some(function(r){return r.toDrop>0;});
+   try{ window.showAlert(anyFix?'Dry-run found duplicates. Pass true to dedupe.':'No duplicates detected.', anyFix?'err':'ok'); }catch(_e){}
+  }
+  console.groupEnd();
+  return summary;
+ }catch(e){
+  console.error('saDedupeMatchesAllRoomsD failed:',e);
+  console.groupEnd();
+  throw e;
+ }
+};
+
 // -- Super-admin: forced canonical rebuild across all draft rooms --
 // Console: await window.saRebuildAllPtsD(true)  -> apply fixes
 //          await window.saRebuildAllPtsD()      -> dry-run summary
@@ -1442,6 +1597,13 @@ function loadDraftRoom(rid){
  setTimeout(function(){
   try{ migrateCanonicalRebuildD(rid,data); }catch(e){ console.error('canonical rebuild trigger:',e); }
  }, 1500);
+ // Match dedupe: same-label match records (e.g. two "RR vs KKR -- Match
+ // 28" entries from a saPushToAll dedupe miss) get collapsed to the
+ // latest-by-timestamp. Recomputes leaderboard so totals reflect the
+ // remaining single record. Runs once per session per room.
+ setTimeout(function(){
+  try{ migrateDedupeMatchesD(rid,data); }catch(e){ console.error('match dedupe trigger:',e); }
+ }, 2200);
 
  // Self-heal: silently recalc leaderboardTotals once per room load so stored
  // values never drift from what computeMatchContribution would produce right
@@ -4359,8 +4521,10 @@ window.saveGlobalScorecard=async function(){
  // Duplicate detection: delete old matches with same label before pushing new.
  // Latest push wins — no confirm, always overwrite. Track how many old records
  // got overwritten and across how many rooms so the toast can report it.
+ // Uses _normalizeMatchLabel so en-dash / em-dash / non-breaking-space /
+ // collapsed-whitespace variants all dedupe correctly.
  const dupCleanPromises=[];
- const matchLabel=data.label.toLowerCase().trim();
+ const matchLabel=_normalizeMatchLabel(data.label);
  var _gscOverwriteCount=0; var _gscRoomsTouched=0;
  // Per-room failures get logged but don't abort the Promise.all -- a
  // single bad room shouldn't block the rest of the fan-out.
@@ -4368,7 +4532,7 @@ window.saveGlobalScorecard=async function(){
   dupCleanPromises.push(get(ref(db,'auctions/'+rid+'/matches')).then(function(mSnap){
    var matches=mSnap.val()||{}; var delWrites={}; var n=0;
    Object.entries(matches).forEach(function(me){
-    if((me[1].label||'').toLowerCase().trim()===matchLabel){ delWrites['auctions/'+rid+'/matches/'+me[0]]=null; n++; }
+    if(_normalizeMatchLabel(me[1].label)===matchLabel){ delWrites['auctions/'+rid+'/matches/'+me[0]]=null; n++; }
    });
    if(n>0){ _gscOverwriteCount+=n; _gscRoomsTouched++; return update(ref(db),delWrites); }
   }).catch(function(e){console.error('GSC duplicate cleanup (auction '+rid+') failed:',e);}));
@@ -4377,7 +4541,7 @@ window.saveGlobalScorecard=async function(){
   dupCleanPromises.push(get(ref(db,'drafts/'+rid+'/matches')).then(function(mSnap){
    var matches=mSnap.val()||{}; var delWrites={}; var n=0;
    Object.entries(matches).forEach(function(me){
-    if((me[1].label||'').toLowerCase().trim()===matchLabel){ delWrites['drafts/'+rid+'/matches/'+me[0]]=null; n++; }
+    if(_normalizeMatchLabel(me[1].label)===matchLabel){ delWrites['drafts/'+rid+'/matches/'+me[0]]=null; n++; }
    });
    if(n>0){ _gscOverwriteCount+=n; _gscRoomsTouched++; return update(ref(db),delWrites); }
   }).catch(function(e){console.error('GSC duplicate cleanup (draft '+rid+') failed:',e);}));
