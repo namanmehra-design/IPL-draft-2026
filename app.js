@@ -628,11 +628,19 @@ window._normalizeMatchLabel=_normalizeMatchLabel;
 // then iterates every mid and double-counts that match.
 //
 // Strategy: group matches by normalized label. Within each group with
-// >1 entries, keep the latest by timestamp (ties broken by mid descending,
-// since mids are `m${Date.now()}`). Delete the others, then recompute
-// leaderboardTotals so team totals catch up.
+// >1 entries, keep the one with the HIGHER total points (sum of all
+// player pts in that match). This is the user's stated preference —
+// the "richer" / more-complete scorecard wins. Tie-break: latest by
+// timestamp, then highest mid (since mids are `m${Date.now()}`).
+// Delete the others, then recompute leaderboardTotals.
 //
 // Idempotent — re-running on a clean room finds no duplicates → no writes.
+function _sumMatchPts(m){
+ if(!m||!m.players) return 0;
+ var s=0;
+ Object.values(m.players).forEach(function(p){ s+=(p&&p.pts)||0; });
+ return s;
+}
 let _dedupeMatchesDoneD={};
 async function migrateDedupeMatchesD(rid,data){
  if(_dedupeMatchesDoneD[rid]) return;
@@ -648,7 +656,7 @@ async function migrateDedupeMatchesD(rid,data){
    var key=_normalizeMatchLabel(m.label);
    if(!key) return;
    if(!groups[key]) groups[key]=[];
-   groups[key].push({mid:mid,m:m});
+   groups[key].push({mid:mid,m:m,pts:_sumMatchPts(m)});
   });
   var dupes=Object.entries(groups).filter(function(e){return e[1].length>1;});
   if(!dupes.length) return;
@@ -657,15 +665,16 @@ async function migrateDedupeMatchesD(rid,data){
   var affectedLabels=[];
   dupes.forEach(function(de){
    var lbl=de[0], arr=de[1];
-   // Keep the LATEST by timestamp; tie-break by mid descending
+   // Keep the HIGHEST total points; tie-break by latest timestamp, then mid desc.
    arr.sort(function(a,b){
+    if(a.pts!==b.pts) return b.pts-a.pts;
     var ta=a.m.timestamp||0, tb=b.m.timestamp||0;
     if(ta!==tb) return tb-ta;
     return String(b.mid).localeCompare(String(a.mid));
    });
    var keep=arr[0];
    var drops=arr.slice(1);
-   affectedLabels.push((keep.m.label||lbl)+' ['+drops.length+' dropped]');
+   affectedLabels.push((keep.m.label||lbl)+' kept('+Math.round(keep.pts)+' pts) ['+drops.length+' dropped: '+drops.map(function(d){return Math.round(d.pts)+' pts';}).join(', ')+']');
    drops.forEach(function(d){
     upd['drafts/'+rid+'/matches/'+d.mid]=null;
     deletedCount++;
@@ -719,13 +728,16 @@ window.saDedupeMatchesAllRoomsD=async function(autoFix){
     var upd={};
     dupes.forEach(function(de){
      var arr=de[1];
+     // Keep highest-points match; ties broken by latest timestamp, then mid desc.
+     arr.forEach(function(x){ x.pts=_sumMatchPts(x.m); });
      arr.sort(function(a,b){
+      if(a.pts!==b.pts) return b.pts-a.pts;
       var ta=a.m.timestamp||0, tb=b.m.timestamp||0;
       if(ta!==tb) return tb-ta;
       return String(b.mid).localeCompare(String(a.mid));
      });
      var drops=arr.slice(1);
-     roomLabels.push((arr[0].m.label||de[0])+' ('+drops.length+')');
+     roomLabels.push((arr[0].m.label||de[0])+' kept('+Math.round(arr[0].pts)+') drop('+drops.map(function(d){return Math.round(d.pts);}).join(',')+')');
      drops.forEach(function(d){
       if(autoFix) upd['drafts/'+rid+'/matches/'+d.mid]=null;
       roomDropped++;
