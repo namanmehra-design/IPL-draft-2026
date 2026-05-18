@@ -6320,6 +6320,35 @@ window.proposeTrade=function(){
  }).catch(function(e){ window.showAlert('Failed: '+e.message); });
 };
 
+// Arg-based trade proposal for the CD-native proposer. The legacy
+// window.proposeTrade reads off-screen DOM (#tradePartnerSelect etc.)
+// inside #app-shell, which CD pushes to left:-99999px — so it's
+// unreachable from the new UI. This takes the selections directly.
+// Returns a promise so the CD UI can react.
+window.cdSubmitTradeD=function(partner, sending, receiving){
+ if(!draftId||!myTeamName){ window.showAlert('Join a room first.','err'); return Promise.reject(new Error('no room')); }
+ partner=(partner||'').trim();
+ sending=Array.isArray(sending)?sending.filter(Boolean):[];
+ receiving=Array.isArray(receiving)?receiving.filter(Boolean):[];
+ if(!partner){ window.showAlert('Select a trade partner.','err'); return Promise.reject(new Error('no partner')); }
+ if(partner===myTeamName){ window.showAlert('Cannot trade with your own team.','err'); return Promise.reject(new Error('self trade')); }
+ if(!sending.length){ window.showAlert('Select at least one player to send.','err'); return Promise.reject(new Error('no send')); }
+ if(!receiving.length){ window.showAlert('Select at least one player to receive.','err'); return Promise.reject(new Error('no receive')); }
+ var trade={
+  from:myTeamName,
+  to:partner,
+  sending:sending,
+  receiving:receiving,
+  status:'pending',
+  proposedAt:Date.now(),
+  timestamp:Date.now(),
+  proposedBy:(user&&user.uid)||''
+ };
+ return push(ref(db,'drafts/'+draftId+'/trades'),trade).then(function(){
+  window.showAlert('Trade proposed to '+partner+'! They need to accept.','ok');
+ }).catch(function(e){ window.showAlert('Trade failed: '+e.message,'err'); throw e; });
+};
+
 window.acceptTrade=function(tradeId){
  if(!draftId) return;
  get(ref(db,'drafts/'+draftId)).then(function(snap){
