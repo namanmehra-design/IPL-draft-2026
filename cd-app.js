@@ -4009,7 +4009,7 @@
                       </div>
                     </div>
                     <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--mute);margin-top:6px;">
-                      <span>Match ${m.sr}</span>
+                      <span${m.stage?' style="color:var(--gold);font-weight:700;letter-spacing:0.04em;"':''}>${m.stage?esc(m.stage):'Match '+m.sr}</span>
                       <span>${esc(m.time||'')} · ${esc(m.city||'')}</span>
                     </div>
                     ${statusPill ? `<div style="margin-top:6px;font-size:10px;">${statusPill}</div>` : ''}

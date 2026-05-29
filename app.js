@@ -6263,7 +6263,11 @@ var IPL_SCHEDULE=[
 {sr:67,date:"22 May",t1:"SRH",t2:"RCB",city:"Hyderabad",time:"19:30"},
 {sr:68,date:"23 May",t1:"LSG",t2:"PBKS",city:"Lucknow",time:"19:30"},
 {sr:69,date:"24 May",t1:"MI",t2:"RR",city:"Mumbai",time:"15:30"},
-{sr:70,date:"24 May",t1:"KKR",t2:"DC",city:"Kolkata",time:"19:30"}
+{sr:70,date:"24 May",t1:"KKR",t2:"DC",city:"Kolkata",time:"19:30"},
+{sr:71,stage:"Qualifier 1",date:"26 May",t1:"RCB",t2:"GT",city:"Dharamshala",time:"19:30"},
+{sr:72,stage:"Eliminator",date:"27 May",t1:"RR",t2:"SRH",city:"New Chandigarh",time:"19:30"},
+{sr:73,stage:"Qualifier 2",date:"29 May",t1:"RR",t2:"GT",city:"New Chandigarh",time:"19:30"},
+{sr:74,stage:"Final",date:"31 May",t1:"GT",t2:"RCB",city:"Ahmedabad",time:"19:30"}
 ];
 var TRADE_WINDOWS=[10, 20, 30, 40, 50, 60];
 var TEAM_CLR={CSK:'#F9CD05',MI:'#004BA0',RCB:'#EC1C24',KKR:'#3A225D',DC:'#004C93',PBKS:'#ED1B24',RR:'#EA1A85',SRH:'#FF822A',GT:'#1C1C2B',LSG:'#A72056'};
@@ -6283,7 +6287,7 @@ window.renderSchedule=function(){
   }
   if(m.date!==prevDate){ html+='<div class="sch-date-hdr">'+m.date+' 2026</div>'; prevDate=m.date; }
   html+='<div class="sch-match">'
-   +'<span class="sch-sr">#'+m.sr+'</span>'
+   +'<span class="sch-sr">'+(m.stage?m.stage:'#'+m.sr)+'</span>'
    +'<span class="sch-team-badge team-bg-'+m.t1+'">'+m.t1+'</span>'
    +'<span class="sch-vs">vs</span>'
    +'<span class="sch-team-badge team-bg-'+m.t2+'">'+m.t2+'</span>'
